@@ -1,5 +1,5 @@
 {
-  "capture": "session(1).pcapng",
+  "capture": "session.pcapng",
   "scenario": "WinLaufen Biathlon_Demo.wtk",
   "capture_note": "Capture starts inside an already established Java serialization stream.",
   "competition": {

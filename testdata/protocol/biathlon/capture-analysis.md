@@ -1,6 +1,6 @@
 # Biathlon Capture Analysis
 
-**Capture:** `session(1).pcapng`
+**Capture:** `session.pcapng`
 **Szenario:** WinLaufen-Demo `Biathlon_Demo.wtk`, Sprecher-PC über TCP/4444
 **Erfasst:** 26.08.2026, ca. 22:30–22:33
 **Status:** Verifizierter wettkampfartspezifischer Beispieldatensatz
@@ -33,8 +33,10 @@ Folge:
 - Ergebniszeilen und die jeweils neu erzeugten Integer-Werte lassen sich trotzdem
   eindeutig auswerten.
 
-Für einen vollständig selbsttragenden Biathlon-Fixture ist zusätzlich ein Capture mit
-**frischem Sprecher-PC-Connect nach Capture-Start** sinnvoll.
+Der Capture bleibt ein gültiger Protokollbeleg für die darin beobachtbaren
+Biathlon-Werte und Snapshot-Semantiken. Wegen des Midstream-Beginns ist er kein
+vollständig selbsttragender Java-Serialization-Stream; ein Fresh-connect-Capture
+ist jedoch keine Voraussetzung für v0.1.
 
 ## 3. Struktur des Biathlon-Ergebnisblocks
 
@@ -212,14 +214,12 @@ Rang | StNr | Name | Verein | Vbd | Schießen | Gesamtzeit | Rückstand
 
 Für Biathlon fehlen noch:
 
-1. Fresh-connect-Capture mit Stream-Header, Klassenbezeichnungen und Tabellenüberschriften
-   innerhalb desselben Captures.
-2. Verhalten von Zwischenzeiten / Runden vor dem Ziel.
-3. Prüfung, ob Schießdaten in irgendeinem anderen Sprecher-PC-Zustand schon vor einer
+1. Verhalten von Zwischenzeiten / Runden vor dem Ziel.
+2. Prüfung, ob Schießdaten in irgendeinem anderen Sprecher-PC-Zustand schon vor einer
    Zielzeit übertragen werden.
-4. Bedeutung von Element 7/8 bei echten Runden-/Zwischenständen außerhalb `Ziel`.
-5. Verhalten bei DNS/DNF/DSQ und unvollständigen Schießserien.
-6. Prüfung weiterer Biathlon-Wettkampfarten bzw. Auswertungsmodi, falls WinLaufen dort
+3. Bedeutung von Element 7/8 bei echten Runden-/Zwischenständen außerhalb `Ziel`.
+4. Verhalten bei DNS/DNF/DSQ und unvollständigen Schießserien.
+5. Prüfung weiterer Biathlon-Wettkampfarten bzw. Auswertungsmodi, falls WinLaufen dort
    andere Tabellenstrukturen liefert.
 
 ## 8. Wichtigster neuer Protokollbefund

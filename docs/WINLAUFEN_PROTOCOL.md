@@ -6,11 +6,21 @@ This document distinguishes verified observations from unknown behavior.
 
 Do not implement undocumented behavior by guessing.
 
-Primary evidence:
+Evidence and provenance are kept distinct:
 
-- official WinLaufen Sprecher-PC LAN documentation,
-- real TCP captures,
-- original WinLaufen Sprecher-PC behavior.
+- Official documentation: the WinLaufen Sprecher-PC LAN protocol description.
+  It is a source for documented object meanings, but the source document itself
+  is currently not stored in this repository.
+- Captured wire evidence: the immutable PCAP fixtures under
+  `testdata/protocol/`, including serialized types, object order, values and TCP
+  direction.
+- Observed application behavior: the original Sprecher-PC display and the
+  WinLaufen UI/workflow used while producing a capture. Such observations give
+  scenario context but are not additional wire fields.
+
+Statements below identify documented, captured or UI-observed behavior where
+that distinction matters. A WinLaufen UI value must not be treated as a wire
+field unless it was also captured.
 
 ## Transport
 
@@ -204,10 +214,13 @@ c43dcf63640de2b55e3f1864afb84dd210b10f740fcc622da5666fdf13397ec5
 
 ## Text messages
 
-The official protocol also documents server messages represented as a Vector
-containing message text and the marker "nachricht".
+The official protocol documentation describes server messages represented as a
+`java.util.Vector` containing a message text `String` and the marker
+`"nachricht"`. No repository fixture currently demonstrates such a message.
 
-Support must be based on verified/documented object structure.
+v0.1 must narrowly allow this documented Vector structure during safe
+deserialization and consume it without destroying the protocol connection. Other
+Vector contents are rejected. No further message UI is required.
 
 ## WinSpringen
 
@@ -237,6 +250,13 @@ Examples:
 - successful reconnect snapshot behavior,
 - future start-list transport,
 - WinSpringen-specific result structures.
+
+The existing Biathlon capture begins in the middle of an established Java
+serialization stream. It remains valid captured evidence for the documented
+Biathlon scenario, including row structure, indices and snapshot replacement.
+References whose original objects precede the capture cannot be independently
+resolved from that PCAP; this limitation is recorded in its fixture analysis
+and does not invalidate the observed values that are present.
 
 New behavior must be documented using real protocol evidence before production
 logic depends on it.

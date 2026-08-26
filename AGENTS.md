@@ -36,7 +36,7 @@ Do not introduce Linux-only assumptions into application code.
 
 ## v0.1 supported sports
 
-Implemented and verified:
+Protocol behavior verified for the documented scenarios:
 
 - running competitions
 - biathlon
@@ -52,6 +52,7 @@ Connection:
 
 - TCP
 - default port 4444
+- connect timeout 5 seconds
 - Java Object Serialization
 - bridge is strictly read-only
 
@@ -63,6 +64,11 @@ byte offsets.
 
 Use a restrictive ObjectInputFilter or equivalent defensive deserialization
 mechanism.
+
+The officially documented `java.util.Vector` message form may be narrowly
+allowed when it contains a message text String and the marker `nachricht`.
+v0.1 must consume such messages without breaking the protocol connection; no
+message UI is required.
 
 Known protocol behavior must be documented and tested against real captures.
 
@@ -94,6 +100,22 @@ Connection state must distinguish at least:
 - stale / clock no longer advancing
 - disconnected
 
+For v0.1, the first syntactically valid `UhrHH:MM:SS` message sets the connection
+to connected and clock advancing. Thereafter, only a WinLaufen clock value that
+has advanced relative to the last accepted value confirms the connection.
+Repeated equal values are not progress. The rollover from `23:59:59` to
+`00:00:00` is valid progress.
+
+If no advanced clock value has been accepted for more than 4 seconds, the
+connection becomes stale, is closed, and reconnect begins. Local monotonic time
+may be used only to measure this interval and must never replace the displayed
+WinLaufen clock. Reconnect attempts are immediate, then after 2 seconds, then 5
+seconds, and every 10 seconds thereafter.
+
+Every successful reconnect must create a new socket, ObjectInputStream and Java
+serialization context. The last valid competition state may remain visible
+during reconnect, but it must be marked stale or disconnected.
+
 ## Web application
 
 The local web application is a complete v0.1 feature, not a demo.
@@ -107,8 +129,24 @@ It must work:
 
 The application therefore needs an embedded HTTP server and WebSocket support.
 
-The browser receives an initial state snapshot and then live updates over
-WebSocket.
+For v0.1, HTTP defaults to `0.0.0.0:8080` and WebSocket defaults to
+`0.0.0.0:8081`. If either port is occupied, startup must fail with a clear error
+instead of choosing another port.
+
+After a browser connects by WebSocket, the server immediately sends a complete
+state snapshot and then live updates. Every published state has a monotonically
+increasing revision. HTTP state retrieval remains available for diagnostics and
+fallback use.
+
+Do not enable CORS. Configuration changes use only `POST` with
+`application/x-www-form-urlencoded` and Origin validation. WebSocket handshakes
+also validate Origin. HTTP and WebSocket intentionally use different ports: an
+HTTP page such as `http://10.77.0.18:8080` connects to
+`ws://10.77.0.18:8081`. Accept the Origin of the local WinLaufen Web HTTP page
+when its hostname or IP matches the WebSocket request host; do not require the
+Origin port to equal the WebSocket port. Reject foreign Origins. Validate the
+WinLaufen target host and keep its port fixed at 4444. Do not add user management
+or authentication for v0.1.
 
 Keep the wire format simple and stable.
 
@@ -129,6 +167,10 @@ Main modes:
 - Teilnehmer
 - LIVE
 - Ergebnisse
+
+In v0.1, Teilnehmer displays a clear notice that participant data is not yet
+available while no verified start-list protocol exists. Do not invent a
+replacement interface.
 
 Running and biathlon may expose different table columns.
 
@@ -153,6 +195,10 @@ For v0.1:
 - RICHTER_PROJECTS exists in architecture/configuration/UI but is disabled.
 
 The disabled modes must not make productive remote connections.
+
+Do not implement SELFHOST or RICHTER_PROJECTS network adapters in v0.1. The
+output-mode enum, availability metadata, configuration/UI representation and
+shared normalized state model are sufficient.
 
 Do not build temporary local-only structures that later require an architectural
 rewrite to enable remote output.
@@ -203,6 +249,9 @@ Every added runtime dependency must have a concrete justification.
 Runtime competition state should stay in memory.
 
 Persist only configuration that actually needs to survive application restart.
+
+For v0.1, persist configuration as `java.util.Properties` in
+`${user.home}/.winlaufen-web/config.properties`.
 
 Do not add a database for v0.1.
 

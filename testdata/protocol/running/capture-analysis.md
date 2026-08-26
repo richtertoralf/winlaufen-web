@@ -116,7 +116,8 @@ Im Capture werden beispielsweise die Marker `Standardwettkampf`, `tabelle`, `end
 
 1. erfolgreicher Reconnect: Port 4444 muss während desselben Capture wieder verfügbar werden; prüfen, ob WinLaufen sofort einen aktuellen Snapshot sendet.
 2. Server-/Sprechernachrichten: `java.util.Vector`, inklusive Verhalten nach Reconnect.
-3. Biathlon: Wettkampfart, Auswertungsmodus, Runden-/Zwischenstandslogik, Tabellenfelder.
+3. Biathlon ist durch den vorhandenen Midstream-Capture belegt; dessen Grenzen
+   und die noch unbekannte Runden-/Zwischenstandslogik sind dort dokumentiert.
 4. WinSpringen: `Position WinSpringen`, Durchgang, Tabellen-/Punktelogik.
 5. Staffel/Team/Verfolgung: Auswertungsmodus, `int[]` Rundenzahl/Teamgröße, Tabellenfelder.
 6. Startliste: erst mit der angekündigten WinLaufen-Erweiterung.

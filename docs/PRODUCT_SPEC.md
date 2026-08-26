@@ -86,9 +86,18 @@ The bridge therefore provides:
 
 - embedded HTTP server,
 - WebSocket live updates,
-- initial state retrieval through HTTP,
+- complete initial state over WebSocket,
+- state retrieval through HTTP for diagnostics and fallback,
 - Dashboard,
 - Renderer.
+
+Default local endpoints:
+
+- HTTP: `0.0.0.0:8080`
+- WebSocket: `0.0.0.0:8081`
+
+If either port is already in use, the application must stop with a clear error.
+It must not silently select another port.
 
 ## 7. Dashboard
 
@@ -134,6 +143,10 @@ The disabled modes must not establish productive remote connections.
 They exist so that future remote operation can be activated without replacing
 the core architecture.
 
+For v0.1 this requires only the three output-mode values, availability metadata
+in configuration and UI, and the shared normalized state model. No SELFHOST or
+RICHTER_PROJECTS network adapter or future remote protocol is implemented.
+
 ## 9. Renderer
 
 Main navigation:
@@ -164,6 +177,9 @@ The selected class remains selected even if other classes receive new results.
 ### Teilnehmer
 
 The UI position exists from the beginning.
+
+While no verified start-list protocol exists, the view displays a clear notice
+that participant data is not yet available.
 
 No unsupported WinLaufen start-list protocol may be invented.
 
@@ -209,7 +225,27 @@ At minimum distinguish:
 - stale / connected but clock no longer advancing,
 - disconnected.
 
-Do not replace the WinLaufen clock with the local computer clock.
+The v0.1 policy is:
+
+- TCP port 4444 and connect timeout 5 seconds,
+- the first syntactically valid `UhrHH:MM:SS` message sets the state to
+  connected and clock advancing,
+- after that, only a clock value advanced relative to the last accepted value
+  confirms the connection,
+- repeated equal clock values do not count as progress,
+- `23:59:59` to `00:00:00` is valid progress,
+- stale when no advanced clock value has been accepted for more than 4 seconds,
+- close a stale connection and start reconnecting,
+- reconnect immediately, then after 2 seconds, then 5 seconds, then every 10
+  seconds,
+- create a new socket, `ObjectInputStream` and Java serialization context after
+  every reconnect.
+
+The last valid competition state may remain visible during reconnect, but its
+connection state must be shown as stale or disconnected.
+
+Local monotonic time may be used only to measure the 4 second heartbeat interval.
+It must never replace the displayed WinLaufen clock.
 
 ## 13. Simplicity
 
@@ -252,7 +288,44 @@ Not part of v0.1:
 Small focused dependencies are allowed only when they reduce complexity or
 security risk compared with implementing a protocol manually.
 
-## 14. Installation goal
+## 14. Local configuration and web security
+
+Configuration is stored as `java.util.Properties` in:
+
+`${user.home}/.winlaufen-web/config.properties`
+
+No database or JSON configuration dependency is used. The WinLaufen target host
+must be validated. Its port is fixed at 4444.
+
+The local web service does not enable CORS. Configuration changes use only
+`POST` with `application/x-www-form-urlencoded` and require a valid Origin.
+WebSocket connections also require a valid Origin.
+
+HTTP and WebSocket intentionally use different ports. A page loaded from
+`http://<bridge-host>:8080` connects to `ws://<bridge-host>:8081`, while its
+browser Origin remains `http://<bridge-host>:8080`. The Origin hostname or IP
+must match the host used for the local application. Origin port 8080 is accepted
+for the WebSocket on port 8081; equality with the WebSocket port must not be
+required. Foreign Origins are rejected. v0.1 does not add CORS, user management
+or authentication.
+
+## 15. Browser synchronization
+
+Normal startup is:
+
+1. load HTML,
+2. connect WebSocket,
+3. receive a complete snapshot immediately after connection,
+4. receive live updates.
+
+The browser does not have to load HTTP state first. `GET /api/v1/state` remains
+available for diagnostics and fallback. Every published state has a
+monotonically increasing revision. The minimal WebSocket message types are
+`snapshot`, `clock` and `classSnapshot`.
+
+No general event bus or additional delta protocol is required.
+
+## 16. Installation goal
 
 The final end user should not have to install a development environment.
 
