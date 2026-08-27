@@ -18,7 +18,8 @@ WinLaufen Web:
 
 - reads data from WinLaufen,
 - normalizes the received state,
-- exposes the state through a local HTTP/WebSocket service,
+- distributes complete canonical snapshots to configured Live Servers,
+- exposes published state through the Live Server HTTP/WebSocket service,
 - renders the data in a browser,
 - never writes competition data back to WinLaufen.
 
@@ -89,74 +90,61 @@ It must work:
 - without Internet access,
 - with multiple browser clients at the same time.
 
-The bridge therefore provides:
+The modular local installation therefore provides:
 
 - embedded HTTP server,
 - WebSocket live updates,
 - complete initial state over WebSocket,
 - state retrieval through HTTP for diagnostics and fallback,
-- Dashboard,
-- Renderer.
+- Bridge Control on the Bridge,
+- Web Viewer on the Live Server.
 
 Default local endpoints:
 
 - HTTP: `0.0.0.0:8080`
 - WebSocket: `0.0.0.0:8081`
 
-If either port is already in use, the application must stop with a clear error.
-It must not silently select another port.
+Bridge Control defaults to `127.0.0.1:8090`. If one of a runtime's own ports is
+already in use, that runtime stops with a clear error and does not select an
+alternative port.
 
-## 7. Dashboard
+Upgrading a pre-modular configuration keeps the WinLaufen host, the presentation
+values and the former LOCAL output; the old browser WebSocket port becomes the
+port of the local ingest endpoint. The old HTTP port now belongs to the separate
+live-server process and cannot be migrated into the bridge configuration, so the
+bridge reports it as a start-up notice with the matching live-server option.
 
-The Dashboard configures and displays the bridge state.
+## 7. Bridge Control
+
+Bridge Control configures and displays the bridge state.
 
 At minimum it provides:
 
 - WinLaufen host/IP,
 - WinLaufen connection state,
 - current WinLaufen clock,
-- selected output mode,
-- local Renderer URL,
-- link/button to open the Renderer.
+- independently enabled output targets and their runtime state,
+- the single Presentation Config.
 
 TCP port 4444 is the protocol default and does not need to be prominent in the
 normal user interface.
 
-## 8. Output modes
+## 8. Output targets
 
-The final output concept exists from the beginning:
+Each target has one of these types:
 
 - LOCAL
 - SELFHOST
 - RICHTER_PROJECTS
 
-### v0.1 behavior
+Targets are not exclusive. A Bridge may serve multiple targets, including
+multiple targets of the same type. Every enabled target uses an independent
+outgoing WebSocket connection, retry state and full-snapshot resynchronization.
+LOCAL uses the same adapter and contract as remote targets.
 
-LOCAL:
-- enabled,
-- fully functional,
-- usable from browsers in the LAN.
+## 9. Web Viewer
 
-SELFHOST:
-- represented in configuration and UI,
-- disabled/not selectable for productive operation.
-
-RICHTER_PROJECTS:
-- represented in configuration and UI,
-- disabled/not selectable for productive operation.
-
-The disabled modes must not establish productive remote connections.
-
-They exist so that future remote operation can be activated without replacing
-the core architecture.
-
-For v0.1 this requires only the three output-mode values, availability metadata
-in configuration and UI, and the shared normalized state model. No SELFHOST or
-RICHTER_PROJECTS network adapter or future remote protocol is implemented.
-
-## 9. Renderer
-
-The renderer is a public audience view for spectators on phones, tablets and
+The Web Viewer is a public audience view for spectators on phones, tablets and
 desktops, not a Sprecher-PC operator workspace. A compact header and navigation
 leave the available area to exactly one competition view at a time.
 
@@ -172,10 +160,12 @@ LIVE reacts to WinLaufen result snapshots.
 
 When a new finish/result snapshot arrives:
 
-- use the transmitted class index,
+- use the transmitted class index, on every snapshot and not only the first one,
+  so LIVE follows WinLaufen when it switches to another class,
 - display the complete current class result,
 - use the transmitted current-finish index to identify the current athlete,
-- temporarily highlight that row.
+- temporarily highlight that row; the emphasis fades out and is suppressed when
+  the viewer prefers reduced motion.
 
 The current-finish index is not the athlete's rank.
 
@@ -231,7 +221,7 @@ Verified biathlon result columns:
 - Gesamtzeit
 - Rückstand
 
-The renderer must therefore not be hard-coded to one running-only table schema.
+The Web Viewer must therefore not be hard-coded to one running-only table schema.
 
 ## 12. Connection health
 
@@ -320,20 +310,33 @@ Configuration is stored as `java.util.Properties` in:
 
 `${user.home}/.winlaufen-web/config.properties`
 
-No database or JSON configuration dependency is used. The WinLaufen target host
-must be validated. Its port is fixed at 4444.
+No database is used. A focused JSON dependency is confined to the versioned
+Bridge-Live-Server contract. The WinLaufen target host must be validated. Its
+port is fixed at 4444.
 
-The local web service does not enable CORS. Configuration changes use only
+Bridge Control and the public web service do not enable CORS. Bridge Control configuration changes use only
 `POST` with `application/x-www-form-urlencoded` and require a valid Origin.
-WebSocket connections also require a valid Origin.
+Browser WebSocket connections also require a valid Origin.
 
 HTTP and WebSocket intentionally use different ports. A page loaded from
-`http://<bridge-host>:8080` connects to `ws://<bridge-host>:8081`, while its
-browser Origin remains `http://<bridge-host>:8080`. The Origin hostname or IP
-must match the host used for the local application. Origin port 8080 is accepted
-for the WebSocket on port 8081; equality with the WebSocket port must not be
-required. Foreign Origins are rejected. v0.1 does not add CORS, user management
-or authentication.
+`http://<live-server>:8080` connects to `ws://<live-server>:8081/live/v1`, so its
+browser Origin is `http://<live-server>:8080`. The Origin hostname or IP must
+match the WebSocket request host. Origin port 8080 is accepted for the WebSocket
+on port 8081; equality with the WebSocket port is not required. Foreign Origins
+and requests without an Origin are rejected. Bridge ingest uses the distinct
+`/bridge/v1/channels/<channel>` path and Bearer authentication instead of a
+browser Origin.
+
+Plain `ws` is accepted only for `localhost` and for loopback, link-local and
+private IP address literals. Every other host, including every DNS name,
+requires `wss`; `RICHTER_PROJECTS` always requires `wss`.
+
+Incoming WebSocket messages are limited before they are assembled in memory:
+ingest to at most one contract snapshot, browser connections to a small payload.
+
+This prototype release keeps a known default ingest secret working. The concrete
+manipulation risk and the binding deployment limits are documented in README.md
+under "Known prototype security limitation".
 
 ## 15. Browser synchronization
 
@@ -344,10 +347,9 @@ Normal startup is:
 3. receive a complete snapshot immediately after connection,
 4. receive live updates.
 
-The browser does not have to load HTTP state first. `GET /api/v1/state` remains
-available for diagnostics and fallback. Every published state has a
-monotonically increasing revision. The minimal WebSocket message types are
-`snapshot`, `clock` and `classSnapshot`.
+`GET /api/v1/state` provides the complete initial/fallback state. Every
+published state has a monotonically increasing `publicationRevision`; live
+WebSocket messages are complete authoritative snapshots.
 
 No general event bus or additional delta protocol is required.
 
@@ -365,5 +367,5 @@ Target experience:
 
 install/start WinLaufen Web,
 configure WinLaufen host,
-open Renderer,
+open Web Viewer,
 use it in the LAN.

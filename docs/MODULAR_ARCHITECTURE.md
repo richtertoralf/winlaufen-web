@@ -1,8 +1,8 @@
 # Modulare Zielarchitektur: Bridge, Live Server und Web Viewer
 
-Status: verbindliche Zielarchitektur für den auf dieses Review folgenden
-Refactoring-Block. Dieses Dokument beschreibt noch keinen bereits
-implementierten Stand.
+Status: implementierte und weiterhin verbindliche Architektur. Der
+Refactoring-Block auf Basis des Checkpoints `6481a3b` hat die hier festgelegten
+Modul-, Prozess-, State-, Transport- und Konfigurationsgrenzen umgesetzt.
 
 ## 1. Scope
 
@@ -53,9 +53,10 @@ Die einzige Veranstalter-Oberfläche. Sie gehört zur Bridge und konfiguriert
 Quelle, Output Targets und Presentation Config. Sie ist nicht der Web Viewer
 und keine Live-Server-Administration.
 
-## 3. IST-Architektur
+## 3. Frühere monolithische IST-Architektur
 
-Der aktuelle Stand ist ein Maven-Modul, ein Shade-JAR und ein Java-Prozess.
+Der Stand vor dem modularen Refactoring war ein Maven-Modul, ein Shade-JAR und
+ein Java-Prozess.
 `de.winlaufen.web.Main` erzeugt alle Komponenten und besitzt ihren gemeinsamen
 Lifecycle.
 
@@ -100,7 +101,7 @@ Lifecycle im IST:
 Damit gibt es im IST keine Netzwerk- oder Installationsgrenze zwischen Bridge
 und öffentlicher Verteilung.
 
-## 4. IST-Abhängigkeiten
+## 4. Frühere IST-Abhängigkeiten
 
 ### Fachliche Zuordnung der vorhandenen Teile
 
@@ -219,7 +220,7 @@ Ausdrücklich nicht duplizieren:
 - Viewer-Dateien pro Output-Typ;
 - separate LOCAL-State- oder LOCAL-Transportlogik.
 
-## 5. Probleme des IST
+## 5. Behobene Probleme des früheren IST
 
 Der Monolith erfüllt die lokale v0.1-Funktion, bildet das neue Produktziel aber
 nicht ab:
@@ -251,12 +252,12 @@ Bestehende Dokumentationsaussagen, die bewusst geändert werden:
 | lokale Ausgabe ist Sonderfunktion des Monolithen | LOCAL ist ein normales Output Target zum lokal laufenden Live Server |
 
 Die bisherigen Dokumente werden nicht als historische Beschreibung gelöscht.
-`docs/ARCHITECTURE.md` kennzeichnet den Monolithen als IST und verweist für das
-verbindliche SOLL auf dieses Dokument. `docs/PRODUCT_SPEC.md` und README
-beschreiben weiterhin die heute implementierte v0.1-Funktion; ihre umfassende
-sprachliche Migration gehört zum späteren Refactoring.
+`docs/ARCHITECTURE.md` beschreibt nun den modularen IST-Stand und verweist für
+die vollständigen verbindlichen Entscheidungen auf dieses Dokument.
+`docs/PRODUCT_SPEC.md` und README verwenden ebenfalls die implementierten
+Runtime- und Modulgrenzen.
 
-## 6. SOLL-Architektur
+## 6. Implementierte modulare Architektur
 
 ```mermaid
 flowchart LR
@@ -496,7 +497,10 @@ Transport trägt ausschließlich V1-JSON-Envelopes aus dem Contract-Modul.
 
 Für jedes Target hält der Adapter höchstens den neuesten noch nicht bestätigten
 Vollsnapshot plus den aktuellen kanonischen Snapshot. Es gibt keine gemeinsame
-globale Output-Queue und kein unbeschränktes Event-Backlog. Bei langsamen Zielen
+globale Output-Queue und kein unbeschränktes Event-Backlog. Das gilt auch
+unterhalb des Adapters: solange die vorige Nachricht nicht auf den Socket
+geschrieben ist, wird keine weitere eingereiht, und dieselbe Revision wird pro
+Verbindung höchstens einmal gesendet. Bei langsamen Zielen
 dürfen ältere ungesendete Vollsnapshots durch den neuesten ersetzt werden, weil
 jeder Snapshot vollständig und autoritativ ist. Nach Reconnect wird unabhängig
 vom Queuezustand der aktuelle Vollsnapshot gesendet.
@@ -521,13 +525,16 @@ OutputTargetConfig (persistent, Bridge)
 
 OutputTargetRuntime (flüchtig, Bridge)
   targetId
-  state           DISABLED | CONNECTING | CONNECTED | RETRY_WAIT
+  state           DISABLED | CONNECTING | CONNECTED | STALE | RETRY_WAIT
   lastAckedStreamId
   lastAckedSourceRevision
   retryAttempt
-  nextRetryAt      monotone/technische Zeit, nicht Competition State
   lastError        sanitisiert, ohne Secret
 ```
+
+`STALE` bedeutet: der Transport ist offen, das Ziel bestätigt aber seit längerer
+Zeit keine neuen Revisionen mehr. Ein solches Ziel darf dem Veranstalter nicht
+weiter als gesund angezeigt werden.
 
 `type` ist ein Enum, aber keine globale Auswahl. `List<OutputTargetConfig>`
 erlaubt gleichzeitig mehrere Ziele und mehrere Instanzen desselben Typs. Typen
@@ -551,7 +558,14 @@ keinen direkten Java-Aufruf als Abkürzung.
 
 Retry erfolgt pro Target: unmittelbar, nach 2 s, nach 5 s, danach alle 10 s.
 Diese Werte dürfen zunächst mit dem Source-Reconnect übereinstimmen, sind aber
-getrennte Zustandsmaschinen und Konstanten.
+getrennte Zustandsmaschinen und Konstanten. Eine laufende Retry-Wartezeit darf
+ausschließlich durch Shutdown verkürzt werden, niemals durch neue Snapshots;
+sonst hängt die Retry-Frequenz an der Datenrate der Quelle.
+
+Eine Änderung der Target-Liste wird inkrementell angewendet. Unveränderte
+Targets behalten Adapter, Verbindung, ACK-Stand und Retryzähler; es gibt keinen
+globalen Neuaufbau aller Targets und zu keinem Zeitpunkt zwei Adapter für
+dasselbe unveränderte Target.
 
 ## 12. Konfigurationsbesitz
 
@@ -660,9 +674,24 @@ Vier unabhängige Zustandsmaschinen sind verbindlich:
 - Secrets liegen nur in Bridge-Target- und technischer Live-Server-
   Konfiguration; sie sind weder Contract-State noch Public API.
 - Internetziele erfordern `wss` mit normaler Zertifikatsprüfung. `ws` ist nur
-  für Loopback bzw. bewusst vertrauenswürdiges LAN zulässig.
+  für Loopback bzw. bewusst vertrauenswürdiges LAN zulässig. Da „Internet" ohne
+  DNS-/Geo-Auflösung nicht zuverlässig erkennbar ist und beides bewusst nicht
+  eingeführt wird, gilt eine konservative rein syntaktische Ersatzregel:
+  Klartext-`ws` nur für `localhost` und für Loopback-, Link-Local- und private
+  IP-Adressliterale; jeder andere Host, insbesondere jeder DNS-Name, erfordert
+  `wss`. `RICHTER_PROJECTS` erfordert immer `wss`.
+- Eingehende WebSocket-Nachrichten sind hart begrenzt, bevor sie im Heap
+  zusammengesetzt werden: Ingest höchstens ein Vertragssnapshot, Browser-Pfad
+  nur eine sehr kleine Nutzlast.
 - Der Live Server validiert Channelbindung, Schema, Größen, Feldtypen und
-  Revisionen vor atomarer Übernahme.
+  Revisionen vor atomarer Übernahme. Die Source-Adapter der Bridge erzwingen
+  dieselben strukturellen Grenzen bereits an ihrer Eintrittsgrenze, damit der
+  kanonische State nie einen Wert annimmt, der anschließend unpublizierbar wäre.
+- **Bekannte Prototyp-Einschränkung:** In der Prototype Baseline bleibt ein
+  bekanntes Default-Ingest-Secret bewusst funktionsfähig. Die konkrete
+  Manipulationsmöglichkeit und die Einsatzgrenzen stehen in README.md unter
+  "Known prototype security limitation". Individuell provisionierte Secrets pro
+  Target bleiben Voraussetzung für den produktiven Internetbetrieb.
 - Browser- und Bridge-WebSocket-Pfade haben getrennte Handshake-Policies:
   Browser benötigen gültige Same-Host-Origin; Bridge-Ingest benötigt
   Authentifizierung und ist nicht von einem Browser-Origin abhängig.
@@ -727,9 +756,9 @@ Ein separates drittes Runtime- oder „core“-Modul ist nicht empfohlen. Weiter
 Module sind erst bei nachgewiesenem Bedarf sinnvoll. Insbesondere wird
 `shared`, `common` oder `util` nicht als Sammelbecken angelegt.
 
-## 16. Migration vom IST zum SOLL
+## 16. Durchgeführte Migration vom IST zum modularen Stand
 
-Die Migration erfolgt in einem zusammenhängenden Refactoring-Branch und endet
+Die Migration wurde in einem zusammenhängenden Refactoring-Branch durchgeführt und endet
 ohne produktiven Parallelpfad des alten Monolithen:
 
 1. Parent-POM und die drei Module `contract`, `bridge`, `live-server` anlegen;
@@ -759,8 +788,8 @@ ohne produktiven Parallelpfad des alten Monolithen:
 10. `BridgeMain` und `LiveServerMain` mit unabhängigem Start/Shutdown und klaren
     Portfehlern erstellen; All-in-One-Dev-Lifecycle startet beide Prozesse.
 11. Bestehende Semantiktests unverändert in passende Module übernehmen und
-    Contract-, Modulgrenzen-, Fan-out-, Failure-Isolation-, Resync- und
-    Zwei-Prozess-Integrationstests ergänzen.
+    Contract-, Modulgrenzen-, Fan-out-, Failure-Isolation- und Resync-Tests
+    sowie reproduzierbare Zwei-Prozess-/Multi-Endpoint-Smokes ergänzen.
 12. Alten `de.winlaufen.web.Main`, monolithischen Serverpfad und altes Shade-JAR
     entfernen. Dokumentation, README, Packaging und Devtools erst jetzt auf die
     zwei Artefakte umstellen.
@@ -769,13 +798,14 @@ Es wird kein langfristiger Dualbetrieb empfohlen. Während des Branches dürfen
 Zwischenschritte nur buildintern existieren; das mergefähige Ergebnis enthält
 keinen alternativen In-Process-LOCAL-Pfad.
 
-## 17. Konkrete Implementierungsreihenfolge
+## 17. Verwendete Implementierungsreihenfolge
 
 Die Reihenfolge minimiert fachliche Zwischenänderungen und hält die
 Protokollfixtures unangetastet:
 
 1. Contract und Modulabhängigkeitsregeln samt Architekturtests etablieren.
-2. DTOs und JSON-Vertrag extrahieren, Golden-JSON-Roundtriptests hinzufügen.
+2. DTOs und JSON-Vertrag extrahieren, Roundtrip-, Versions-, ACK- und
+   Limit-Tests hinzufügen.
 3. Bridge-Quellseite inklusive heutiger Source-Semantik verschieben.
 4. Getrennte Stores und Revisionsepochen implementieren.
 5. Live-Server-Ingest und Public-State-Pfad implementieren.
@@ -789,11 +819,11 @@ Protokollfixtures unangetastet:
     Integrationstests ausführen.
 11. Monolith entfernen und alle Betriebsdokumente atomar aktualisieren.
 
-## 18. Acceptance Criteria für den Refactoring-Block
+## 18. Acceptance Criteria des Refactoring-Blocks
 
-Der spätere Refactoring-Block ist erst abgenommen, wenn alle folgenden Punkte
-automatisiert oder, wo Packaging/Netzwerk es verlangt, reproduzierbar geprüft
-sind:
+Der implementierte Refactoring-Block gilt erst als abgenommen, wenn alle
+folgenden Punkte automatisiert oder, wo Packaging/Netzwerk es verlangt,
+reproduzierbar geprüft sind:
 
 - **A.** Bridge startet allein, ohne Live Server im selben Prozess.
 - **B.** Live Server startet allein; sein Artefakt/Classpath enthält keinen
