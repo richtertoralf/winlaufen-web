@@ -48,6 +48,13 @@ Support may only be added when verified protocol data is available.
 
 WinLaufen is the authoritative data source.
 
+WinLaufen Web observes, transports and renders documented wire values. It must
+preserve clocks, ranks, bibs, times, gaps, shooting values, classes, headers,
+cells and indices exactly as supplied, without domain plausibility checks,
+correction, replacement, reinterpretation or reordering. Structural protocol
+validation and defensive resource limits remain required and are distinct from
+judging whether a supplied competition value is plausible.
+
 Connection:
 
 - TCP
@@ -67,8 +74,9 @@ mechanism.
 
 The officially documented `java.util.Vector` message form may be narrowly
 allowed when it contains a message text String and the marker `nachricht`.
-v0.1 must consume such messages without breaking the protocol connection; no
-message UI is required.
+v0.1 must consume such messages without breaking the protocol connection. The
+latest message is shown publicly only when the instance configuration explicitly
+enables it; the default is disabled.
 
 Known protocol behavior must be documented and tested against real captures.
 
@@ -90,31 +98,41 @@ current sorted snapshot. It is not a rank.
 
 The Sprecher class number is a zero-based index into the class array.
 
-The WinLaufen clock is authoritative and is also the connection heartbeat.
+The WinLaufen clock is authoritative. Clock telegram arrival is also the
+connection heartbeat; the numeric clock value is not interpreted for health.
 
 Do not replace the WinLaufen clock with the local system clock.
 
 Connection state must distinguish at least:
 
-- connected and clock advancing
-- stale / clock no longer advancing
+- connected and receiving clock telegrams
+- stale / no clock telegrams arriving
 - disconnected
 
-For v0.1, the first syntactically valid `UhrHH:MM:SS` message sets the connection
-to connected and clock advancing. Thereafter, only a WinLaufen clock value that
-has advanced relative to the last accepted value confirms the connection.
-Repeated equal values are not progress. The rollover from `23:59:59` to
-`00:00:00` is valid progress.
+For v0.1, the first structurally recognized `UhrHH:MM:SS` message sets the connection
+to connected. Every subsequently received valid clock telegram confirms the
+connection, regardless of whether its value is equal, lower, or higher than the
+previous value. WinLaufen Web does not validate, correct, or plausibilize clock
+progression.
 
-If no advanced clock value has been accepted for more than 4 seconds, the
+Recognition requires exactly two decimal digits in each field, but imposes no
+numeric ranges. Values such as `Uhr99:99:99` are therefore preserved as supplied;
+this recognizes a wire message and does not claim that it is a valid time.
+
+If no recognized clock telegram has been received for more than 4 seconds,
 connection becomes stale, is closed, and reconnect begins. Local monotonic time
-may be used only to measure this interval and must never replace the displayed
-WinLaufen clock. Reconnect attempts are immediate, then after 2 seconds, then 5
-seconds, and every 10 seconds thereafter.
+may be used only to measure this interval and must never replace or modify the
+displayed WinLaufen clock. Reconnect attempts are immediate, then after 2
+seconds, then 5 seconds, and every 10 seconds thereafter.
 
 Every successful reconnect must create a new socket, ObjectInputStream and Java
 serialization context. The last valid competition state may remain visible
 during reconnect, but it must be marked stale or disconnected.
+
+The same timeout applies while waiting for the first clock telegram after a
+connection has established. `CONNECTED` means only that clock telegrams are
+arriving within this interval; it says nothing about numeric progression or
+competition plausibility.
 
 ## Web application
 
@@ -164,11 +182,11 @@ The renderer must be responsive and usable on desktop, tablet and phone.
 
 Main modes:
 
-- Teilnehmer
+- Startliste
 - LIVE
 - Ergebnisse
 
-In v0.1, Teilnehmer displays a clear notice that participant data is not yet
+In v0.1, Startliste displays a clear notice that participant data is not yet
 available while no verified start-list protocol exists. Do not invent a
 replacement interface.
 

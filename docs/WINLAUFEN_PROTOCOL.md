@@ -35,6 +35,16 @@ Verified:
 
 In captured sessions no client-to-server application payload was observed.
 
+## Authority and validation boundary
+
+WinLaufen is the sole authority for documented wire values. WinLaufen Web
+preserves their text, ordering and index meaning without domain plausibility
+checks or corrections. This applies to the clock and all result fields,
+including ranks, bibs, times, gaps, shooting values, names, clubs, associations,
+headers and cells. Structural checks remain mandatory: message types, Java
+types, array/table shape, markers and defensive per-object limits may be
+validated.
+
 ## Java serialization
 
 A fresh connection starts with Java serialization stream header:
@@ -58,7 +68,22 @@ UhrHH:MM:SS
 
 Observed approximately once per second.
 
-The WinLaufen clock is authoritative and is used as heartbeat.
+Recognition is purely structural: `Uhr` followed by exactly two decimal digits,
+`:`, two decimal digits, `:`, and two decimal digits. The fields have no numeric
+range checks. Thus `Uhr99:99:99` is a recognized telegram and is exposed as
+`99:99:99`; this records what WinLaufen sent and makes no claim that it is a
+valid civil time.
+
+The WinLaufen clock is authoritative. Every recognized clock telegram is
+published unchanged and counts as heartbeat, regardless of whether its value is
+equal to, lower than, or higher than the preceding value. WinLaufen Web does not
+validate, correct, or plausibilize clock progression.
+
+Equal values, backward values, large jumps and `Uhr23:59:59` followed by
+`Uhr00:00:00` are all accepted unchanged. There is no duration, rollover,
+midnight or progression rule. Every recognized telegram refreshes technical
+liveness. More than four seconds without one, including before the first clock
+on a fresh stream, makes the connection stale and triggers reconnect.
 
 ## Competition/result block
 
@@ -124,6 +149,11 @@ They are not merely one-athlete delta events.
 A later snapshot may update rows that were already transmitted earlier.
 
 The newest valid snapshot is authoritative for that class.
+
+Rows and cells remain in WinLaufen's supplied order and text form. In
+particular, rank, bib, all time/gap fields and shooting stay strings; current
+finish stays the supplied zero-based row index. Later values replace earlier
+ones without a domain plausibility comparison.
 
 ## Running
 
@@ -251,12 +281,17 @@ Examples:
 - future start-list transport,
 - WinSpringen-specific result structures.
 
-The existing Biathlon capture begins in the middle of an established Java
+The existing real Biathlon capture begins in the middle of an established Java
 serialization stream. It remains valid captured evidence for the documented
 Biathlon scenario, including row structure, indices and snapshot replacement.
 References whose original objects precede the capture cannot be independently
 resolved from that PCAP; this limitation is recorded in its fixture analysis
 and does not invalidate the observed values that are present.
+
+Synthetic Java serialization tests based on `decoded.json` verify that the
+parser accepts the evidenced eight-column structure, preserves shooting-field
+whitespace and replaces prior snapshots. They are contract tests, not a claim
+that the midstream PCAP is a complete independently parseable capture stream.
 
 New behavior must be documented using real protocol evidence before production
 logic depends on it.

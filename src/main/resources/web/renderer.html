@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ergebnisse · WinLaufen Web</title><link rel="stylesheet" href="/assets/app.css"></head>
+<body class="renderer"><header><a class="brand" href="/">WinLaufen <span>Web</span></a><div class="renderer-status"><span id="health" class="pill disconnected">DISCONNECTED</span><strong id="clock">--:--:--</strong></div></header>
+<main><div id="public-message" class="notice" role="status" hidden></div>
+<nav class="tabs" aria-label="Hauptansichten"><button data-view="startlist">Startliste</button><button data-view="live" class="active" aria-current="page">LIVE</button><button data-view="results">Ergebnisse</button></nav>
+<section id="startlist" class="view"><div class="context"><h1>Startliste</h1></div><div class="compact-empty"><strong>Startliste</strong>Noch keine Startlistendaten verfügbar.</div></section>
+<section id="live" class="view active"><div class="context"><h1><span class="label">LIVE</span> · <span id="live-context">Noch keine aktuellen Ergebnisse</span></h1></div><div id="live-table" class="table-wrap"></div></section>
+<section id="results" class="view"><div class="context"><h1>Ergebnisse</h1><label class="class-picker" for="class-select">Klasse<select id="class-select"></select></label></div><div id="results-table" class="table-wrap"></div></section>
+</main><script src="/assets/renderer.js" defer></script></body></html>
