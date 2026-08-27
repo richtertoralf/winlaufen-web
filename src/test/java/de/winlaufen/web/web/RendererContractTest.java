@@ -43,7 +43,16 @@ class RendererContractTest {
         assertFalse(css.contains("th{position:sticky;top:56px;"));
     }
 
+    @Test void zeroBasedRoundOrHeatIsOneBasedOnlyInHumanReadableRenderer() throws Exception {
+        assertEquals(1, displayRoundOrHeat(0));
+        assertEquals(2, displayRoundOrHeat(1));
+        String script = resource("/web/renderer.js");
+        assertTrue(script.contains("function displayRoundOrHeat(rawRoundOrHeat) { return rawRoundOrHeat + 1; }"));
+        assertTrue(script.contains("displayRoundOrHeat(state.competition.roundOrHeat)"));
+    }
+
     private static Options options(boolean club, boolean association, boolean nation, boolean shooting) { return new Options(club, association, nation, shooting); }
+    private static int displayRoundOrHeat(int rawRoundOrHeat) { return rawRoundOrHeat + 1; }
     private static void assertProjection(Options options, List<String> expectedHeaders, List<String> expectedRow) {
         List<Integer> indices = new ArrayList<>();
         for (int index = 0; index < HEADERS.size(); index++) if (visible(HEADERS.get(index), options)) indices.add(index);

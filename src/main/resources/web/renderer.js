@@ -34,6 +34,7 @@ function renderChrome() {
   publicMessage.hidden = !visible;
   publicMessage.textContent = visible ? `Hinweis: ${state.message}` : '';
 }
+function displayRoundOrHeat(rawRoundOrHeat) { return rawRoundOrHeat + 1; }
 function renderTables() {
   const classes = state.competition?.classes || [];
   const previous = resultsClassIndex;
@@ -42,7 +43,7 @@ function renderTables() {
   else if (resultsClassIndex === null && classes.length) resultsClassIndex = classes[0].index;
   if (resultsClassIndex !== null) select.value = resultsClassIndex;
   const live = classes.find(item => item.index === liveClassIndex);
-  const round = state.competition ? ` · Runde/Durchgang ${state.competition.roundOrHeat}` : '';
+  const round = state.competition ? ` · Runde/Durchgang ${displayRoundOrHeat(state.competition.roundOrHeat)}` : '';
   document.querySelector('#live-context').textContent = live ? `${live.name}${round}` : 'Noch keine aktuellen Ergebnisse von WinLaufen.';
   table(document.querySelector('#live-table'), live?.snapshot, currentRow(live), 'Noch keine aktuellen Ergebnisse von WinLaufen.');
   renderResults();
