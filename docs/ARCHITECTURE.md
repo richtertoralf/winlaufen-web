@@ -77,6 +77,26 @@ Portbelegung ist ein klarer Startfehler. Die vollständigen Entscheidungen,
 Contract-Felder, Sicherheits- und Acceptance-Regeln stehen in der modularen
 Architekturdokumentation.
 
+## Installationsprofile
+
+Die Modulgrenzen bilden direkt die drei Installationsprofile ab. Details in
+[INSTALLATION.md](INSTALLATION.md).
+
+| Profil | Prozesse | systemd-Units (Linux) |
+|---|---|---|
+| All-in-One | Bridge + Live Server | `winlaufen-bridge`, `winlaufen-live-server` |
+| Bridge only | Bridge | `winlaufen-bridge` |
+| Presentation Node | Live Server | `winlaufen-live-server` |
+
+All-in-One installiert zwei getrennte Prozesse auf einem Rechner, keinen
+kombinierten Prozess. Das lokale Output Target verwendet den regulären
+Bridge→Live-Server-Pfad; einen In-Process-Kurzschluss gibt es weiterhin nicht.
+
+Die Bridge findet ihre Konfiguration über die Systemproperty
+`winlaufen.bridge.config`. Ohne sie gilt der Ort im Benutzerprofil
+(`${user.home}/.winlaufen-web/config.properties`), mit ihr eine systemweite
+Datei wie `/etc/winlaufen-web/bridge.properties`. Das Dateiformat ist identisch.
+
 ## Bekannte Prototyp-Einschränkung
 
 Der Bridge-Ingest ist authentifiziert, verwendet in der Prototype Baseline aber

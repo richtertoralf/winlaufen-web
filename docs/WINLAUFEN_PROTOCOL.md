@@ -1,171 +1,177 @@
-# WinLaufen Sprecher-PC LAN Protocol
+# WinLaufen Sprecher-PC LAN-Protokoll
 
 ## Status
 
-This document distinguishes verified observations from unknown behavior.
+Dieses Dokument trennt verifizierte Beobachtungen von unbekanntem Verhalten.
 
-Do not implement undocumented behavior by guessing.
+Undokumentiertes Verhalten darf nicht durch Raten implementiert werden.
 
-Evidence and provenance are kept distinct:
+Evidenz und Herkunft werden bewusst unterschieden:
 
-- Official documentation: the WinLaufen Sprecher-PC LAN protocol description.
-  It is a source for documented object meanings, but the source document itself
-  is currently not stored in this repository.
-- Captured wire evidence: the immutable PCAP fixtures under
-  `testdata/protocol/`, including serialized types, object order, values and TCP
-  direction.
-- Observed application behavior: the original Sprecher-PC display and the
-  WinLaufen UI/workflow used while producing a capture. Such observations give
-  scenario context but are not additional wire fields.
+- Offizielle Dokumentation: die Beschreibung des WinLaufen-Sprecher-PC-
+  LAN-Protokolls. Sie ist Quelle für dokumentierte Objektbedeutungen, das
+  Quelldokument selbst liegt derzeit aber nicht in diesem Repository.
+- Aufgezeichnete Wire-Evidenz: die unveränderlichen PCAP-Fixtures unter
+  `testdata/protocol/`, einschließlich serialisierter Typen, Objektreihenfolge,
+  Werte und TCP-Richtung.
+- Beobachtetes Anwendungsverhalten: die originale Sprecher-PC-Anzeige und die
+  WinLaufen-Oberfläche bzw. der Workflow während einer Aufzeichnung. Solche
+  Beobachtungen liefern Szenariokontext, sind aber keine zusätzlichen
+  Wire-Felder.
 
-Statements below identify documented, captured or UI-observed behavior where
-that distinction matters. A WinLaufen UI value must not be treated as a wire
-field unless it was also captured.
+Die folgenden Aussagen kennzeichnen dokumentiertes, aufgezeichnetes oder in der
+Oberfläche beobachtetes Verhalten, wo diese Unterscheidung relevant ist. Ein
+Wert aus der WinLaufen-Oberfläche darf nicht als Wire-Feld behandelt werden,
+solange er nicht ebenfalls aufgezeichnet wurde.
 
 ## Transport
 
-Verified:
+Verifiziert:
 
 - TCP
-- server: WinLaufen
-- client: Sprecher-PC / WinLaufen Web Bridge
-- default port: 4444
+- Server: WinLaufen
+- Client: Sprecher-PC / WinLaufen Web Bridge
+- Standardport: 4444
 - Java Object Serialization
-- read-only from the bridge perspective
+- aus Sicht der Bridge strikt read-only
 
-In captured sessions no client-to-server application payload was observed.
+In den aufgezeichneten Sitzungen wurde keine Anwendungsnutzlast vom Client zum
+Server beobachtet.
 
-## Authority and validation boundary
+## Autorität und Validierungsgrenze
 
-WinLaufen is the sole authority for documented wire values. WinLaufen Web
-preserves their text, ordering and index meaning without domain plausibility
-checks or corrections. This applies to the clock and all result fields,
-including ranks, bibs, times, gaps, shooting values, names, clubs, associations,
-headers and cells. Structural checks remain mandatory: message types, Java
-types, array/table shape, markers and defensive per-object limits may be
-validated.
+WinLaufen ist die alleinige Autorität für dokumentierte Wire-Werte. WinLaufen
+Web erhält deren Text, Reihenfolge und Indexbedeutung ohne fachliche
+Plausibilitätsprüfungen oder Korrekturen. Das gilt für die Uhr und alle
+Ergebnisfelder, einschließlich Rängen, Startnummern, Zeiten, Rückständen,
+Schießwerten, Namen, Vereinen, Verbänden, Headern und Zellen. Strukturelle
+Prüfungen bleiben verpflichtend: Nachrichtentypen, Java-Typen, Array-/
+Tabellenform, Marker und defensive Grenzen je Objekt dürfen geprüft werden.
 
-## Java serialization
+## Java-Serialisierung
 
-A fresh connection starts with Java serialization stream header:
+Eine frische Verbindung beginnt mit dem Java-Serialisierungs-Streamheader:
 
 AC ED 00 05
 
-Java object reference handles are reused inside a connection.
+Java-Objektreferenz-Handles werden innerhalb einer Verbindung wiederverwendet.
 
-A parser must therefore maintain the serialization context for the lifetime of
-the connection.
+Ein Parser muss den Serialisierungskontext deshalb über die gesamte
+Verbindungsdauer aufrechterhalten.
 
-After disconnect/reconnect the old decoding context must be discarded.
+Nach Disconnect/Reconnect muss der alte Decodierkontext verworfen werden.
 
-Do not parse using printable strings, regexes or fixed byte offsets.
+Nicht über druckbare Strings, reguläre Ausdrücke oder feste Byte-Offsets parsen.
 
-## Clock
+## Uhr
 
-WinLaufen sends strings of the form:
+WinLaufen sendet Strings der Form:
 
 UhrHH:MM:SS
 
-Observed approximately once per second.
+Beobachtet etwa einmal pro Sekunde.
 
-Recognition is purely structural: `Uhr` followed by exactly two decimal digits,
-`:`, two decimal digits, `:`, and two decimal digits. The fields have no numeric
-range checks. Thus `Uhr99:99:99` is a recognized telegram and is exposed as
-`99:99:99`; this records what WinLaufen sent and makes no claim that it is a
-valid civil time.
+Die Erkennung ist rein strukturell: `Uhr`, gefolgt von exakt zwei
+Dezimalziffern, `:`, zwei Dezimalziffern, `:`, zwei Dezimalziffern. Für die
+Felder gelten keine Wertebereichsprüfungen. `Uhr99:99:99` ist damit ein
+erkanntes Telegramm und wird als `99:99:99` weitergegeben; das hält fest, was
+WinLaufen gesendet hat, und behauptet nicht, dass es eine gültige Uhrzeit ist.
 
-The WinLaufen clock is authoritative. Every recognized clock telegram is
-published unchanged and counts as heartbeat, regardless of whether its value is
-equal to, lower than, or higher than the preceding value. WinLaufen Web does not
-validate, correct, or plausibilize clock progression.
+Die WinLaufen-Uhr ist autoritativ. Jedes erkannte Uhrentelegramm wird unverändert
+veröffentlicht und zählt als Heartbeat, unabhängig davon, ob sein Wert gleich,
+kleiner oder größer als der vorherige ist. WinLaufen Web validiert, korrigiert
+und plausibilisiert den Uhrenverlauf nicht.
 
-Equal values, backward values, large jumps and `Uhr23:59:59` followed by
-`Uhr00:00:00` are all accepted unchanged. There is no duration, rollover,
-midnight or progression rule. Every recognized telegram refreshes technical
-liveness. More than four seconds without one, including before the first clock
-on a fresh stream, makes the connection stale and triggers reconnect.
+Gleiche Werte, rückwärtslaufende Werte, große Sprünge und `Uhr23:59:59` gefolgt
+von `Uhr00:00:00` werden alle unverändert akzeptiert. Es gibt keine Regel für
+Dauer, Überlauf, Mitternacht oder Fortschritt. Jedes erkannte Telegramm
+erneuert die technische Liveness. Mehr als vier Sekunden ohne ein solches
+Telegramm — auch vor der ersten Uhr auf einem frischen Stream — setzt die
+Verbindung auf stale und löst einen Reconnect aus.
 
-## Competition/result block
+## Wettkampf-/Ergebnisblock
 
-Documented/observed logical sequence:
+Dokumentierte bzw. beobachtete logische Reihenfolge:
 
 0. String
-   competition type / competition section
+   Wettkampftyp / Wettkampfabschnitt
 
 1. Integer
-   evaluation mode
+   Auswertungsmodus
 
 2. Integer
-   class count
+   Klassenanzahl
 
 3. String[]
-   class names
+   Klassennamen
 
 4. int[]
-   rounds or team size
+   Runden oder Mannschaftsgröße
 
 5. Integer
-   WinSpringen position
+   WinSpringen-Position
 
 6. Integer
-   Sprecher class number
+   Sprecher-Klassennummer
 
 7. Integer
-   round / heat
+   Runde / Durchgang
 
 8. Integer
-   current round/finish
+   aktuelle Runde / aktueller Einlauf
 
 9...
-   Object[] result rows
+   Object[] Ergebniszeilen
 
-followed by:
+gefolgt von:
 
 String "tabelle"
 
-String[] table headers
+String[] Tabellenheader
 
 String "ende"
 
-## Index semantics
+## Indexsemantik
 
-Verified:
+Verifiziert:
 
-Sprecher class number:
-- zero-based index into the class array.
+Sprecher-Klassennummer:
+- nullbasierter Index in das Klassenarray.
 
-Current finish:
-- zero-based index into the current transmitted result rows.
-- not a rank.
+Aktueller Einlauf:
+- nullbasierter Index in die aktuell übertragenen Ergebniszeilen,
+- kein Rang.
 
-## Snapshot semantics
+## Snapshot-Semantik
 
-Verified:
+Verifiziert:
 
-Result transmissions contain a complete current class snapshot.
+Ergebnisübertragungen enthalten einen vollständigen aktuellen Klassensnapshot.
 
-They are not merely one-athlete delta events.
+Sie sind nicht lediglich ein Delta-Ereignis für einen Sportler.
 
-A later snapshot may update rows that were already transmitted earlier.
+Ein späterer Snapshot darf Zeilen aktualisieren, die zuvor bereits übertragen
+wurden.
 
-The newest valid snapshot is authoritative for that class.
+Der neueste gültige Snapshot ist für diese Klasse autoritativ.
 
-Rows and cells remain in WinLaufen's supplied order and text form. In
-particular, rank, bib, all time/gap fields and shooting stay strings; current
-finish stays the supplied zero-based row index. Later values replace earlier
-ones without a domain plausibility comparison.
+Zeilen und Zellen bleiben in der von WinLaufen gelieferten Reihenfolge und
+Textform. Insbesondere bleiben Rang, Startnummer, alle Zeit-/Rückstandsfelder
+und Schießwerte Strings; der aktuelle Einlauf bleibt der gelieferte
+nullbasierte Zeilenindex. Spätere Werte ersetzen frühere ohne fachlichen
+Plausibilitätsvergleich.
 
-## Running
+## Laufwettkampf
 
-Verified competition type:
+Verifizierter Wettkampftyp:
 
 Standardwettkampf
 
-Observed evaluation mode:
+Beobachteter Auswertungsmodus:
 
 1
 
-Verified result headers:
+Verifizierte Ergebnisheader:
 
 - Rang
 - StNr
@@ -175,13 +181,13 @@ Verified result headers:
 - Laufzeit
 - Rückstand
 
-Example rows observed include:
+Beispielzeilen aus der Aufzeichnung:
 
 1 | 111 | KREISSL Tobias | SSV Neuhausen | SVS | 2:08:55.9 | 0:00:00.0
 2 | 112 | EISENLAUER Sebastian | SC Sonthofen | BSVA | 2:09:08.0 | 0:00:12.1
 3 | 113 | TSCHARNKE Tim | SV Biberau | TSV | 2:09:23.7 | 0:00:27.8
 
-See:
+Siehe:
 
 testdata/protocol/running/session.pcapng
 
@@ -191,22 +197,22 @@ SHA256:
 
 ## Biathlon
 
-WinLaufen UI configuration of the captured demo:
+WinLaufen-Oberflächenkonfiguration der aufgezeichneten Demo:
 
-Sport:
+Sportart:
 Biathlon
 
-Competition type:
+Wettkampftyp:
 Standardwettkampf
 
-Evaluation:
+Auswertung:
 nach Altersklassen
 
-Observed evaluation mode:
+Beobachteter Auswertungsmodus:
 
 1
 
-Verified result headers:
+Verifizierte Ergebnisheader:
 
 - Rang
 - StNr
@@ -217,24 +223,24 @@ Verified result headers:
 - Gesamtzeit
 - Rückstand
 
-Example shooting fields:
+Beispielhafte Schießfelder:
 
 1 0 2 0
 0 1 1 2
 0 3 0 0
 5 5 5 5
 
-Verified behavior:
+Verifiziertes Verhalten:
 
-- shooting values are part of the result row,
-- entering shooting data alone does not result in a separately visible
-  Sprecher-PC result update in the tested workflow,
-- the shooting values appear together with the athlete result when a
-  running/finish time exists,
-- later class snapshots may contain changed shooting values for athletes that
-  were already present.
+- Schießwerte sind Bestandteil der Ergebniszeile,
+- die alleinige Eingabe von Schießdaten führt im getesteten Workflow zu keiner
+  separat sichtbaren Sprecher-PC-Ergebnisaktualisierung,
+- die Schießwerte erscheinen gemeinsam mit dem Sportlerergebnis, sobald eine
+  Lauf-/Zielzeit vorliegt,
+- spätere Klassensnapshots dürfen geänderte Schießwerte für bereits vorhandene
+  Sportler enthalten.
 
-See:
+Siehe:
 
 testdata/protocol/biathlon/session.pcapng
 
@@ -242,56 +248,61 @@ SHA256:
 
 c43dcf63640de2b55e3f1864afb84dd210b10f740fcc622da5666fdf13397ec5
 
-## Text messages
+## Textnachrichten
 
-The official protocol documentation describes server messages represented as a
-`java.util.Vector` containing a message text `String` and the marker
-`"nachricht"`. No repository fixture currently demonstrates such a message.
+Die offizielle Protokolldokumentation beschreibt Servernachrichten als
+`java.util.Vector` mit einem Nachrichtentext-`String` und dem Marker
+`"nachricht"`. Derzeit belegt keine Fixture im Repository eine solche Nachricht.
 
-v0.1 must narrowly allow this documented Vector structure during safe
-deserialization and consume it without destroying the protocol connection. Other
-Vector contents are rejected. No further message UI is required.
+v0.1 muss diese dokumentierte Vector-Struktur bei der sicheren Deserialisierung
+eng begrenzt zulassen und sie konsumieren, ohne die Protokollverbindung zu
+zerstören. Andere Vector-Inhalte werden abgelehnt. Eine weitergehende
+Nachrichten-Oberfläche ist nicht erforderlich.
 
 ## WinSpringen
 
-The official protocol contains WinSpringen-specific fields.
+Das offizielle Protokoll enthält WinSpringen-spezifische Felder.
 
-WinSpringen is not supported by v0.1 because no usable licensed
-Sprecher-PC capture is currently available.
+WinSpringen wird von v0.1 nicht unterstützt, weil derzeit keine verwendbare
+lizenzierte Sprecher-PC-Aufzeichnung vorliegt.
 
-Do not infer WinSpringen behavior from running or biathlon data.
+WinSpringen-Verhalten darf nicht aus Lauf- oder Biathlondaten abgeleitet werden.
 
-## Start lists
+## Startlisten
 
-A future WinLaufen interface may provide complete start-list data.
+Eine künftige WinLaufen-Schnittstelle könnte vollständige Startlistendaten
+liefern.
 
-No verified LAN start-list wire format is currently available for this project.
+Für dieses Projekt liegt derzeit kein verifiziertes LAN-Wire-Format für
+Startlisten vor.
 
-Do not invent one.
+Es darf keines erfunden werden.
 
-## Unknown / still subject to evidence
+## Unbekannt / noch belegbedürftig
 
-Examples:
+Beispiele:
 
-- additional evaluation modes,
-- relay/team-specific row formats,
-- pursuit-specific behavior,
-- DNS/DNF/DSQ representations,
-- successful reconnect snapshot behavior,
-- future start-list transport,
-- WinSpringen-specific result structures.
+- weitere Auswertungsmodi,
+- Staffel-/Mannschaftsspezifische Zeilenformate,
+- Verfolgungsspezifisches Verhalten,
+- Darstellungen von DNS/DNF/DSQ,
+- Snapshot-Verhalten nach erfolgreichem Reconnect,
+- künftiger Startlistentransport,
+- WinSpringen-spezifische Ergebnisstrukturen.
 
-The existing real Biathlon capture begins in the middle of an established Java
-serialization stream. It remains valid captured evidence for the documented
-Biathlon scenario, including row structure, indices and snapshot replacement.
-References whose original objects precede the capture cannot be independently
-resolved from that PCAP; this limitation is recorded in its fixture analysis
-and does not invalidate the observed values that are present.
+Die vorhandene reale Biathlon-Aufzeichnung beginnt mitten in einem bereits
+etablierten Java-Serialisierungsstream. Sie bleibt gültige aufgezeichnete
+Evidenz für das dokumentierte Biathlon-Szenario, einschließlich Zeilenstruktur,
+Indizes und Snapshot-Ersetzung. Referenzen, deren ursprüngliche Objekte vor dem
+Aufzeichnungsbeginn liegen, lassen sich aus diesem PCAP nicht unabhängig
+auflösen; diese Einschränkung ist in der zugehörigen Fixture-Analyse festgehalten
+und entwertet die vorhandenen beobachteten Werte nicht.
 
-Synthetic Java serialization tests based on `decoded.json` verify that the
-parser accepts the evidenced eight-column structure, preserves shooting-field
-whitespace and replaces prior snapshots. They are contract tests, not a claim
-that the midstream PCAP is a complete independently parseable capture stream.
+Synthetische Java-Serialisierungstests auf Basis von `decoded.json` belegen, dass
+der Parser die nachgewiesene achtspaltige Struktur akzeptiert, Leerzeichen in
+Schießfeldern erhält und vorherige Snapshots ersetzt. Es sind Vertragstests und
+keine Behauptung, dass das Midstream-PCAP ein vollständig unabhängig parsbarer
+Aufzeichnungsstream ist.
 
-New behavior must be documented using real protocol evidence before production
-logic depends on it.
+Neues Verhalten muss anhand realer Protokollevidenz dokumentiert werden, bevor
+produktive Logik davon abhängt.

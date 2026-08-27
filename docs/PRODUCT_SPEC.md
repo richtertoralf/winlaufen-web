@@ -1,154 +1,175 @@
-# WinLaufen Web — Product Specification
+# WinLaufen Web — Produktspezifikation
 
-## 1. Purpose
+## 1. Zweck
 
-WinLaufen Web is a small open-source bridge for WinLaufen.
+WinLaufen Web ist eine kleine, quelloffene Bridge für WinLaufen.
 
-It connects read-only to the existing WinLaufen Sprecher-PC LAN interface and
-provides a modern responsive browser interface for competition results.
+Sie verbindet sich read-only mit der bestehenden LAN-Schnittstelle des
+WinLaufen-Sprecher-PCs und stellt eine moderne, responsive Browseroberfläche für
+Wettkampfergebnisse bereit.
 
-The open-source version is intended to be simple enough for sports clubs to use
-without additional server infrastructure or recurring costs.
+Die Open-Source-Version soll einfach genug sein, dass Sportvereine sie ohne
+zusätzliche Serverinfrastruktur und ohne laufende Kosten einsetzen können.
 
-## 2. Product principle
+## 2. Produktprinzip
 
-WinLaufen remains the authoritative competition system.
+WinLaufen bleibt das autoritative Wettkampfsystem.
 
 WinLaufen Web:
 
-- reads data from WinLaufen,
-- normalizes the received state,
-- distributes complete canonical snapshots to configured Live Servers,
-- exposes published state through the Live Server HTTP/WebSocket service,
-- renders the data in a browser,
-- never writes competition data back to WinLaufen.
+- liest Daten aus WinLaufen,
+- normalisiert den empfangenen State,
+- verteilt vollständige kanonische Snapshots an konfigurierte Live Server,
+- veröffentlicht den Published State über HTTP und WebSocket des Live Servers,
+- stellt die Daten im Browser dar,
+- schreibt niemals Wettkampfdaten nach WinLaufen zurück.
 
-All documented competition values received from WinLaufen are authoritative and
-remain strings where the wire supplies strings. The bridge does not validate,
-correct, normalize, reinterpret, sort or replace clocks, ranks, bibs, result
-times, gaps, shooting values, names, clubs, associations, table headers/cells or
-current-finish values based on domain plausibility. Protocol structure, Java
-types, markers and technical resource safety are still validated.
+Alle dokumentierten Wettkampfwerte aus WinLaufen sind autoritativ und bleiben
+Strings, wo die Wire-Daten Strings liefern. Die Bridge validiert, korrigiert,
+normalisiert, interpretiert, sortiert und ersetzt keine Uhrzeiten, Ränge,
+Startnummern, Laufzeiten, Rückstände, Schießergebnisse, Namen, Vereine,
+Verbände, Tabellenheader, Zellen oder Current-Finish-Werte anhand fachlicher
+Plausibilität. Protokollstruktur, Java-Typen, Marker und technische
+Ressourcensicherheit werden weiterhin geprüft.
 
-## 3. Supported deployment topology
+## 3. Unterstützte Deployment-Topologie
 
-The bridge must support both normal deployment variants.
+Die Bridge muss beide normalen Deployment-Varianten unterstützen.
 
-### 3.1 Separate bridge computer
+### 3.1 Separater Bridge-Rechner
 
-Preferred operational setup:
+Bevorzugter Betriebsaufbau:
 
-WinLaufen runs on the timing computer.
+WinLaufen läuft auf dem Zeitnahme-Rechner.
 
-WinLaufen Web runs on another Windows or Linux computer in the same LAN and
-connects to the WinLaufen computer over TCP port 4444.
+WinLaufen Web läuft auf einem anderen Windows- oder Linux-Rechner im selben LAN
+und verbindet sich über TCP-Port 4444 mit dem WinLaufen-Rechner.
 
-No WinLaufen Web software needs to be installed on the timing computer.
+Auf dem Zeitnahme-Rechner muss keine WinLaufen-Web-Software installiert werden.
 
-### 3.2 Same computer
+### 3.2 Gleicher Rechner
 
-For clubs with only one computer, WinLaufen Web may run directly on the Windows
-computer running WinLaufen.
+Für Vereine mit nur einem Rechner darf WinLaufen Web direkt auf dem
+Windows-Rechner laufen, auf dem auch WinLaufen läuft.
 
-In this case the source can normally be localhost:4444.
+In diesem Fall ist die Quelle normalerweise `localhost:4444`.
 
-Both modes are first-class supported configurations.
+Beide Varianten sind gleichwertig unterstützte Konfigurationen. Sie entsprechen
+den Installationsprofilen **All-in-One** (gleicher Rechner) und **Bridge only**
+bzw. **Presentation Node** (getrennte Rechner); siehe
+[INSTALLATION.md](INSTALLATION.md).
 
-## 4. Supported platforms
+## 4. Unterstützte Plattformen
 
 v0.1:
 
 - Windows x64
-- Linux amd64
+- Linux amd64 und arm64 (Debian, Ubuntu 24.04/26.04, Raspberry Pi OS)
 
-The code must remain platform-neutral wherever technically possible.
+Der Code muss plattformneutral bleiben, wo immer das technisch möglich ist.
 
-A later Linux arm64 build should not require an architectural redesign.
+## 5. Unterstützte Sportarten in v0.1
 
-## 5. Supported sports in v0.1
+Verifiziert und unterstützt:
 
-Verified and supported:
+- Laufwettkämpfe
+- Biathlon
 
-- running competitions
-- biathlon
+Nicht unterstützt in v0.1:
 
-Not supported in v0.1:
+- WinSpringen / Skispringen
 
-- WinSpringen / ski jumping
+WinSpringen darf nicht aus Annahmen implementiert werden, weil derzeit kein
+verifizierter Sprecher-PC-Mitschnitt vorliegt.
 
-WinSpringen must not be implemented from assumptions because no verified
-Sprecher-PC capture is currently available.
+## 6. Lokale Webanwendung
 
-## 6. Local web application
+Die lokale Webanwendung ist ein vollwertiges Produktmerkmal.
 
-The local web application is a complete product feature.
+Sie muss funktionieren:
 
-It must work:
+- auf localhost,
+- von anderen Geräten im selben LAN,
+- ohne Internetzugang,
+- mit mehreren Browser-Clients gleichzeitig.
 
-- on localhost,
-- from other devices in the same LAN,
-- without Internet access,
-- with multiple browser clients at the same time.
+Die modulare lokale Installation stellt dafür bereit:
 
-The modular local installation therefore provides:
+- eingebetteten HTTP-Server,
+- WebSocket-Live-Updates,
+- vollständigen Initialsnapshot über WebSocket,
+- State-Abruf über HTTP für Diagnose und Fallback,
+- Bridge Control auf der Bridge,
+- Web View auf dem Live Server.
 
-- embedded HTTP server,
-- WebSocket live updates,
-- complete initial state over WebSocket,
-- state retrieval through HTTP for diagnostics and fallback,
-- Bridge Control on the Bridge,
-- Web Viewer on the Live Server.
-
-Default local endpoints:
+Lokale Standard-Endpunkte:
 
 - HTTP: `0.0.0.0:8080`
 - WebSocket: `0.0.0.0:8081`
 
-Bridge Control defaults to `127.0.0.1:8090`. If one of a runtime's own ports is
-already in use, that runtime stops with a clear error and does not select an
-alternative port.
+Bridge Control verwendet standardmäßig `127.0.0.1:8090`. Ist einer der eigenen
+Ports einer Runtime bereits belegt, bricht diese Runtime mit einer klaren
+Fehlermeldung ab und wählt keinen Ersatzport.
 
-Upgrading a pre-modular configuration keeps the WinLaufen host, the presentation
-values and the former LOCAL output; the old browser WebSocket port becomes the
-port of the local ingest endpoint. The old HTTP port now belongs to the separate
-live-server process and cannot be migrated into the bridge configuration, so the
-bridge reports it as a start-up notice with the matching live-server option.
+Beim Upgrade einer vormodularen Konfiguration bleiben WinLaufen-Host,
+Presentation-Werte und der frühere LOCAL-Output erhalten; der alte
+Browser-WebSocket-Port wird zum Port des lokalen Ingest-Endpunkts. Der alte
+HTTP-Port gehört nun zum separaten Live-Server-Prozess und kann nicht in die
+Bridge-Konfiguration migriert werden. Die Bridge meldet ihn deshalb beim Start
+als Hinweis mit der passenden Live-Server-Option.
 
-## 7. Bridge Control
+## 7. Installation und Runtime-Konfiguration
 
-Bridge Control configures and displays the bridge state.
+Installation und Netzwerk-/Runtime-Konfiguration sind strikt getrennt.
 
-At minimum it provides:
+Der Installer fragt ausschließlich das Installationsprofil ab: **All-in-One**,
+**Bridge only** oder **Presentation Node**. Er fragt zu keinem Zeitpunkt nach
+WinLaufen-IP-Adressen, Target-IP-Adressen, Hostnamen, URLs oder WSS-Zielen und
+blockiert die Installation nicht, wenn diese Angaben noch unbekannt sind.
 
-- WinLaufen host/IP,
-- WinLaufen connection state,
-- current WinLaufen clock,
-- independently enabled output targets and their runtime state,
-- the single Presentation Config.
+All-in-One ist der Standard und muss auf dem WinLaufen-PC ohne weitere
+Konfiguration funktionieren: die Bridge erwartet WinLaufen unter `127.0.0.1:4444`
+und der lokale Live Server ist als reguläres Output Target vorkonfiguriert.
 
-TCP port 4444 is the protocol default and does not need to be prominent in the
-normal user interface.
+Eine vorhandene Konfiguration wird bei einer Neuinstallation oder einem Upgrade
+nicht überschrieben.
 
-## 8. Output targets
+## 8. Bridge Control
 
-Each target has one of these types:
+Bridge Control konfiguriert und zeigt den Bridge-Zustand.
+
+Mindestens vorhanden:
+
+- WinLaufen-Host/IP,
+- WinLaufen-Verbindungszustand,
+- aktuelle WinLaufen-Uhr,
+- unabhängig aktivierbare Output Targets und deren Runtime-Zustand,
+- die eine Presentation Config.
+
+TCP-Port 4444 ist der Protokollstandard und muss in der normalen Oberfläche
+nicht prominent sein.
+
+## 9. Output Targets
+
+Jedes Target hat einen dieser Typen:
 
 - LOCAL
 - SELFHOST
 - RICHTER_PROJECTS
 
-Targets are not exclusive. A Bridge may serve multiple targets, including
-multiple targets of the same type. Every enabled target uses an independent
-outgoing WebSocket connection, retry state and full-snapshot resynchronization.
-LOCAL uses the same adapter and contract as remote targets.
+Targets sind nicht exklusiv. Eine Bridge darf mehrere Targets bedienen,
+einschließlich mehrerer Targets desselben Typs. Jedes aktivierte Target
+verwendet eine eigene ausgehende WebSocket-Verbindung, einen eigenen
+Retry-Zustand und eine eigene Full-Snapshot-Resynchronisation. LOCAL nutzt
+denselben Adapter und denselben Vertrag wie entfernte Ziele.
 
-## 9. Web Viewer
+## 10. Web View
 
-The Web Viewer is a public audience view for spectators on phones, tablets and
-desktops, not a Sprecher-PC operator workspace. A compact header and navigation
-leave the available area to exactly one competition view at a time.
+Die Web View ist eine öffentliche Zuschaueransicht für Telefon, Tablet und
+Desktop, kein Sprecher-PC-Arbeitsplatz. Ein kompakter Header und eine kompakte
+Navigation lassen die verfügbare Fläche genau einer Wettkampfansicht.
 
-Main navigation:
+Hauptnavigation:
 
 - Startliste
 - LIVE
@@ -156,49 +177,49 @@ Main navigation:
 
 ### LIVE
 
-LIVE reacts to WinLaufen result snapshots.
+LIVE reagiert auf WinLaufen-Ergebnissnapshots.
 
-When a new finish/result snapshot arrives:
+Wenn ein neuer Finish-/Ergebnissnapshot eintrifft:
 
-- use the transmitted class index, on every snapshot and not only the first one,
-  so LIVE follows WinLaufen when it switches to another class,
-- display the complete current class result,
-- use the transmitted current-finish index to identify the current athlete,
-- temporarily highlight that row; the emphasis fades out and is suppressed when
-  the viewer prefers reduced motion.
+- den übermittelten Klassenindex verwenden, bei **jedem** Snapshot und nicht nur
+  beim ersten, damit LIVE einem Klassenwechsel in WinLaufen folgt,
+- das vollständige aktuelle Klassenergebnis anzeigen,
+- den übermittelten Current-Finish-Index verwenden, um den aktuellen Sportler zu
+  kennzeichnen,
+- diese Zeile temporär hervorheben; die Hervorhebung klingt aus und wird
+  unterdrückt, wenn der Betrachter reduzierte Bewegung bevorzugt.
 
-The current-finish index is not the athlete's rank.
+Der Current-Finish-Index ist nicht der Rang des Sportlers.
 
 ### Ergebnisse
 
-The user selects a class manually.
+Die Klasse wird manuell ausgewählt.
 
-The selected class remains selected even if other classes receive new results.
+Die ausgewählte Klasse bleibt ausgewählt, auch wenn andere Klassen neue
+Ergebnisse erhalten.
 
 ### Startliste
 
-The UI position exists from the beginning.
+Die Position in der Oberfläche existiert von Anfang an.
 
-While no verified start-list protocol exists, the view displays a clear notice
-that participant data is not yet available.
+Solange kein verifiziertes Startlistenprotokoll existiert, zeigt die Ansicht
+einen klaren Hinweis, dass Teilnehmerdaten noch nicht verfügbar sind.
 
-No unsupported WinLaufen start-list protocol may be invented.
+Es darf kein nicht unterstütztes WinLaufen-Startlistenprotokoll erfunden werden.
 
-Functionality requiring a future start-list interface is implemented only when
-verified protocol data is available.
+### Öffentliche Darstellungskonfiguration
 
-### Public display configuration
+Die Instanzkonfiguration steuert die Darstellung genau der Header `Verein`,
+`Vbd`, `Nation` und `Schießen`. Verein, Verband und Schießen sind standardmäßig
+sichtbar, Nation standardmäßig ausgeblendet. WinLaufen-Servernachrichten werden
+intern vorgehalten und erscheinen nur dann als kompakter Hinweis, wenn
+`showPublicMessages` aktiviert ist; der Default ist `false`. Diese Optionen
+ändern ausschließlich die öffentliche Darstellung. Sie entfernen oder verändern
+niemals Daten im normalisierten State.
 
-The instance configuration controls presentation of the exact headers
-`Verein`, `Vbd`, `Nation` and `Schießen`. Club, association and shooting default
-to visible; nation defaults to hidden. WinLaufen server messages are retained
-internally and appear as a compact notice only when `showPublicMessages` is
-enabled; its default is false. These options alter only the public presentation.
-They never remove or modify data in normalized state.
+## 11. Lauftabelle
 
-## 10. Running table
-
-Verified running result columns:
+Verifizierte Ergebnisspalten für Laufwettkämpfe:
 
 - Rang
 - StNr
@@ -208,9 +229,9 @@ Verified running result columns:
 - Laufzeit
 - Rückstand
 
-## 11. Biathlon table
+## 12. Biathlontabelle
 
-Verified biathlon result columns:
+Verifizierte Ergebnisspalten für Biathlon:
 
 - Rang
 - StNr
@@ -221,73 +242,79 @@ Verified biathlon result columns:
 - Gesamtzeit
 - Rückstand
 
-The Web Viewer must therefore not be hard-coded to one running-only table schema.
+Die Web View darf deshalb nicht auf ein einziges Lauf-Tabellenschema
+festgeschrieben werden.
 
-## 12. Connection health
+## 13. Verbindungszustand
 
-The WinLaufen clock is authoritative.
+Die WinLaufen-Uhr ist autoritativ.
 
-It is also used as the application heartbeat.
+Sie ist zugleich der Heartbeat der Anwendung.
 
-At minimum distinguish:
+Mindestens zu unterscheiden:
 
-- connected and receiving clock telegrams,
-- stale / no clock telegrams arriving,
-- disconnected.
+- verbunden und Uhrentelegramme werden empfangen,
+- stale / keine Uhrentelegramme,
+- getrennt.
 
-The v0.1 policy is:
+Die v0.1-Regel lautet:
 
-- TCP port 4444 and connect timeout 5 seconds,
-- the first syntactically valid `UhrHH:MM:SS` message sets the state to
-  connected,
-- syntax means the `Uhr` prefix followed by three fields of exactly two decimal
-  digits; no numeric range is imposed, so `Uhr99:99:99` is preserved,
-- every subsequently received valid clock telegram confirms the connection,
-  regardless of whether its value is equal, lower, or higher than before,
-- WinLaufen Web does not validate, correct, or plausibilize clock progression,
-- stale when no valid clock telegram has been received for more than 4 seconds,
-- the same deadline starts with a fresh connection and closes/reconnects a
-  stream that never supplies its first clock telegram,
-- close a stale connection and start reconnecting,
-- reconnect immediately, then after 2 seconds, then 5 seconds, then every 10
-  seconds,
-- create a new socket, `ObjectInputStream` and Java serialization context after
-  every reconnect.
+- TCP-Port 4444 und 5 Sekunden Verbindungstimeout,
+- die erste syntaktisch gültige `UhrHH:MM:SS`-Nachricht setzt den Zustand auf
+  verbunden,
+- Syntax bedeutet das Präfix `Uhr` gefolgt von drei Feldern mit exakt zwei
+  Dezimalziffern; es wird kein Wertebereich erzwungen, `Uhr99:99:99` bleibt also
+  erhalten,
+- jedes weitere gültige Uhrentelegramm bestätigt die Verbindung, unabhängig
+  davon, ob sein Wert gleich, kleiner oder größer als der vorherige ist,
+- WinLaufen Web validiert, korrigiert und plausibilisiert den Uhrenverlauf
+  nicht,
+- stale, wenn länger als 4 Sekunden kein gültiges Uhrentelegramm eingetroffen
+  ist,
+- dieselbe Frist gilt ab einer frischen Verbindung und beendet einen Stream, der
+  sein erstes Uhrentelegramm nie liefert,
+- eine stale Verbindung wird geschlossen und der Reconnect beginnt,
+- Reconnect sofort, dann nach 2 Sekunden, dann nach 5 Sekunden, danach alle 10
+  Sekunden,
+- nach jedem Reconnect werden Socket, `ObjectInputStream` und
+  Java-Serialisierungskontext neu erzeugt.
 
-The last valid competition state may remain visible during reconnect, but its
-connection state must be shown as stale or disconnected.
+Der letzte gültige Wettkampfstand darf während des Reconnects sichtbar bleiben,
+sein Verbindungszustand muss aber als stale oder getrennt angezeigt werden.
 
-Local monotonic time may be used only to measure the 4 second heartbeat interval.
-It must never replace or modify the displayed WinLaufen clock.
+Lokale monotone Zeit darf ausschließlich zum Messen des 4-Sekunden-Intervalls
+verwendet werden. Sie darf die angezeigte WinLaufen-Uhr niemals ersetzen oder
+verändern.
 
-The API health values are exactly `DISCONNECTED`, `CONNECTED` and `STALE`.
-`CONNECTED` describes continued telegram reception only, not clock progression.
+Die API-Health-Werte sind exakt `DISCONNECTED`, `CONNECTED` und `STALE`.
+`CONNECTED` beschreibt ausschließlich fortgesetzten Telegrammempfang, nicht den
+Uhrenverlauf.
 
-## 13. Simplicity
+## 14. Einfachheit
 
-The project must remain small and understandable.
+Das Projekt muss klein und verständlich bleiben.
 
-Preferred technology:
+Bevorzugte Technik:
 
 - Java
 - Maven
-- plain HTML
-- plain CSS
-- plain JavaScript
-- embedded HTTP/WebSocket functionality
+- reines HTML
+- reines CSS
+- reines JavaScript
+- eingebettete HTTP-/WebSocket-Funktion
 
-No frontend build pipeline is required.
+Es ist keine Frontend-Build-Pipeline erforderlich.
 
-Avoid unnecessary infrastructure.
+Unnötige Infrastruktur vermeiden.
 
-Not part of v0.1:
+Nicht Teil von v0.1:
 
-- database
+- Datenbank
 - Redis
-- message broker
-- Docker runtime requirement
-- nginx runtime requirement
-- Node.js backend
+- Message Broker
+- Docker als Laufzeitvoraussetzung
+- nginx als Laufzeitvoraussetzung
+- Node.js-Backend
 - Spring
 - Spring Boot
 - Quarkus
@@ -296,76 +323,84 @@ Not part of v0.1:
 - Vue
 - Angular
 - Electron
-- accounts
-- billing
-- payment
-- SaaS administration
+- Benutzerkonten
+- Abrechnung
+- Bezahlung
+- SaaS-Administration
 
-Small focused dependencies are allowed only when they reduce complexity or
-security risk compared with implementing a protocol manually.
+Kleine, fokussierte Abhängigkeiten sind nur zulässig, wenn sie Komplexität oder
+Sicherheitsrisiko gegenüber einer manuellen Protokollimplementierung senken.
 
-## 14. Local configuration and web security
+## 15. Konfiguration und Web-Sicherheit
 
-Configuration is stored as `java.util.Properties` in:
+Die Konfiguration wird als `java.util.Properties` gespeichert. Ort je nach
+Installationsart: `/etc/winlaufen-web/bridge.properties` (Linux-Dienst),
+`C:\ProgramData\WinLaufen Web\bridge.properties` (Windows-Dienst) oder
+`${user.home}/.winlaufen-web/config.properties` (Entwicklungsbetrieb). Der Pfad
+wird über die Systemproperty `winlaufen.bridge.config` gesetzt; das Dateiformat
+ist in allen Fällen identisch.
 
-`${user.home}/.winlaufen-web/config.properties`
+Es wird keine Datenbank verwendet. Eine fokussierte JSON-Abhängigkeit ist auf
+den versionierten Bridge-Live-Server-Vertrag beschränkt. Der WinLaufen-Zielhost
+muss validiert werden. Sein Port ist fest auf 4444.
 
-No database is used. A focused JSON dependency is confined to the versioned
-Bridge-Live-Server contract. The WinLaufen target host must be validated. Its
-port is fixed at 4444.
+Bridge Control und der öffentliche Webdienst aktivieren kein CORS.
+Konfigurationsänderungen in Bridge Control verwenden ausschließlich `POST` mit
+`application/x-www-form-urlencoded` und erfordern einen gültigen Origin.
+Browser-WebSocket-Verbindungen erfordern ebenfalls einen gültigen Origin.
 
-Bridge Control and the public web service do not enable CORS. Bridge Control configuration changes use only
-`POST` with `application/x-www-form-urlencoded` and require a valid Origin.
-Browser WebSocket connections also require a valid Origin.
+HTTP und WebSocket verwenden bewusst unterschiedliche Ports. Eine Seite, die von
+`http://<live-server>:8080` geladen wird, verbindet sich zu
+`ws://<live-server>:8081/live/v1`; ihr Browser-Origin ist damit
+`http://<live-server>:8080`. Der Origin-Hostname bzw. die IP muss dem Host der
+WebSocket-Anfrage entsprechen. Origin-Port 8080 wird für den WebSocket auf Port
+8081 akzeptiert; Gleichheit mit dem WebSocket-Port ist nicht erforderlich.
+Fremde Origins und Anfragen ohne Origin werden abgelehnt. Der Bridge-Ingest
+verwendet den eigenen Pfad `/bridge/v1/channels/<channel>` und
+Bearer-Authentifizierung statt eines Browser-Origins.
 
-HTTP and WebSocket intentionally use different ports. A page loaded from
-`http://<live-server>:8080` connects to `ws://<live-server>:8081/live/v1`, so its
-browser Origin is `http://<live-server>:8080`. The Origin hostname or IP must
-match the WebSocket request host. Origin port 8080 is accepted for the WebSocket
-on port 8081; equality with the WebSocket port is not required. Foreign Origins
-and requests without an Origin are rejected. Bridge ingest uses the distinct
-`/bridge/v1/channels/<channel>` path and Bearer authentication instead of a
-browser Origin.
+Klartext-`ws` wird nur für `localhost` und für Loopback-, Link-Local- und
+private IP-Adressliterale akzeptiert. Jeder andere Host, insbesondere jeder
+DNS-Name, erfordert `wss`; `RICHTER_PROJECTS` erfordert immer `wss`.
 
-Plain `ws` is accepted only for `localhost` and for loopback, link-local and
-private IP address literals. Every other host, including every DNS name,
-requires `wss`; `RICHTER_PROJECTS` always requires `wss`.
+Eingehende WebSocket-Nachrichten werden begrenzt, bevor sie im Speicher
+zusammengesetzt werden: Ingest auf höchstens einen Vertragssnapshot,
+Browser-Verbindungen auf eine kleine Nutzlast.
 
-Incoming WebSocket messages are limited before they are assembled in memory:
-ingest to at most one contract snapshot, browser connections to a small payload.
+Diese Prototypversion hält ein bekanntes Default-Ingest-Secret funktionsfähig.
+Das konkrete Manipulationsrisiko und die verbindlichen Einsatzgrenzen sind in
+README.md unter „Known prototype security limitation" dokumentiert.
 
-This prototype release keeps a known default ingest secret working. The concrete
-manipulation risk and the binding deployment limits are documented in README.md
-under "Known prototype security limitation".
+## 16. Browser-Synchronisation
 
-## 15. Browser synchronization
+Der normale Start läuft so ab:
 
-Normal startup is:
+1. HTML laden,
+2. WebSocket verbinden,
+3. unmittelbar nach der Verbindung einen vollständigen Snapshot erhalten,
+4. Live-Updates empfangen.
 
-1. load HTML,
-2. connect WebSocket,
-3. receive a complete snapshot immediately after connection,
-4. receive live updates.
+`GET /api/v1/state` liefert den vollständigen Initial-/Fallback-State. Jeder
+veröffentlichte State besitzt eine monoton steigende `publicationRevision`;
+Live-WebSocket-Nachrichten sind vollständige autoritative Snapshots.
 
-`GET /api/v1/state` provides the complete initial/fallback state. Every
-published state has a monotonically increasing `publicationRevision`; live
-WebSocket messages are complete authoritative snapshots.
+Ein allgemeiner Event-Bus oder ein zusätzliches Delta-Protokoll ist nicht
+erforderlich.
 
-No general event bus or additional delta protocol is required.
+Jeder WebSocket-`snapshot`, auch nach einem Reconnect, ist autoritativ und
+synchronisiert die Browsertabellen vollständig. An einen einzelnen Client
+ausgelieferte Revisionen dürfen niemals sinken.
 
-Every WebSocket `snapshot`, including one after reconnect, is authoritative and
-fully synchronizes browser tables. Revisions delivered to an individual client
-must never decrease.
+## 17. Installationsziel
 
-## 16. Installation goal
+Der Endanwender soll keine Entwicklungsumgebung installieren müssen.
 
-The final end user should not have to install a development environment.
+Ausgelieferte Pakete sollen die benötigte Java-Runtime enthalten können; die
+Distribution kann dafür eine per `jlink` reduzierte Runtime bündeln.
 
-Packaged releases should contain the required Java runtime.
+Zielerfahrung:
 
-Target experience:
-
-install/start WinLaufen Web,
-configure WinLaufen host,
-open Web Viewer,
-use it in the LAN.
+WinLaufen Web installieren und Profil wählen,
+gegebenenfalls WinLaufen-Host in Bridge Control anpassen,
+Web View öffnen,
+im LAN verwenden.
