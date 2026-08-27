@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bridge Control · WinLaufen Web</title>
+<link rel="stylesheet" href="/assets/control.css">
+</head>
+<body>
+<header>
+  <strong>WinLaufen <span>Bridge Control</span></strong>
+  <div><span id="health">DISCONNECTED</span> · <b id="clock">--:--:--</b></div>
+</header>
+<main>
+<form id="config">
+  <section>
+    <h1>Quelle</h1>
+    <label>Quellsystem<input value="WINLAUFEN" disabled></label>
+    <label>Host<input name="sourceHost" required autocomplete="off"></label>
+    <p>Port 4444 · read-only · fest</p>
+  </section>
+  <section>
+    <h2>Outputs</h2>
+    <div id="targets"></div>
+    <button type="button" id="add">Target hinzufügen</button>
+    <p class="hint">Unverschlüsseltes <code>ws://</code> ist nur für <code>localhost</code> und
+    LAN-IP-Adressen zulässig. Andere Ziele benötigen <code>wss://</code>.</p>
+  </section>
+  <section>
+    <h2>Öffentliche Darstellung</h2>
+    <label><input type="checkbox" name="showClub"> Verein anzeigen</label>
+    <label><input type="checkbox" name="showAssociation"> Verband anzeigen</label>
+    <label><input type="checkbox" name="showNation"> Nation anzeigen</label>
+    <label><input type="checkbox" name="showShooting"> Schießen anzeigen</label>
+    <label><input type="checkbox" name="showPublicMessages"> WinLaufen-Nachrichten anzeigen</label>
+  </section>
+  <button type="submit">Speichern</button>
+  <span id="message" role="status"></span>
+</form>
+</main>
+<template id="target-template">
+  <fieldset>
+    <label>ID<input data-name="id" required></label>
+    <label>Typ<select data-name="type">
+      <option>LOCAL</option>
+      <option>SELFHOST</option>
+      <option>RICHTER_PROJECTS</option>
+    </select></label>
+    <label><input type="checkbox" data-name="enabled"> aktiviert</label>
+    <label>Endpoint<input data-name="endpoint" required></label>
+    <label>Channel<input data-name="channelId" required></label>
+    <label>Neues Secret (leer = beibehalten)<input type="password" data-name="secret" autocomplete="new-password"></label>
+    <output></output>
+    <button type="button" class="remove">Entfernen</button>
+  </fieldset>
+</template>
+<script src="/assets/control.js" defer></script>
+</body>
+</html>

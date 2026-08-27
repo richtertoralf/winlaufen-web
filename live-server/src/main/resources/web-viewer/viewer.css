@@ -1,0 +1,25 @@
+:root{color-scheme:light;--ink:#14231e;--muted:#65716c;--paper:#f5f7f6;--surface:#fff;--line:#d7dfdb;--green:#086b4b;--amber:#8a5300;--red:#9c2932;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink)}
+header{min-height:52px;padding:7px clamp(10px,2vw,20px);display:flex;align-items:center;justify-content:space-between;background:var(--surface);border-bottom:1px solid var(--line)}
+.brand{font-weight:800;font-size:18px}.brand span{color:var(--green)}
+.renderer-status{display:flex;align-items:center;gap:12px;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;text-transform:uppercase}.pill:before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.connected{color:var(--green)}.stale{color:var(--amber)}.disconnected{color:var(--red)}
+main{padding:0 clamp(10px,2vw,20px) 14px}
+.tabs{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(3,1fr);padding:7px 0;background:var(--paper);border-bottom:1px solid var(--line)}
+.tabs button{min-height:42px;border:0;border-radius:4px;background:transparent;font-weight:750}.tabs button.active{background:var(--ink);color:#fff}
+.view{display:none}.view.active{display:block}
+.context{min-height:47px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}.context h1{font-size:16px}.label{color:var(--green)}
+.class-picker{display:flex;gap:9px;align-items:center}.class-picker select{padding:8px}
+.notice,.compact-empty{margin:7px 0;padding:10px;background:var(--surface);border:1px solid var(--line)}.notice[hidden]{display:none}
+.table-wrap{width:100%;overflow:auto;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{position:sticky;top:0;background:#e9eeeb;font-size:11px}
+tbody tr:nth-child(even){background:#fafcfb}
+tbody tr.current{background:#bcebd5;box-shadow:inset 5px 0 var(--green);animation:arrival 8s ease-out}
+tbody tr.current td{font-weight:750;border-bottom-color:#91ceb2}
+@keyframes arrival{0%,55%{background:#8dd9b7}100%{background:#bcebd5}}
+@media(max-width:700px){.context{align-items:flex-start;flex-direction:column}.class-picker{width:100%}.class-picker select{flex:1}}
+@media(prefers-reduced-motion:reduce){tbody tr.current{animation:none}*{scroll-behavior:auto!important}}

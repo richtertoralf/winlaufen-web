@@ -1,0 +1,220 @@
+package de.winlaufen.web.liveserver.web;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.winlaufen.web.contract.ContractJson;
+import de.winlaufen.web.liveserver.state.PublishedStateStore;
+import de.winlaufen.web.liveserver.state.PublishedStateStoreTest;
+import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.handshake.ServerHandshake;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.net.ServerSocket;
+import java.net.URI;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class LiveWebSocketServerTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private LiveWebSocketServer server;
+    private PublishedStateStore store;
+    private int port;
+
+    @BeforeEach
+    void start() throws Exception {
+        port = freePort();
+        store = new PublishedStateStore("local");
+        server = new LiveWebSocketServer("127.0.0.1", port, store, "local", "12345678");
+        server.start();
+        server.awaitStart();
+    }
+
+    @AfterEach
+    void stop() throws Exception {
+        server.shutdown();
+    }
+
+    @Test
+    void separatesAuthenticatedIngestFromOriginCheckedBrowserAndAcksAfterStore() throws Exception {
+        Collector browser = connectBrowser();
+        assertTrue(browser.next().contains("\"publicationRevision\":0"));
+
+        Collector ingest = connectIngest();
+        ingest.send(ContractJson.snapshot(PublishedStateStoreTest.snapshot("stream", 3, "11:22:33")));
+        assertTrue(ingest.next().contains("\"type\":\"ack\""));
+        assertEquals("11:22:33", store.get().state().clock());
+        assertTrue(browser.next().contains("11:22:33"));
+
+        browser.closeBlocking();
+        ingest.closeBlocking();
+    }
+
+    @Test
+    void rejectsWrongSecretAndForeignBrowserOrigin() throws Exception {
+        assertFalse(connects(new URI("ws://127.0.0.1:" + port + "/bridge/v1/channels/local"),
+                Map.of("Authorization", "Bearer wrong-secret")));
+        assertFalse(connects(new URI("ws://127.0.0.1:" + port + "/bridge/v1/channels/local"),
+                Map.of()));
+        assertFalse(connects(new URI("ws://127.0.0.1:" + port + "/live/v1"),
+                Map.of("Origin", "http://evil.test")));
+        assertFalse(connects(new URI("ws://127.0.0.1:" + port + "/live/v1"), Map.of()));
+        assertFalse(connects(new URI("ws://127.0.0.1:" + port + "/unknown"),
+                Map.of("Origin", "http://127.0.0.1:8080")));
+        assertFalse(connects(new URI("ws://127.0.0.1:" + port + "/bridge/v1/channels/other"),
+                Map.of("Authorization", "Bearer 12345678")));
+    }
+
+    @Test
+    void multipleBrowsersEachReceiveTheInitialSnapshotAndEveryUpdate() throws Exception {
+        Collector one = connectBrowser();
+        Collector two = connectBrowser();
+        Collector three = connectBrowser();
+        for (Collector browser : new Collector[]{one, two, three}) {
+            JsonNode initial = MAPPER.readTree(browser.next());
+            assertEquals(0, initial.get("publicationRevision").asLong());
+        }
+
+        Collector ingest = connectIngest();
+        ingest.send(ContractJson.snapshot(PublishedStateStoreTest.snapshot("stream", 1, "09:00:01")));
+        assertTrue(ingest.next().contains("\"type\":\"ack\""));
+        ingest.send(ContractJson.snapshot(PublishedStateStoreTest.snapshot("stream", 2, "09:00:02")));
+        assertTrue(ingest.next().contains("\"type\":\"ack\""));
+
+        for (Collector browser : new Collector[]{one, two, three}) {
+            assertEquals("09:00:01", clockOf(browser.next()));
+            assertEquals("09:00:02", clockOf(browser.next()));
+        }
+
+        // One browser leaving must not disturb the others or the ingest connection.
+        two.closeBlocking();
+        ingest.send(ContractJson.snapshot(PublishedStateStoreTest.snapshot("stream", 3, "09:00:03")));
+        assertTrue(ingest.next().contains("\"type\":\"ack\""));
+        assertEquals("09:00:03", clockOf(one.next()));
+        assertEquals("09:00:03", clockOf(three.next()));
+
+        one.closeBlocking();
+        three.closeBlocking();
+        ingest.closeBlocking();
+    }
+
+    @Test
+    void browserNeverSeesADecreasingPublicationRevision() throws Exception {
+        Collector browser = connectBrowser();
+        assertNotNull(browser.next());
+        Collector ingest = connectIngest();
+
+        long previous = -1;
+        for (int revision = 1; revision <= 12; revision++) {
+            // Alternating stream ids force the live server to restart the source revision.
+            String stream = revision % 4 == 0 ? "b" : "a";
+            ingest.send(ContractJson.snapshot(
+                    PublishedStateStoreTest.snapshot(stream, revision, "08:00:" + String.format("%02d", revision))));
+            assertTrue(ingest.next().contains("\"type\":\"ack\""));
+        }
+        String message;
+        while ((message = browser.messages.poll(1, TimeUnit.SECONDS)) != null) {
+            long current = MAPPER.readTree(message).get("publicationRevision").asLong();
+            assertTrue(current > previous,
+                    "publicationRevision must strictly increase per browser, got "
+                            + current + " after " + previous);
+            previous = current;
+        }
+        assertTrue(previous > 0, "the browser must have received updates");
+
+        browser.closeBlocking();
+        ingest.closeBlocking();
+    }
+
+    @Test
+    void cleanShutdownAllowsImmediateRebindOnTheSamePort() throws Exception {
+        assertTrue(server.isReuseAddr());
+        int reused = server.getPort();
+        server.shutdown();
+
+        server = new LiveWebSocketServer("127.0.0.1", reused, new PublishedStateStore("local"),
+                "local", "12345678");
+        server.start();
+        server.awaitStart();
+        assertEquals(reused, server.getPort());
+
+        Collector browser = connectBrowser();
+        assertTrue(browser.next().contains("\"publicationRevision\":0"));
+        browser.closeBlocking();
+    }
+
+    private String clockOf(String message) throws Exception {
+        return MAPPER.readTree(message).get("state").get("clock").asText();
+    }
+
+    private Collector connectBrowser() throws Exception {
+        Collector collector = new Collector(new URI("ws://127.0.0.1:" + server.getPort() + "/live/v1"),
+                Map.of("Origin", "http://127.0.0.1:8080"));
+        assertTrue(collector.connectBlocking(3, TimeUnit.SECONDS));
+        return collector;
+    }
+
+    private Collector connectIngest() throws Exception {
+        Collector collector = new Collector(
+                new URI("ws://127.0.0.1:" + server.getPort() + "/bridge/v1/channels/local"),
+                Map.of("Authorization", "Bearer 12345678"));
+        assertTrue(collector.connectBlocking(3, TimeUnit.SECONDS));
+        return collector;
+    }
+
+    private static boolean connects(URI uri, Map<String, String> headers) {
+        try {
+            Collector collector = new Collector(uri, headers);
+            boolean open = collector.connectBlocking(1, TimeUnit.SECONDS);
+            collector.close();
+            return open;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private static int freePort() throws Exception {
+        try (ServerSocket probe = new ServerSocket(0)) {
+            return probe.getLocalPort();
+        }
+    }
+
+    private static final class Collector extends WebSocketClient {
+
+        final BlockingQueue<String> messages = new LinkedBlockingQueue<>();
+
+        Collector(URI uri, Map<String, String> headers) {
+            super(uri, headers);
+        }
+
+        @Override
+        public void onOpen(ServerHandshake handshake) { }
+
+        @Override
+        public void onMessage(String message) {
+            messages.add(message);
+        }
+
+        @Override
+        public void onClose(int code, String reason, boolean remote) { }
+
+        @Override
+        public void onError(Exception ex) { }
+
+        String next() throws InterruptedException {
+            String value = messages.poll(3, TimeUnit.SECONDS);
+            assertNotNull(value);
+            return value;
+        }
+    }
+}

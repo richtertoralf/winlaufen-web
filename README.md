@@ -1,113 +1,187 @@
 # WinLaufen Web
 
-WinLaufen Web ist eine kleine read-only Bridge für die WinLaufen
-Sprecher-PC-Schnittstelle. Sie liest TCP/4444, hält den aktuellen Wettkampfstand
-im Speicher und stellt ihn als responsives Dashboard und Ergebnis-Renderer im
-lokalen Netzwerk bereit.
+WinLaufen Web besteht aus zwei unabhängig startbaren Java-Runtimes. Die
+**Bridge** liest WinLaufen strikt read-only über TCP/4444 und verteilt den
+kanonischen Live-State an 0..n Ziele. Der **Live Server** hält den
+veröffentlichten State und liefert den Web Viewer an Browser aus.
 
-## Voraussetzungen
+> **Status: Prototype Baseline.** Diese Version ist für ausgewählte Vereine in
+> **kontrollierten Netzen** gedacht, nicht für einen offenen Internetbetrieb.
+> Lies vor dem Einsatz den Abschnitt
+> [Known prototype security limitation](#known-prototype-security-limitation).
 
-- Java 25
-- zum Bauen: Maven 3.9+
-- WinLaufen mit aktivierter Sprecher-PC-Schnittstelle im selben LAN
+## Module
 
-Es werden keine Datenbank, kein Node.js, kein Docker und keine Internetverbindung
-zur Laufzeit benötigt.
+- `winlaufen-web-contract`: kleiner versionierter Snapshot-/ACK-Vertrag
+- `winlaufen-web-bridge`: WinLaufen-Adapter, BridgeConfig, Fan-out und Bridge Control
+- `winlaufen-web-live-server`: authentifizierter Ingest, Public API, Browser-WebSocket und Web Viewer
 
-## Bauen und starten
+Der Live Server enthält keinen WinLaufen-Protokollcode. LOCAL verwendet wie
+entfernte Ziele eine echte ausgehende WebSocket-Verbindung der Bridge; beide
+Runtimes bleiben getrennte Prozesse.
+
+## Bauen
+
+Voraussetzungen: Java 25 und Maven 3.9+.
 
 ```sh
 mvn test
 mvn package
-java -jar target/winlaufen-web.jar
 ```
 
-### Development / lokaler Test
+Ausführbare Artefakte:
 
-Nach dem Paketbau kann eine lokale Testinstanz über PID-gesicherte Hilfsskripte
-im Hintergrund verwaltet werden:
+```text
+bridge/target/winlaufen-web-bridge.jar
+live-server/target/winlaufen-web-live-server.jar
+```
+
+## Starten
+
+Getrennt:
 
 ```sh
-mvn package
+java -jar live-server/target/winlaufen-web-live-server.jar
+java -jar bridge/target/winlaufen-web-bridge.jar
+```
+
+Danach:
+
+- Bridge Control: `http://localhost:8090/`
+- Web Viewer: `http://localhost:8080/`
+- Browser-WebSocket: Port 8081, Pfad `/live/v1`
+- lokaler Bridge-Ingest: Port 8081, Pfad `/bridge/v1/channels/local`
+
+All-in-One-Entwicklungsbetrieb mit weiterhin zwei Prozessen:
+
+```sh
 ./devtools/start-local.sh
 ./devtools/status-local.sh
 ./devtools/restart-local.sh
 ./devtools/stop-local.sh
 ```
 
-PID und Log liegen unter dem beschreibbaren `XDG_RUNTIME_DIR`, andernfalls unter
-`/tmp/winlaufen-web-$UID/`, nicht im Repository. Die Skripte verwalten
-ausschließlich die von ihnen gestartete Instanz. Sie sind Entwicklungs- und
-Testwerkzeuge und ausdrücklich nicht das spätere Windows-/Linux-Installations-
-oder Servicekonzept.
+Einzelne Runtime verwalten:
 
-Danach öffnen:
+```sh
+./devtools/component.sh start|stop|restart|status bridge
+./devtools/component.sh start|stop|restart|status live-server
+```
 
-- Dashboard: `http://localhost:8080/`
-- Renderer: `http://localhost:8080/renderer`
+Reproduzierbarer Zwei-Prozess-/Multi-Endpoint-Smoke (eine Bridge, zwei Live
+Server, Ausfall, Neustart, Vollresync; benötigt keine WinLaufen-Installation):
 
-Von einem anderen Gerät im LAN wird `localhost` durch die IP oder den Hostnamen
-des Bridge-Rechners ersetzt, zum Beispiel
-`http://192.168.1.30:8080/renderer`.
+```sh
+mvn package
+./devtools/smoke-fanout.sh
+```
 
-HTTP bindet standardmäßig an `0.0.0.0:8080`, WebSocket an `0.0.0.0:8081`.
-Ein belegter Port ist ein Startfehler; es wird kein Ersatzport gewählt.
+Live-Test gegen eine echte WinLaufen-Quelle:
 
-## Betriebsarten
-
-- Gleicher Windows-PC: im Dashboard `localhost` als WinLaufen-Quelle eintragen.
-- Separater Bridge-PC (Windows oder Linux): IP/Hostname des WinLaufen-PCs
-  eintragen. Auf dem WinLaufen-PC muss keine Bridge installiert werden.
-
-`LOCAL` ist in v0.1 aktiv. `SELFHOST` und `RICHTER_PROJECTS` sind bereits im
-Modell und Dashboard sichtbar, bleiben aber deaktiviert und öffnen keine
-Netzwerkverbindungen.
+```sh
+./devtools/smoke-winlaufen-clock.sh <winlaufen-host> [port]
+```
 
 ## Konfiguration
 
-Die Konfiguration liegt unter
-`${user.home}/.winlaufen-web/config.properties` und kann über das Dashboard
-geändert werden. Eine geänderte WinLaufen-Adresse löst einen kontrollierten
-Reconnect aus. Der WinLaufen-Port ist fest `4444`.
+Die einzige Veranstalter-Konfiguration liegt in der Bridge unter
+`${user.home}/.winlaufen-web/config.properties`. Bridge Control verwaltet
+Quelle, mehrere Output Targets und die öffentliche Darstellung. Target-Secrets
+werden nie über die API an den Browser zurückgegeben.
 
-Optional können vor dem Start in der Properties-Datei `http.port` und
-`websocket.port` gesetzt werden. Werden diese geändert, veröffentlicht
-`GET /api/v1/config` den WebSocket-Port an die Browseroberfläche.
+Der Live Server besitzt ausschließlich technische Konfiguration über
+Java-Systemproperties:
 
-Unter „Öffentliche Darstellung“ lässt sich festlegen, ob die exakt von
-WinLaufen gelieferten Spalten `Verein`, `Vbd`, `Nation` und `Schießen` im
-Publikumsrenderer erscheinen. WinLaufen-Sprecher-PC-Nachrichten können für eine
-kompakte öffentliche Hinweisleiste freigeschaltet werden; standardmäßig sind sie
-ausgeblendet. Diese Optionen filtern nur die Darstellung. Der interne State
-bleibt vollständig erhalten.
-
-## Live connection smoke test
-
-The development smoke test checks a live WinLaufen connection on TCP port 4444,
-the Java Serialization stream header, and at least five structurally recognizable
-WinLaufen clock telegrams. Equal, backward or unusual numeric values are accepted:
-the test checks receipt, not progression. It is strictly read-only and sends no
-application data to WinLaufen.
-
-```sh
-./devtools/smoke-winlaufen-clock.sh HOST [PORT]
+```text
+winlaufen.live.http.bind       default 0.0.0.0
+winlaufen.live.http.port       default 8080
+winlaufen.live.websocket.bind  default 0.0.0.0
+winlaufen.live.websocket.port  default 8081
+winlaufen.live.channel         default local
+winlaufen.live.secret          default local-development-secret
 ```
 
-For example, use `./devtools/smoke-winlaufen-clock.sh 192.168.1.20`; the port
-defaults to 4444.
+### Transportregel für Output Targets
 
-## Unterstützt und bekannte Grenzen
+`wss://` ist immer zulässig. Unverschlüsseltes `ws://` ist nur erlaubt für
+`localhost` und für **IP-Adressliterale** aus dem Loopback-, Link-Local- oder
+privaten LAN-Bereich (z. B. `ws://192.168.1.20:8081/...`). Jeder andere Host —
+insbesondere jeder DNS-Name — erfordert `wss://`. Das Projekt führt bewusst
+keine DNS- oder Geo-Auflösung durch, um „LAN" von „Internet" zu unterscheiden;
+diese rein syntaktische Regel ist der konservative Ersatz. Ein
+LAN-Ziel muss für Klartext also über seine IP-Adresse konfiguriert werden.
+`RICHTER_PROJECTS` erfordert unabhängig davon immer `wss://`.
 
-v0.1 rendert die vom Protokoll gelieferten Tabellen ohne fest verdrahtetes
-Sportartschema. Verifiziert sind Lauf und Biathlon einschließlich späterer
-Änderungen vorhandener Zeilen und Biathlon-Schießwerten. Ein separates
-Sportartfeld existiert nicht zuverlässig und wird daher nicht geraten.
+### Upgrade einer v0.1-Konfiguration
 
-Noch nicht unterstützt sind WinSpringen, Startlisten/Teilnehmerdaten,
-unverifizierte Runden-/Zwischenstandslogik und Remote-Outputs. Der
-Startlistenbereich erklärt diese Protokollgrenze ausdrücklich. Wettkampfdaten
-werden nur im Arbeitsspeicher gehalten.
+Eine alte Konfiguration wird beim ersten Start deterministisch übernommen:
 
-Der Renderer richtet sich an Zuschauer auf Smartphone, Tablet und Desktop und
-zeigt immer genau eine kompakte Hauptansicht: `Startliste`, `LIVE` oder
-`Ergebnisse`.
+- `winlaufen.host` wird zu `source.host`;
+- `public.show*` wird zu `presentation.show*`;
+- der frühere exklusive LOCAL-Output-Modus wird zum ersten regulären Output
+  Target `local`;
+- `websocket.port` wird als Port des lokalen Ingest-Endpunkts übernommen.
+
+`http.port` gehört mit der neuen Prozessgrenze zum Live-Server-Prozess und kann
+nicht in die Bridge-Konfiguration migriert werden. Weicht einer der alten
+Webports vom Standard ab, gibt die Bridge beim Start einen Hinweis mit der
+passenden Startzeile für den Live Server aus, zum Beispiel:
+
+```text
+Hinweis: Die früheren Webports gehören jetzt zum Live-Server-Prozess.
+Starte ihn mit: -Dwinlaufen.live.http.port=9080 -Dwinlaufen.live.websocket.port=9081
+```
+
+## Known prototype security limitation
+
+**Diese Einschränkung ist bekannt, bewusst akzeptiert und noch nicht behoben.**
+
+Der Bridge-Ingest des Live Servers ist zwar authentifiziert, verwendet aber
+weiterhin ein **bekanntes, im Quelltext und in dieser README stehendes
+Development-Secret** (`local-development-secret`), solange
+`winlaufen.live.secret` nicht gesetzt ist. Der Live Server bindet seinen
+WebSocket-Port standardmäßig auf `0.0.0.0`.
+
+Konkrete Folge:
+
+**Jeder Teilnehmer, der den Ingest-WebSocket auf Port 8081 erreichen kann und
+das bekannte Secret kennt, kann sich gegenüber dem Live Server als Bridge
+ausgeben.** Er kann damit den kompletten veröffentlichten Stand ersetzen und
+insbesondere folgende Daten fälschen oder manipulieren:
+
+- Wettkampfdaten und Wettkampfstruktur,
+- die angezeigte Uhrzeit,
+- Ergebnisse und Ranglisten,
+- Klassenstände und Current-Finish-Markierung,
+- öffentliche WinLaufen-Nachrichten.
+
+Gefälschte Daten werden vom Live Server angenommen, bestätigt und sofort an
+**alle** verbundenen Browser ausgeliefert. Die echte Bridge bemerkt das nicht.
+
+Daraus folgen für diese Prototypversion verbindliche Einsatzgrenzen:
+
+- Einsatz **nur** in kontrollierten Vereins- bzw. Veranstaltungsnetzen.
+- Port 8081 darf **nicht** unkontrolliert aus nicht vertrauenswürdigen Netzen
+  erreichbar sein.
+- **Keine Portweiterleitung** des Ingest-WebSockets ins öffentliche Internet.
+- Kein Betrieb in offenen Gäste-WLANs oder gemeinsam genutzten Netzen.
+- Wo möglich, `winlaufen.live.secret` und das zugehörige Target-Secret in
+  Bridge Control auf einen eigenen Wert setzen; das reduziert das Risiko,
+  ersetzt aber keine echte Provisionierung.
+
+Für einen späteren produktiven oder harten Internetbetrieb sind **individuell
+provisionierte Secrets pro Target** erforderlich. Das ist bewusst nicht Teil
+dieser Prototype Baseline und bleibt ein offenes Production-Hardening-Thema.
+
+Der Live Server weist beim Start ausdrücklich auf das aktive Default-Secret hin.
+
+## Unterstützte Funktion
+
+Verifiziert sind Lauf und Biathlon. Tabellenheader, Zeilen, Indizes, Clock,
+Current Finish, Schießen und Nachrichten werden ohne fachliche Korrektur
+transportiert. Der Web Viewer bietet Startlisten-Platzhalter, LIVE und
+Ergebnisse. WinSpringen, ein erfundenes Startlistenprotokoll, Datenbank und
+Broker bleiben ausdrücklich außerhalb von v0.1.
+
+Details: [modulare Architektur](docs/MODULAR_ARCHITECTURE.md) und
+[WinLaufen-Protokoll](docs/WINLAUFEN_PROTOCOL.md).
