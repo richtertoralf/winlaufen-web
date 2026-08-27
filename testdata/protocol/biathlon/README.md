@@ -32,4 +32,9 @@ Rang | StNr | Name, Vorname | Verein | Vbd | Schießen | Gesamtzeit | Rückstand
 
 This capture is protocol evidence.
 
+It begins midstream in an established Java serialization context and is not an
+independently parseable complete stream. Synthetic parser tests use values from
+`decoded.json` only as an explicitly named evidence/contract scenario; no
+synthetic serialization is described as a capture fixture.
+
 Do not modify or replace this fixture merely to make tests pass.

@@ -35,6 +35,11 @@ HTTP API            WebSocket Publisher
 
 The normalized state is also the common source for future output adapters.
 
+Normalization describes a shared structural model, not correction of domain
+values. WinLaufen is the sole authority: supplied strings, ordering and indices
+are transported unchanged. The adapter validates message shape and safe Java
+types, but never asks whether a value is plausible for a sport or clock.
+
 ## 3. Major components
 
 ### WinLaufen connection
@@ -52,11 +57,15 @@ Responsibilities:
 Connection lifecycle for v0.1:
 
 - the first syntactically valid `UhrHH:MM:SS` message sets the state to
-  connected and clock advancing,
-- later confirmation requires a clock value advanced relative to the last
-  accepted value; repeated equal values are not progress,
-- `23:59:59` to `00:00:00` is valid progress,
-- stale after more than 4 seconds without accepting an advanced clock value,
+  connected,
+- each field contains exactly two decimal digits; their numeric ranges are not
+  interpreted,
+- every valid clock telegram confirms the connection, independently of its
+  numeric value or its relation to the previous value,
+- clock values are published unchanged and are not corrected or plausibilized,
+- stale after more than 4 seconds without receiving a valid clock telegram,
+- this deadline also covers waiting for the first clock after the serialization
+  stream has been established,
 - close a stale connection and reconnect,
 - retry immediately, then after 2 seconds, then 5 seconds, and every 10 seconds
   thereafter.
@@ -66,6 +75,9 @@ stale or disconnected.
 
 Local monotonic time is used only to measure the 4 second interval. It never
 replaces the displayed WinLaufen clock.
+
+Health has exactly `DISCONNECTED`, `CONNECTED` and `STALE`; `CONNECTED` means
+only that recognized clock telegrams continue to arrive.
 
 ### Protocol adapter
 
@@ -133,11 +145,26 @@ or more elaborate delta infrastructure is required.
 
 The protocol should remain small and versionable.
 
+A full `snapshot` is authoritative for the complete renderer state, including
+after WebSocket reconnect. Per-client delivery suppresses queued states older
+than the revision already sent to that client.
+
 ### Frontend
 
 Plain HTML, CSS and JavaScript.
 
 No framework and no compilation/build pipeline.
+
+The mobile-first public renderer is audience-oriented. Compact header and
+sticky navigation select exactly one of `Startliste`, `LIVE` or `Ergebnisse`.
+Wide dynamic tables keep their tabular structure and scroll horizontally. The
+renderer loads public-display options from the existing configuration endpoint
+and filters only the exact headers `Verein`, `Vbd`, `Nation` and `Schießen` by
+their original indices. Normalized state remains complete.
+
+The latest structurally valid WinLaufen message is retained in memory. It uses
+no separate approval workflow or event infrastructure and occupies no renderer
+space unless a message exists and public messages are enabled.
 
 ### Output abstraction
 
@@ -204,6 +231,9 @@ Configuration uses `java.util.Properties` at
 `${user.home}/.winlaufen-web/config.properties`. No JSON configuration library
 or database is used.
 
+Public-display booleans use the same properties file. Missing keys receive the
+v0.1 defaults without a migration framework.
+
 Do not introduce a database in v0.1.
 
 ## 7. Protocol state
@@ -221,7 +251,8 @@ On reconnect:
 
 A socket being open alone does not mean the connection is healthy.
 
-Health is based primarily on advancing WinLaufen clock messages.
+Health is based primarily on the continued arrival of valid WinLaufen clock
+telegrams, not on interpreting their values.
 
 ## 8. Result state semantics
 
@@ -248,6 +279,11 @@ The WinLaufen connection is untrusted serialized input.
 Use restrictive deserialization filtering.
 
 Only explicitly required Java classes/types may be accepted.
+
+Depth and array length are bounded. Cumulative `ObjectInputStream` byte or
+reference counters are deliberately not bounded because they grow for the whole
+connection and would impose an artificial event duration; the exact type
+whitelist and per-object structural checks remain in force.
 
 Do not expose arbitrary Java object deserialization to remote HTTP/WebSocket
 clients.

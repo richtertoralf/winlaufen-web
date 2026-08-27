@@ -22,6 +22,13 @@ WinLaufen Web:
 - renders the data in a browser,
 - never writes competition data back to WinLaufen.
 
+All documented competition values received from WinLaufen are authoritative and
+remain strings where the wire supplies strings. The bridge does not validate,
+correct, normalize, reinterpret, sort or replace clocks, ranks, bibs, result
+times, gaps, shooting values, names, clubs, associations, table headers/cells or
+current-finish values based on domain plausibility. Protocol structure, Java
+types, markers and technical resource safety are still validated.
+
 ## 3. Supported deployment topology
 
 The bridge must support both normal deployment variants.
@@ -149,9 +156,13 @@ RICHTER_PROJECTS network adapter or future remote protocol is implemented.
 
 ## 9. Renderer
 
+The renderer is a public audience view for spectators on phones, tablets and
+desktops, not a Sprecher-PC operator workspace. A compact header and navigation
+leave the available area to exactly one competition view at a time.
+
 Main navigation:
 
-- Teilnehmer
+- Startliste
 - LIVE
 - Ergebnisse
 
@@ -174,7 +185,7 @@ The user selects a class manually.
 
 The selected class remains selected even if other classes receive new results.
 
-### Teilnehmer
+### Startliste
 
 The UI position exists from the beginning.
 
@@ -185,6 +196,15 @@ No unsupported WinLaufen start-list protocol may be invented.
 
 Functionality requiring a future start-list interface is implemented only when
 verified protocol data is available.
+
+### Public display configuration
+
+The instance configuration controls presentation of the exact headers
+`Verein`, `Vbd`, `Nation` and `Schießen`. Club, association and shooting default
+to visible; nation defaults to hidden. WinLaufen server messages are retained
+internally and appear as a compact notice only when `showPublicMessages` is
+enabled; its default is false. These options alter only the public presentation.
+They never remove or modify data in normalized state.
 
 ## 10. Running table
 
@@ -221,20 +241,23 @@ It is also used as the application heartbeat.
 
 At minimum distinguish:
 
-- connected and clock advancing,
-- stale / connected but clock no longer advancing,
+- connected and receiving clock telegrams,
+- stale / no clock telegrams arriving,
 - disconnected.
 
 The v0.1 policy is:
 
 - TCP port 4444 and connect timeout 5 seconds,
 - the first syntactically valid `UhrHH:MM:SS` message sets the state to
-  connected and clock advancing,
-- after that, only a clock value advanced relative to the last accepted value
-  confirms the connection,
-- repeated equal clock values do not count as progress,
-- `23:59:59` to `00:00:00` is valid progress,
-- stale when no advanced clock value has been accepted for more than 4 seconds,
+  connected,
+- syntax means the `Uhr` prefix followed by three fields of exactly two decimal
+  digits; no numeric range is imposed, so `Uhr99:99:99` is preserved,
+- every subsequently received valid clock telegram confirms the connection,
+  regardless of whether its value is equal, lower, or higher than before,
+- WinLaufen Web does not validate, correct, or plausibilize clock progression,
+- stale when no valid clock telegram has been received for more than 4 seconds,
+- the same deadline starts with a fresh connection and closes/reconnects a
+  stream that never supplies its first clock telegram,
 - close a stale connection and start reconnecting,
 - reconnect immediately, then after 2 seconds, then 5 seconds, then every 10
   seconds,
@@ -245,7 +268,10 @@ The last valid competition state may remain visible during reconnect, but its
 connection state must be shown as stale or disconnected.
 
 Local monotonic time may be used only to measure the 4 second heartbeat interval.
-It must never replace the displayed WinLaufen clock.
+It must never replace or modify the displayed WinLaufen clock.
+
+The API health values are exactly `DISCONNECTED`, `CONNECTED` and `STALE`.
+`CONNECTED` describes continued telegram reception only, not clock progression.
 
 ## 13. Simplicity
 
@@ -324,6 +350,10 @@ monotonically increasing revision. The minimal WebSocket message types are
 `snapshot`, `clock` and `classSnapshot`.
 
 No general event bus or additional delta protocol is required.
+
+Every WebSocket `snapshot`, including one after reconnect, is authoritative and
+fully synchronizes browser tables. Revisions delivered to an individual client
+must never decrease.
 
 ## 16. Installation goal
 
