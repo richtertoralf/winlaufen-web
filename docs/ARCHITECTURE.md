@@ -1,5 +1,13 @@
 # WinLaufen Web — Architecture
 
+> **Einordnung:** Dieses Dokument beschreibt die aktuell implementierte
+> monolithische v0.1-Architektur. Die verbindliche Zielarchitektur mit getrennt
+> installierbarer Bridge, Live Server und Web Viewer ist in
+> [MODULAR_ARCHITECTURE.md](MODULAR_ARCHITECTURE.md) festgelegt. Aussagen unten,
+> nach denen HTTP/WebSocket/Renderer direkt zur Bridge gehören oder genau ein
+> `OutputMode` gewählt wird, sind daher IST-Beschreibungen und werden im
+> anschließenden zusammenhängenden Refactoring ersetzt.
+
 ## 1. Design goals
 
 The architecture must be:
