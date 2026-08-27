@@ -327,11 +327,50 @@ Java system properties and are never delivered to browsers.
 
 Do not add a database for v0.1.
 
+## Installation profiles
+
+Installation and network/runtime configuration are strictly separated. The
+installer asks for exactly one thing: the role of the machine.
+
+- **All-in-One**: bridge + live server. Default and recommended profile,
+  intended for installation directly on the WinLaufen PC. With WinLaufen on the
+  same machine this must work with no further configuration.
+- **Bridge only**: bridge alone. Valid installation state even without any
+  output target.
+- **Presentation Node**: live server / Web View alone. Needs no bridge address
+  during installation.
+
+The installer must never ask for a WinLaufen IP, a target IP, a hostname, a URL,
+a WSS address or any other event-dependent network parameter, and must never
+block an installation because such a value is still unknown. Those values belong
+in Bridge Control after installation.
+
+Supported: Debian, Ubuntu 24.04/26.04 and Raspberry Pi OS for all three
+profiles; Windows 11 for All-in-One and Bridge only. Presentation Node on
+Windows is deliberately not supported.
+
+Existing runtime configuration must survive a reinstall or upgrade untouched.
+Defaults are only created on a genuine first installation.
+
+Use these terms consistently in user and operations documentation: All-in-One,
+Bridge only, Presentation Node, Bridge Control, Output Target, Live Server,
+Web View. Do not introduce parallel names such as "Web only", "Server only",
+"Renderer Mode", "Remote Mode" or "Combined Mode" for the same thing.
+
+User-facing and operations documentation (README.md and docs/) is written in
+German. Established technical terms stay as they are.
+
 ## Build and packaging
 
 Maven multi-module build: `contract`, `bridge`, `live-server`. The root POM is an
 aggregator and contains no runtime classes. Packaging produces two executable
 JARs; the contract stays a plain library.
+
+`installer/common/build-dist.{sh,ps1}` assembles a distribution and can bundle a
+`jlink`-reduced Java runtime, so an end user does not have to prepare a JDK. The
+runtime is always platform-specific; do not attempt a cross-build. Linux
+services run under systemd, Windows background services run as scheduled tasks
+triggered at startup.
 
 Use one source tree for Windows and Linux.
 
