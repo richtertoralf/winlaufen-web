@@ -32,7 +32,9 @@ public final class LiveWebSocketServer extends WebSocketServer {
     public LiveWebSocketServer(int port, StateStore store) {
         super(new InetSocketAddress("0.0.0.0", port));
         this.store = store;
-        setReuseAddr(false);
+        // Allow an immediate rebind after a clean stop even while prior client
+        // connections are still represented by TCP TIME_WAIT entries.
+        setReuseAddr(true);
         store.addListener(this::publish);
     }
 
@@ -86,6 +88,8 @@ public final class LiveWebSocketServer extends WebSocketServer {
 
     public void shutdown() throws InterruptedException {
         publisher.shutdownNow();
+        deliveredRevisions.clear();
         stop(1_000);
+        if (!publisher.awaitTermination(1, TimeUnit.SECONDS)) publisher.shutdownNow();
     }
 }

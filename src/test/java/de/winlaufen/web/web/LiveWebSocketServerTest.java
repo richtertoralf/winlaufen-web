@@ -52,6 +52,16 @@ class LiveWebSocketServerTest {
         assertFalse(LiveWebSocketServer.revisionMayFollow(12, 11));
     }
 
+    @Test void cleanShutdownAllowsImmediateRebindOnSamePort() throws Exception {
+        assertTrue(server.isReuseAddr());
+        int port = server.getPort();
+        server.shutdown();
+        server = new LiveWebSocketServer(port, new StateStore());
+        server.start();
+        server.awaitStart();
+        assertEquals(port, server.getPort());
+    }
+
     private Collector connect(String origin) throws Exception {
         Collector listener = new Collector();
         listener.socket = HttpClient.newHttpClient().newWebSocketBuilder().header("Origin", origin)

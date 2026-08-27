@@ -22,6 +22,25 @@ mvn package
 java -jar target/winlaufen-web.jar
 ```
 
+### Development / lokaler Test
+
+Nach dem Paketbau kann eine lokale Testinstanz über PID-gesicherte Hilfsskripte
+im Hintergrund verwaltet werden:
+
+```sh
+mvn package
+./devtools/start-local.sh
+./devtools/status-local.sh
+./devtools/restart-local.sh
+./devtools/stop-local.sh
+```
+
+PID und Log liegen unter dem beschreibbaren `XDG_RUNTIME_DIR`, andernfalls unter
+`/tmp/winlaufen-web-$UID/`, nicht im Repository. Die Skripte verwalten
+ausschließlich die von ihnen gestartete Instanz. Sie sind Entwicklungs- und
+Testwerkzeuge und ausdrücklich nicht das spätere Windows-/Linux-Installations-
+oder Servicekonzept.
+
 Danach öffnen:
 
 - Dashboard: `http://localhost:8080/`

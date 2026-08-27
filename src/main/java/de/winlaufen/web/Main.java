@@ -9,6 +9,7 @@ import de.winlaufen.web.web.LiveWebSocketServer;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class Main {
     private Main() { }
@@ -28,6 +29,14 @@ public final class Main {
         WinLaufenClient client = new WinLaufenClient(config.get().winLaufenHost(), state);
         LiveWebSocketServer webSocket = new LiveWebSocketServer(config.get().webSocketPort(), state);
         HttpAppServer[] http = new HttpAppServer[1];
+        AtomicBoolean stopped = new AtomicBoolean();
+        Runnable shutdown = () -> {
+            if (!stopped.compareAndSet(false, true)) return;
+            if (http[0] != null) http[0].close();
+            client.close();
+            try { webSocket.shutdown(); }
+            catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+        };
         try {
             http[0] = new HttpAppServer(config.get().httpPort(), state, configStore, config::get, next -> {
                 AppConfig previous = config.getAndSet(next);
@@ -39,16 +48,10 @@ public final class Main {
             client.start();
             System.out.printf("WinLaufen Web läuft: http://localhost:%d/ (Renderer: /renderer, WebSocket: %d)%n",
                     config.get().httpPort(), config.get().webSocketPort());
-            Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().unstarted(() -> {
-                client.close();
-                http[0].close();
-                try { webSocket.shutdown(); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
-            }));
+            Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().name("winlaufen-shutdown").unstarted(shutdown));
             new CountDownLatch(1).await();
         } catch (Exception ex) {
-            client.close();
-            if (http[0] != null) http[0].close();
-            try { webSocket.shutdown(); } catch (Exception ignored) { }
+            shutdown.run();
             throw ex;
         }
     }

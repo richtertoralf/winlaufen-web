@@ -124,6 +124,9 @@ It must be reachable from other devices in the LAN when configured accordingly.
 The default bind address and port are `0.0.0.0:8080`. A bind failure is fatal
 and reported clearly; the server does not silently choose another port.
 
+On shutdown the HTTP listener is stopped before its request executor is
+terminated, so no listener or executor thread remains after process exit.
+
 ### WebSocket server
 
 Provides live state updates to connected browser clients.
@@ -138,6 +141,12 @@ Browser startup pattern:
 The default bind address and port are `0.0.0.0:8081`. A bind failure is fatal
 and reported clearly. `GET /api/v1/state` remains available for diagnostics and
 fallback, but is not required before the WebSocket connection.
+
+The WebSocket listener enables address reuse before binding. This permits an
+immediate clean restart while closed connections may still be represented by
+TCP `TIME_WAIT`; it does not permit binding over another active listener. Clean
+shutdown stops HTTP, then the WinLaufen state-producing client thread, then
+WebSocket publishing/listening.
 
 Every published state has a monotonically increasing revision. The minimal
 message types are `snapshot`, `clock` and `classSnapshot`. No general event bus
@@ -218,6 +227,10 @@ Use Java platform APIs for:
 - concurrency,
 - HTTP,
 - configuration where practical.
+
+The scripts under `devtools/` provide only a local development/test lifecycle.
+They store PID and log files below a writable `XDG_RUNTIME_DIR`, falling back to
+`/tmp`, and are not the production service or installation architecture.
 
 ## 6. Persistence
 

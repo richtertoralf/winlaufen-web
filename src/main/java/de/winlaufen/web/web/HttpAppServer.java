@@ -17,11 +17,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public final class HttpAppServer implements AutoCloseable {
     private final HttpServer server;
+    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final StateStore state;
     private final ConfigStore configs;
     private final Supplier<AppConfig> currentConfig;
@@ -34,7 +37,7 @@ public final class HttpAppServer implements AutoCloseable {
         this.currentConfig = currentConfig;
         this.configChanged = configChanged;
         server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
-        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+        server.setExecutor(executor);
         server.createContext("/", this::handle);
     }
 
@@ -137,5 +140,14 @@ public final class HttpAppServer implements AutoCloseable {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8); exchange.sendResponseHeaders(status, bytes.length); exchange.getResponseBody().write(bytes);
     }
 
-    @Override public void close() { server.stop(0); }
+    @Override public void close() {
+        server.stop(0);
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(1, TimeUnit.SECONDS)) executor.shutdownNow();
+        } catch (InterruptedException ex) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
 }

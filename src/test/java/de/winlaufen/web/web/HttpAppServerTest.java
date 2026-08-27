@@ -67,6 +67,14 @@ class HttpAppServerTest {
         assertTrue(response.body().contains("\"showPublicMessages\":false"));
     }
 
+    @Test void cleanShutdownAllowsImmediateRebindOnSamePort() throws Exception {
+        int port = server.port();
+        server.close();
+        server = new HttpAppServer(port, new StateStore(), configStore, config::get, config::set);
+        server.start();
+        assertEquals(port, server.port());
+    }
+
     private void assertBody(String path, String expected) throws Exception {
         var response = client.send(HttpRequest.newBuilder(URI.create(base() + path)).GET().build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode()); assertTrue(response.body().contains(expected));

@@ -84,6 +84,11 @@ public final class WinLaufenClient implements AutoCloseable {
     @Override public void close() {
         running.set(false);
         closeSocket();
-        if (thread != null) thread.interrupt();
+        Thread value = thread;
+        if (value == null) return;
+        value.interrupt();
+        if (value == Thread.currentThread()) return;
+        try { value.join(2_000); }
+        catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
     }
 }
