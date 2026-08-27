@@ -30,7 +30,7 @@ public final class BridgeMain {
     }
 
     private static void run() throws Exception {
-        BridgeConfigStore configStore = BridgeConfigStore.inUserHome();
+        BridgeConfigStore configStore = BridgeConfigStore.fromSystemProperties();
         BridgeConfigStore.LoadResult loaded = configStore.loadWithNotices();
         loaded.notices().forEach(notice -> System.out.println("Hinweis: " + notice));
 
@@ -64,6 +64,7 @@ public final class BridgeMain {
                     Thread.ofPlatform().name("bridge-shutdown").unstarted(shutdown));
             System.out.printf("Bridge Control läuft: http://localhost:%d/ (Stream %s)%n",
                     config.get().controlPort(), streamId);
+            System.out.println("Konfiguration: " + configStore.path());
             new CountDownLatch(1).await();
         } catch (Exception ex) {
             shutdown.run();

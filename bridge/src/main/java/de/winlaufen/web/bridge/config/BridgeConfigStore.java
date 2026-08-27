@@ -46,9 +46,32 @@ public final class BridgeConfigStore {
         this.path = path;
     }
 
+    /**
+     * System property that moves the organiser configuration out of the user home. A system
+     * service installation points it at a machine-wide file such as
+     * {@code /etc/winlaufen-web/bridge.properties}.
+     */
+    public static final String CONFIG_PATH_PROPERTY = "winlaufen.bridge.config";
+
     public static BridgeConfigStore inUserHome() {
         return new BridgeConfigStore(
                 Path.of(System.getProperty("user.home"), ".winlaufen-web", "config.properties"));
+    }
+
+    /**
+     * The configured location, or the user-home default when {@link #CONFIG_PATH_PROPERTY} is
+     * unset. The file format is identical in both cases.
+     */
+    public static BridgeConfigStore fromSystemProperties() {
+        String configured = System.getProperty(CONFIG_PATH_PROPERTY);
+        if (configured == null || configured.isBlank()) {
+            return inUserHome();
+        }
+        return new BridgeConfigStore(Path.of(configured.trim()));
+    }
+
+    public Path path() {
+        return path;
     }
 
     /** Configuration plus any operator-visible notices produced while migrating an old file. */

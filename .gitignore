@@ -3,6 +3,9 @@ target/
 *.class
 *.jar
 
+# Installer-Distribution (wird gebaut, nicht versioniert)
+dist/
+
 # IDEs
 .idea/
 .vscode/
