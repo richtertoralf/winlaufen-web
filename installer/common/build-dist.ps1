@@ -28,16 +28,19 @@ $LiveJar   = 'winlaufen-web-live-server.jar'
 $JavaRelease = 25
 
 if (-not $SkipBuild) {
-    Write-Host "== Baue Artefakte (mvn package) =="
+    Write-Host "== Baue Artefakte (Maven Wrapper: package) =="
     Push-Location $repositoryRoot
-    try { & mvn -B -q package; if ($LASTEXITCODE -ne 0) { throw "mvn package fehlgeschlagen" } }
+    try {
+        & (Join-Path $repositoryRoot 'mvnw.cmd') -B -q package
+        if ($LASTEXITCODE -ne 0) { throw "Maven-Wrapper-Build fehlgeschlagen" }
+    }
     finally { Pop-Location }
 }
 
 $bridgeSource = Join-Path $repositoryRoot "bridge\target\$BridgeJar"
 $liveSource   = Join-Path $repositoryRoot "live-server\target\$LiveJar"
 foreach ($jar in @($bridgeSource, $liveSource)) {
-    if (-not (Test-Path -LiteralPath $jar)) { throw "$jar fehlt. Zuerst 'mvn package' ausführen." }
+    if (-not (Test-Path -LiteralPath $jar)) { throw "$jar fehlt. Zuerst '.\mvnw.cmd package' ausführen." }
 }
 
 Write-Host "== Erzeuge Distribution in $Output =="
@@ -63,7 +66,7 @@ if ($WithRuntime) {
     Write-Host "== Erzeuge reduzierte Java-Runtime (jlink) =="
     if (-not (Get-Command 'jlink' -ErrorAction SilentlyContinue)) { throw "jlink nicht gefunden." }
     & jlink --add-modules java.base,java.logging,java.naming,java.xml,jdk.httpserver,jdk.crypto.ec `
-            --strip-debug --no-header-files --no-man-pages --compress=zip-6 `
+            --no-header-files --no-man-pages --compress=zip-6 `
             --output (Join-Path $Output 'runtime')
     if ($LASTEXITCODE -ne 0) { throw "jlink fehlgeschlagen" }
 }

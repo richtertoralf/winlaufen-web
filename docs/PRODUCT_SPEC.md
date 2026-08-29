@@ -54,10 +54,12 @@ Windows-Rechner laufen, auf dem auch WinLaufen läuft.
 
 In diesem Fall ist die Quelle normalerweise `localhost:4444`.
 
-Beide Varianten sind gleichwertig unterstützte Konfigurationen. Sie entsprechen
-den Installationsprofilen **All-in-One** (gleicher Rechner) und **Bridge only**
-bzw. **Presentation Node** (getrennte Rechner); siehe
-[INSTALLATION.md](INSTALLATION.md).
+Beide Varianten sind gleichwertig unterstützte Konfigurationen. **All-in-One**
+bedeutet Bridge und Live Server auf einem Rechner, nicht zwingend WinLaufen auf
+demselben Rechner. Der All-in-One-Rechner kann daher der WinLaufen-PC, ein
+Sprecher-PC, ein separater LAN-PC oder ein Raspberry Pi sein. **Bridge only**
+und **Presentation Node** trennen die beiden Runtimes auf unterschiedliche
+Rechner; siehe [INSTALLATION.md](INSTALLATION.md).
 
 ## 4. Unterstützte Plattformen
 
@@ -102,14 +104,27 @@ Die modulare lokale Installation stellt dafür bereit:
 - Bridge Control auf der Bridge,
 - Web View auf dem Live Server.
 
-Lokale Standard-Endpunkte:
+Fester WinLaufen-Web-Portblock:
 
-- HTTP: `0.0.0.0:8080`
-- WebSocket: `0.0.0.0:8081`
+- HTTP: `0.0.0.0:44440`
+- WebSocket: `0.0.0.0:44441`
 
-Bridge Control verwendet standardmäßig `127.0.0.1:8090`. Ist einer der eigenen
+Bridge Control verwendet standardmäßig `0.0.0.0:44442`. Ist einer der eigenen
 Ports einer Runtime bereits belegt, bricht diese Runtime mit einer klaren
 Fehlermeldung ab und wählt keinen Ersatzport.
+
+| Quelle | Ziel | Protokoll/Port | Zweck |
+|---|---|---|---|
+| Bridge | WinLaufen-PC | TCP 4444 | WinLaufen Sprecher-PC-Protokoll |
+| Viewer | Live Server | TCP 44440 | Web View / Public HTTP / API |
+| Browser | Live Server | TCP 44441 | Live WebSocket |
+| Bridge | Live Server | TCP 44441 | authentifizierter Bridge-Ingest |
+| Admin | Bridge | TCP 44442 | Bridge Control |
+
+TCP 4444 ist ein festes ausgehendes Bridge-Ziel und kein lokaler
+WinLaufen-Web-Listener. Der Live Server besitzt weiterhin genau einen
+WebSocket-Listener auf 44441; Browser und Ingest werden über Pfade und
+unterschiedliche Handshake-Regeln getrennt.
 
 Beim Upgrade einer vormodularen Konfiguration bleiben WinLaufen-Host,
 Presentation-Werte und der frühere LOCAL-Output erhalten; der alte
@@ -127,12 +142,30 @@ Der Installer fragt ausschließlich das Installationsprofil ab: **All-in-One**,
 WinLaufen-IP-Adressen, Target-IP-Adressen, Hostnamen, URLs oder WSS-Zielen und
 blockiert die Installation nicht, wenn diese Angaben noch unbekannt sind.
 
-All-in-One ist der Standard und muss auf dem WinLaufen-PC ohne weitere
-Konfiguration funktionieren: die Bridge erwartet WinLaufen unter `127.0.0.1:4444`
-und der lokale Live Server ist als reguläres Output Target vorkonfiguriert.
+All-in-One ist der Standard für einen Rechner im lokalen Netz. Wenn dieser
+zugleich der WinLaufen-PC ist, muss es ohne weitere Konfiguration funktionieren:
+die Bridge erwartet WinLaufen unter `127.0.0.1:4444` und der lokale Live Server
+ist als reguläres Output Target vorkonfiguriert. Auf einem separaten
+All-in-One-Rechner wird nur der WinLaufen-Host nachträglich in Bridge Control
+angepasst. Viewer dürfen über LAN/WLAN zugreifen.
 
-Eine vorhandene Konfiguration wird bei einer Neuinstallation oder einem Upgrade
-nicht überschrieben.
+Eine vorhandene Veranstalterkonfiguration wird bei einer Neuinstallation oder
+einem Upgrade nicht überschrieben. Exakt frühere Installer-Netzwerkdefaults
+werden auf den festen Portblock migriert.
+
+Der Installer prüft vor dem Start ausschließlich die für das Profil benötigten
+lokalen Listenerports und validiert danach Dienste, Listener und lokale
+HTTP-Erreichbarkeit. Fehler dieser lokalen Installationsintegrität sind harte
+Installationsfehler. Erst danach diagnostiziert er Quelle und konfigurierte
+Output Targets über den vorhandenen Runtime-Status. Ein nicht erreichbarer
+WinLaufen-PC, ein getrenntes externes Target oder ein noch nicht verbundener
+lokaler All-in-One-Datenpfad ist kein Installationsfehler; die Installation
+bleibt erfolgreich und der Zustand wird als Hinweis oder Warnung gemeldet.
+Ein Presentation Node benötigt bei der Installation keine verbundene Bridge.
+
+Linux-Installer verändern keine Firewall. Windows-Installer erfordern eine
+Administrator-PowerShell und legen nur profilabhängige eingehende TCP-Regeln für
+Private-/Domain-Netze an; der Uninstaller entfernt nur diese eigenen Regeln.
 
 ## 8. Bridge Control
 
@@ -349,12 +382,20 @@ Konfigurationsänderungen in Bridge Control verwenden ausschließlich `POST` mit
 `application/x-www-form-urlencoded` und erfordern einen gültigen Origin.
 Browser-WebSocket-Verbindungen erfordern ebenfalls einen gültigen Origin.
 
+Bridge Control auf TCP 44442 ist ein Administrationsport und besitzt in v0.1
+bewusst keine Benutzer- oder Login-Authentifizierung. Jeder Teilnehmer im
+erreichbaren Netz kann grundsätzlich die Oberfläche öffnen und Konfigurationen
+ändern. Deshalb darf der Port nur im vertrauenswürdigen LAN erreichbar sein,
+nicht im Gäste-WLAN, über unkontrollierte Portweiterleitungen oder direkt aus
+dem öffentlichen Internet. Die Control-API gibt Target-Secrets nicht aus; dies
+ersetzt keine Zugriffsbeschränkung auf Netzwerkebene.
+
 HTTP und WebSocket verwenden bewusst unterschiedliche Ports. Eine Seite, die von
-`http://<live-server>:8080` geladen wird, verbindet sich zu
-`ws://<live-server>:8081/live/v1`; ihr Browser-Origin ist damit
-`http://<live-server>:8080`. Der Origin-Hostname bzw. die IP muss dem Host der
-WebSocket-Anfrage entsprechen. Origin-Port 8080 wird für den WebSocket auf Port
-8081 akzeptiert; Gleichheit mit dem WebSocket-Port ist nicht erforderlich.
+`http://<live-server>:44440` geladen wird, verbindet sich zu
+`ws://<live-server>:44441/live/v1`; ihr Browser-Origin ist damit
+`http://<live-server>:44440`. Der Origin-Hostname bzw. die IP muss dem Host der
+WebSocket-Anfrage entsprechen. Origin-Port 44440 wird für den WebSocket auf Port
+44441 akzeptiert; Gleichheit mit dem WebSocket-Port ist nicht erforderlich.
 Fremde Origins und Anfragen ohne Origin werden abgelehnt. Der Bridge-Ingest
 verwendet den eigenen Pfad `/bridge/v1/channels/<channel>` und
 Bearer-Authentifizierung statt eines Browser-Origins.

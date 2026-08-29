@@ -18,16 +18,27 @@ Bei der Installation wird genau eine Sache ausgewählt: die Rolle des Rechners.
 
 * Bridge + Live Server auf einem Rechner
 * Standard- und Defaultprofil
-* empfohlen für die Installation direkt auf dem WinLaufen-PC
+* geeignet für WinLaufen-PC, Sprecher-PC, separaten LAN-PC oder Raspberry Pi
 * Läuft WinLaufen auf demselben Rechner, ist normalerweise **keine**
   zusätzliche Konfiguration nötig
 
 ```text
-WinLaufen  ->  Bridge  ->  lokaler Live Server  ->  Web View
+WinLaufen-PC
+      |
+      | TCP 4444
+      v
+All-in-One-Rechner
+ Bridge + Live Server
+      |
+      | LAN/WLAN
+      v
+Tablet / Handy / Notebook
 ```
 
 Der Installer trägt WinLaufen unter `127.0.0.1:4444` und den lokalen Live Server
-als reguläres Output Target ein.
+als reguläres Output Target ein. Wenn WinLaufen auf einem anderen Rechner
+läuft, wird nur dessen Host später in Bridge Control geändert. Der Browser muss
+nicht auf dem All-in-One-Rechner laufen.
 
 ### Bridge only
 
@@ -77,6 +88,13 @@ werden, auch wenn das Veranstaltungsnetz noch unbekannt ist. Adressen, Ziele und
 TLS gehören ausschließlich in die spätere Runtime-Konfiguration über Bridge
 Control.
 
+Nicht erreichbare Quellen und Output Targets verhindern die Installation nicht.
+Nach erfolgreicher Prüfung der lokalen Dienste, Listener und HTTP-Endpunkte
+meldet der Installer ihren aktuellen Verbindungszustand als Betriebsdiagnose.
+Auch ein noch nicht verbundener lokaler All-in-One-Datenpfad ist eine Warnung,
+kein Installationsfehler. Fehler der lokalen Dienste, Listener oder
+HTTP-Endpunkte bleiben dagegen harte Installationsfehler.
+
 ### Unterstützte Plattformen
 
 | Plattform | All-in-One | Bridge only | Presentation Node |
@@ -93,27 +111,50 @@ verwenden.
 ## Installation
 
 Ausführliche Anleitung: [docs/INSTALLATION.md](docs/INSTALLATION.md).
+Der Tag-basierte Ablauf für Maintainer ist unter
+[docs/RELEASE.md](docs/RELEASE.md) dokumentiert.
 
-Distribution bauen (Rechner mit JDK 25 und Maven):
+### Release-Installation für Endanwender
+
+Sobald Release-Pakete veröffentlicht sind:
+
+1. passendes Archiv von [GitHub Releases](https://github.com/richtertoralf/winlaufen-web/releases) herunterladen,
+2. Archiv entpacken,
+3. Installer starten und das Maschinenprofil wählen.
+
+Git, Maven, Source Checkout und ein eigener Build sind dafür nicht nötig. Ein
+Paket mit gebündelter `jlink`-Runtime benötigt auch kein separat installiertes
+JDK für den Betrieb.
+
+### Developer-Installation aus dem Source Checkout
+
+Voraussetzungen sind Git und JDK 25. Maven wird durch den Wrapper 3.9.16
+bereitgestellt und muss nicht systemweit installiert sein.
 
 ```sh
-./installer/common/build-dist.sh --with-runtime      # Linux
+git clone https://github.com/richtertoralf/winlaufen-web.git
+cd winlaufen-web
+./mvnw clean package
+sudo ./installer/linux/install.sh
 ```
 
 ```powershell
-.\installer\common\build-dist.ps1 -WithRuntime       # Windows
+git clone https://github.com/richtertoralf/winlaufen-web.git
+Set-Location winlaufen-web
+.\mvnw.cmd clean package
+# PowerShell als Administrator:
+.\installer\windows\Install-WinLaufenWeb.ps1
 ```
 
-`dist/` auf den Zielrechner kopieren und dort installieren:
+Für selbst gebaute plattformspezifische Distributionsarchive mit optionaler
+Runtime:
 
 ```sh
-sudo ./installer/linux/install.sh                    # Profilauswahl
-sudo ./installer/linux/install.sh --profile all-in-one
+./installer/common/build-dist.sh --with-runtime
 ```
 
 ```powershell
-.\installer\windows\Install-WinLaufenWeb.ps1         # Profilauswahl
-.\installer\windows\Install-WinLaufenWeb.ps1 -Profile AllInOne
+.\installer\common\build-dist.ps1 -WithRuntime
 ```
 
 Unter Linux laufen die Dienste über `systemd`, unter Windows als geplante
@@ -123,9 +164,47 @@ Konsolenfenster automatisch nach einem Neustart.
 Nach der Installation:
 
 ```text
-Bridge Control:  http://localhost:8090/
-Web View:        http://<live-server>:8080/
+Bridge Control:  http://<bridge>:44442/
+Web View:        http://<live-server>:44440/
 ```
+
+Der Abschlussbericht trennt die erfolgreiche lokale Installation von der
+Betriebsbereitschaft externer Verbindungen. Bei Profilen mit Bridge nennt er
+WinLaufen-Quelle und konfigurierte Output Targets ohne Secrets; `DISCONNECTED`,
+`RETRY_WAIT` oder ein deaktiviertes Target ändern den Installationserfolg nicht.
+Ein Presentation Node darf erfolgreich installiert sein und auf eine später
+verbundene Bridge warten.
+
+## Netzwerkvertrag
+
+| Quelle | Ziel | Protokoll/Port | Zweck |
+|---|---|---|---|
+| Bridge | WinLaufen-PC | TCP 4444 | WinLaufen Sprecher-PC-Protokoll |
+| Viewer | Live Server | TCP 44440 | Web View / Public HTTP / API |
+| Browser | Live Server | TCP 44441 | Live WebSocket auf `/live/v1` |
+| Bridge | Live Server | TCP 44441 | authentifizierter Bridge-Ingest auf `/bridge/v1/channels/<channel>` |
+| Admin | Bridge | TCP 44442 | Bridge Control |
+
+44440 und 44441 müssen für die gewünschten Viewer im LAN/WLAN erreichbar
+sein, 44442 für die vorgesehenen Administrationsgeräte. TCP 4444 ist keine
+lokale WinLaufen-Web-Freigabe: Die Bridge verbindet sich ausgehend zum
+WinLaufen-PC. Der Live Server nutzt bewusst nur einen WebSocket-Listener auf
+44441 für die beiden getrennt abgesicherten Pfade.
+
+Unter Linux verändert der Installer keine Firewall. Er nennt die je Profil
+benötigten Regeln; lokale oder externe Firewalls müssen passend zum
+Veranstaltungsnetz gepflegt werden. Unter Windows muss die Installation in
+einer PowerShell mit Administratorrechten laufen; sie richtet nur die nötigen
+eingehenden Defender-Firewallregeln für Private-/Domain-Netze ein.
+
+Bridge Control auf TCP 44442 ist ein Administrationsport. In v0.1 besitzt diese
+Oberfläche bewusst keine Benutzer- oder Login-Authentifizierung. Jeder
+Teilnehmer in einem Netz, aus dem der Port erreichbar ist, kann Bridge Control
+grundsätzlich öffnen und die Konfiguration ändern. Deshalb darf 44442 nur in
+einem vertrauenswürdigen LAN erreichbar sein: nicht im Gäste-WLAN, nicht über
+unkontrollierte Portweiterleitungen und nicht direkt aus dem öffentlichen
+Internet. Target-Secrets werden von der Control-API nicht ausgegeben; das ist
+jedoch kein Ersatz für eine Zugriffsbeschränkung des Administrationsports.
 
 ## Module
 
@@ -139,11 +218,14 @@ Bridge; beide Runtimes bleiben getrennte Prozesse.
 
 ## Aus dem Quellcode bauen
 
-Voraussetzungen: Java 25 und Maven 3.9+.
+Voraussetzungen: Git und JDK 25. System-Maven ist nicht erforderlich.
 
 ```sh
-mvn test
-mvn package
+./mvnw clean package
+```
+
+```powershell
+.\mvnw.cmd clean package
 ```
 
 Ausführbare Artefakte:
@@ -182,7 +264,7 @@ Reproduzierbarer Zwei-Prozess-/Multi-Endpoint-Smoke (eine Bridge, zwei Live
 Server, Ausfall, Neustart, Full Resync; benötigt keine WinLaufen-Installation):
 
 ```sh
-mvn package
+./mvnw package
 ./devtools/smoke-fanout.sh
 ```
 
@@ -202,7 +284,7 @@ Live-Test gegen eine echte WinLaufen-Quelle:
 
 Die einzige Veranstalter-Konfiguration liegt in der Bridge. Bridge Control
 verwaltet Quelle, mehrere Output Targets und die öffentliche Darstellung.
-Target-Secrets werden nie über die API an den Browser zurückgegeben.
+Target-Secrets werden nie über die Control-API an den Browser zurückgegeben.
 
 | Installationsart | Ort der Bridge-Konfiguration |
 |---|---|
@@ -219,9 +301,9 @@ Java-Systemproperties:
 
 ```text
 winlaufen.live.http.bind       default 0.0.0.0
-winlaufen.live.http.port       default 8080
+winlaufen.live.http.port       default 44440
 winlaufen.live.websocket.bind  default 0.0.0.0
-winlaufen.live.websocket.port  default 8081
+winlaufen.live.websocket.port  default 44441
 winlaufen.live.channel         default local
 winlaufen.live.secret          default local-development-secret
 ```
@@ -230,7 +312,7 @@ winlaufen.live.secret          default local-development-secret
 
 `wss://` ist immer zulässig. Unverschlüsseltes `ws://` ist nur erlaubt für
 `localhost` und für **IP-Adressliterale** aus dem Loopback-, Link-Local- oder
-privaten LAN-Bereich (z. B. `ws://192.168.1.20:8081/...`). Jeder andere Host —
+privaten LAN-Bereich (z. B. `ws://192.168.1.20:44441/...`). Jeder andere Host —
 insbesondere jeder DNS-Name — erfordert `wss://`. Das Projekt führt bewusst
 keine DNS- oder Geo-Auflösung durch, um „LAN" von „Internet" zu unterscheiden;
 diese rein syntaktische Regel ist der konservative Ersatz. Ein LAN-Ziel muss für
@@ -257,9 +339,10 @@ Hinweis: Die früheren Webports gehören jetzt zum Live-Server-Prozess.
 Starte ihn mit: -Dwinlaufen.live.http.port=9080 -Dwinlaufen.live.websocket.port=9081
 ```
 
-Der Installer überschreibt eine vorhandene Konfiguration nie. Defaults entstehen
-nur bei einer echten Erstinstallation, damit eine gepflegte WinLaufen-Adresse
-oder Target-Liste ein Upgrade überlebt.
+Der Installer erhält gepflegte Veranstalterwerte und Target-Listen. Nur die
+exakten früheren Installer-Netzwerkdefaults werden einmalig auf den festen
+Portblock 44440–44442 migriert; individuelle Werte außerhalb dieser ehemaligen
+Defaults bleiben unverändert.
 
 ## Known prototype security limitation
 
@@ -274,7 +357,7 @@ kein eigenes Secret.
 
 Konkrete Folge:
 
-**Jeder Teilnehmer, der den Ingest-WebSocket auf Port 8081 erreichen kann und
+**Jeder Teilnehmer, der den Ingest-WebSocket auf Port 44441 erreichen kann und
 das bekannte Secret kennt, kann sich gegenüber dem Live Server als Bridge
 ausgeben.** Er kann damit den kompletten veröffentlichten Stand ersetzen und
 insbesondere folgende Daten fälschen oder manipulieren:
@@ -291,7 +374,7 @@ Gefälschte Daten werden vom Live Server angenommen, bestätigt und sofort an
 Daraus folgen für diese Prototypversion verbindliche Einsatzgrenzen:
 
 - Einsatz **nur** in kontrollierten Vereins- bzw. Veranstaltungsnetzen.
-- Port 8081 darf **nicht** unkontrolliert aus nicht vertrauenswürdigen Netzen
+- Port 44441 darf **nicht** unkontrolliert aus nicht vertrauenswürdigen Netzen
   erreichbar sein.
 - **Keine Portweiterleitung** des Ingest-WebSockets ins öffentliche Internet.
 - Kein Betrieb in offenen Gäste-WLANs oder gemeinsam genutzten Netzen.

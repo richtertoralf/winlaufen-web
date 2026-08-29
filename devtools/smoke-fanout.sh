@@ -21,7 +21,7 @@ bridge_jar="$repository_root/bridge/target/winlaufen-web-bridge.jar"
 live_jar="$repository_root/live-server/target/winlaufen-web-live-server.jar"
 
 for jar in "$bridge_jar" "$live_jar"; do
-    [[ -f "$jar" ]] || { echo "ERROR: $jar fehlt; zuerst 'mvn package' ausführen." >&2; exit 1; }
+    [[ -f "$jar" ]] || { echo "ERROR: $jar fehlt; zuerst './mvnw package' ausführen." >&2; exit 1; }
 done
 for command_name in curl python3 java; do
     command -v "$command_name" >/dev/null 2>&1 \

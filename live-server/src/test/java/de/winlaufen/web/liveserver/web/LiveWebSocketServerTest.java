@@ -70,7 +70,7 @@ class LiveWebSocketServerTest {
                 Map.of("Origin", "http://evil.test")));
         assertFalse(connects(new URI("ws://127.0.0.1:" + port + "/live/v1"), Map.of()));
         assertFalse(connects(new URI("ws://127.0.0.1:" + port + "/unknown"),
-                Map.of("Origin", "http://127.0.0.1:8080")));
+                Map.of("Origin", "http://127.0.0.1:44440")));
         assertFalse(connects(new URI("ws://127.0.0.1:" + port + "/bridge/v1/channels/other"),
                 Map.of("Authorization", "Bearer 12345678")));
     }
@@ -159,7 +159,7 @@ class LiveWebSocketServerTest {
 
     private Collector connectBrowser() throws Exception {
         Collector collector = new Collector(new URI("ws://127.0.0.1:" + server.getPort() + "/live/v1"),
-                Map.of("Origin", "http://127.0.0.1:8080"));
+                Map.of("Origin", "http://127.0.0.1:44440"));
         assertTrue(collector.connectBlocking(3, TimeUnit.SECONDS));
         return collector;
     }

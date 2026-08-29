@@ -81,10 +81,10 @@ class BridgeControlJsonTest {
     }
 
     private static BridgeConfig config() {
-        return new BridgeConfig("WINLAUFEN", "timing-pc", "127.0.0.1", 8090,
+        return new BridgeConfig("WINLAUFEN", "timing-pc", "0.0.0.0", 44442,
                 List.of(
                         new OutputTargetConfig("local", OutputTargetType.LOCAL, true,
-                                URI.create("ws://127.0.0.1:8081/bridge/v1/channels/local"),
+                                URI.create("ws://127.0.0.1:44441/bridge/v1/channels/local"),
                                 "local", "super-secret-value"),
                         new OutputTargetConfig("club", OutputTargetType.SELFHOST, false,
                                 URI.create("wss://club.example/bridge/v1/channels/race"),

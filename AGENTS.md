@@ -161,8 +161,8 @@ It must work:
 An All-in-One installation therefore starts both runtimes as two processes. There
 is no in-process shortcut and no shared store between them.
 
-Default ports: Bridge Control `127.0.0.1:8090`, live-server HTTP `0.0.0.0:8080`,
-live-server WebSocket `0.0.0.0:8081`. The live server uses port 8081 for browser
+Default ports: Bridge Control `0.0.0.0:44442`, live-server HTTP `0.0.0.0:44440`,
+live-server WebSocket `0.0.0.0:44441`. The live server uses port 44441 for browser
 WebSockets and, over a separate path with its own handshake rules, for bridge
 ingest. If one of a runtime's own ports is occupied, that runtime must fail with
 a clear error instead of choosing another port.
@@ -175,8 +175,8 @@ available for diagnostics and fallback use.
 Do not enable CORS. Bridge Control configuration changes use only `POST` with
 `application/x-www-form-urlencoded` and Origin validation. Browser WebSocket
 handshakes also validate Origin. HTTP and WebSocket intentionally use different
-ports: an HTTP page such as `http://10.77.0.18:8080` connects to
-`ws://10.77.0.18:8081/live/v1`. Accept the Origin of the WinLaufen Web HTTP page
+ports: an HTTP page such as `http://10.77.0.18:44440` connects to
+`ws://10.77.0.18:44441/live/v1`. Accept the Origin of the WinLaufen Web HTTP page
 when its hostname or IP matches the WebSocket request host; do not require the
 Origin port to equal the WebSocket port. Reject foreign Origins. Validate the
 WinLaufen target host and keep its port fixed at 4444.

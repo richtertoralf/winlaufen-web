@@ -64,13 +64,13 @@ class BridgeConfigLocationTest {
                 config.version=2
                 source.type=WINLAUFEN
                 source.host=127.0.0.1
-                bridge.control.bind=127.0.0.1
-                bridge.control.port=8090
+                bridge.control.bind=0.0.0.0
+                bridge.control.port=44442
                 outputs.count=1
                 outputs.0.id=local
                 outputs.0.type=LOCAL
                 outputs.0.enabled=true
-                outputs.0.endpoint=ws://127.0.0.1:8081/bridge/v1/channels/local
+                outputs.0.endpoint=ws://127.0.0.1:44441/bridge/v1/channels/local
                 outputs.0.channelId=local
                 outputs.0.secret=local-development-secret
                 presentation.showClub=true
@@ -89,7 +89,7 @@ class BridgeConfigLocationTest {
         assertEquals("local", config.targets().getFirst().id());
         assertEquals(OutputTargetType.LOCAL, config.targets().getFirst().type());
         assertTrue(config.targets().getFirst().enabled());
-        assertEquals("ws://127.0.0.1:8081/bridge/v1/channels/local",
+        assertEquals("ws://127.0.0.1:44441/bridge/v1/channels/local",
                 config.targets().getFirst().endpoint().toString());
         assertTrue(loaded.notices().isEmpty(), "a freshly installed configuration has nothing to migrate");
     }
@@ -102,8 +102,8 @@ class BridgeConfigLocationTest {
                 config.version=2
                 source.type=WINLAUFEN
                 source.host=127.0.0.1
-                bridge.control.bind=127.0.0.1
-                bridge.control.port=8090
+                bridge.control.bind=0.0.0.0
+                bridge.control.port=44442
                 outputs.count=0
                 presentation.showClub=true
                 presentation.showAssociation=true

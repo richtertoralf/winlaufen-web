@@ -247,7 +247,7 @@ Bestehende Dokumentationsaussagen, die bewusst geändert werden:
 | Bridge stellt HTTP, WebSocket, Dashboard und Renderer bereit | Bridge stellt nur Bridge Control bereit; Live Server stellt Public API, Browser-WebSocket und Web Viewer bereit |
 | genau ein `OutputMode` | 0..n `OutputTargetConfig`-Instanzen, auch mehrere gleichen Typs |
 | Browser verbindet sich direkt zum Bridge-Host | Web Viewer verbindet sich ausschließlich zu seinem Live Server |
-| `http://<bridge-host>:8080` und `ws://<bridge-host>:8081` sind öffentliche Endpunkte | diese Ports gehören standardmäßig zum Live Server; Bridge Control erhält einen eigenen Port |
+| `http://<bridge-host>:8080` und `ws://<bridge-host>:8081` waren öffentliche Endpunkte | sie wurden beim damaligen modularen Umbau dem Live Server zugeordnet; der heutige feste Portblock steht in Abschnitt 7 |
 | normalisierter State speist direkt HTTP/WebSocket | kanonischer Bridge-State wird erst über den versionierten Vertrag zum Published Live Server State |
 | lokale Ausgabe ist Sonderfunktion des Monolithen | LOCAL ist ein normales Output Target zum lokal laufenden Live Server |
 
@@ -266,7 +266,7 @@ flowchart LR
     BC[Bridge Config Store] --> BA
     BC --> OT[Output Target Manager]
     BC --> CBS
-    CUI[Bridge Control<br/>HTTP 8090] --> BC
+    CUI[Bridge Control<br/>HTTP 44442] --> BC
     CBS --> OT
     OT -->|eigene ausgehende WS-Verbindung| LS1[LOCAL Live Server]
     OT -->|eigene ausgehende WSS-Verbindung| LS2[SELFHOST Live Server]
@@ -322,31 +322,37 @@ Der Live Server muss auf seinem Runtime-Classpath weder
 benötigen. Umgekehrt benötigt eine reine Bridge-Installation keine
 Viewer-Ressourcen und keinen öffentlichen Browser-WebSocket-Server.
 
-### Ports im SOLL
+### Fester Netzwerkvertrag
 
-| Verbindung | Default/Empfehlung | Besitzer |
-|---|---|---|
-| WinLaufen TCP | Zielport 4444, fest | Quelle; Bridge verbindet ausgehend |
-| Bridge Control HTTP | `127.0.0.1:8090` | Bridge |
-| Live Server Public HTTP | `0.0.0.0:8080` | Live Server |
-| Live Server WebSocket | `0.0.0.0:8081` | Live Server |
+| Quelle | Ziel | Protokoll/Port | Zweck |
+|---|---|---|---|
+| Bridge | WinLaufen-PC | TCP 4444 | read-only Sprecher-PC-Protokoll; nur ausgehend |
+| Viewer | Live Server | TCP 44440, Bind `0.0.0.0` | Web View / Public HTTP / API |
+| Browser | Live Server | TCP 44441, Bind `0.0.0.0` | `/live/v1` |
+| Bridge | Live Server | TCP 44441, gleicher Listener | `/bridge/v1/channels/<channel>` |
+| Admin | Bridge | TCP 44442, Bind `0.0.0.0` | Bridge Control im vertrauenswürdigen LAN |
 
-Bridge Control benötigt keinen öffentlich erreichbaren Port. Default ist nur
-Loopback. Für Bedienung von einem anderen Veranstaltergerät darf die technische
-Bridge-Konfiguration bewusst eine LAN-Bind-Adresse setzen; dies ist keine
-Voraussetzung für den Datenfluss. Der Live Server verwendet Port 8081 sowohl
+Bridge Control ist für die Administration im vertrauenswürdigen LAN erreichbar
+und bindet deshalb standardmäßig an alle lokalen Interfaces. Der Live Server
+verwendet Port 44441 sowohl
 für Browser-WebSockets als auch, über getrennte Pfade und Handshake-Regeln, für
-Bridge-Ingestion. Damit kommen gegenüber heute nur der lokale Bridge-Control-
-Port und keine weiteren öffentlichen Ports hinzu.
+Bridge-Ingestion. TCP 44442 ist dabei der LAN-Administrationsport von Bridge
+Control; zusätzliche WebSocket-Listener entstehen nicht.
 
 Empfohlene Pfade:
 
-- Bridge Control: `http://localhost:8090/`
-- Web Viewer: `http://<live-server>:8080/`
-- Public State: `GET http://<live-server>:8080/api/v1/state`
-- Browser live: `ws://<live-server>:8081/live/v1`
-- Bridge ingest: `ws://<live-server>:8081/bridge/v1/channels/<channel-id>`;
+- Bridge Control: `http://<bridge>:44442/`
+- Web Viewer: `http://<live-server>:44440/`
+- Public State: `GET http://<live-server>:44440/api/v1/state`
+- Browser live: `ws://<live-server>:44441/live/v1`
+- Bridge ingest: `ws://<live-server>:44441/bridge/v1/channels/<channel-id>`;
   über Internet zwingend `wss://...` (typischer externer Port 443).
+
+Der Installer prüft vor dem Start nur die Listener des gewählten Profils;
+TCP 4444 ist kein lokaler Preflight-Port. Nach dem Start werden Dienste,
+Listener und lokale HTTP-Endpunkte validiert. Linux-Firewalls bleiben
+unverändert. Windows richtet nach Administratorprüfung nur die benötigten
+Private-/Domain-Regeln ein und entfernt beim Uninstall nur eigene Regeln.
 
 ## 8. State Ownership
 
@@ -547,7 +553,7 @@ LOCAL ist ein normales, standardmäßig vorkonfiguriertes Target, zum Beispiel:
 id=local
 type=LOCAL
 enabled=true
-endpoint=ws://127.0.0.1:8081/bridge/v1/channels/local
+endpoint=ws://127.0.0.1:44441/bridge/v1/channels/local
 channelId=local
 ```
 
@@ -696,6 +702,13 @@ Vier unabhängige Zustandsmaschinen sind verbindlich:
   Browser benötigen gültige Same-Host-Origin; Bridge-Ingest benötigt
   Authentifizierung und ist nicht von einem Browser-Origin abhängig.
 - Keine Java-Deserialisierung wird über die Ingest- oder Public-Grenze exponiert.
+- Bridge Control auf TCP 44442 ist ein Administrationsport. v0.1 besitzt dort
+  bewusst keine Benutzer- oder Login-Authentifizierung; jeder Teilnehmer im
+  erreichbaren Netz kann grundsätzlich Konfigurationen ändern. Der Port ist
+  daher auf ein vertrauenswürdiges LAN zu begrenzen und darf weder im
+  Gäste-WLAN noch über unkontrollierte Portweiterleitungen oder direkt im
+  öffentlichen Internet erreichbar sein. Die Control-API gibt Target-Secrets
+  nicht aus; das ist kein Ersatz für diese Netzgrenze.
 
 ### Browser
 

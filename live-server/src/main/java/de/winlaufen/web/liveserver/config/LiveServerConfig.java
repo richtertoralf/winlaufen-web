@@ -30,9 +30,9 @@ public record LiveServerConfig(String httpBindAddress, int httpPort, String webS
     public static LiveServerConfig system() {
         return new LiveServerConfig(
                 System.getProperty("winlaufen.live.http.bind", "0.0.0.0"),
-                port("winlaufen.live.http.port", 8080),
+                port("winlaufen.live.http.port", 44440),
                 System.getProperty("winlaufen.live.websocket.bind", "0.0.0.0"),
-                port("winlaufen.live.websocket.port", 8081),
+                port("winlaufen.live.websocket.port", 44441),
                 System.getProperty("winlaufen.live.channel", "local"),
                 System.getProperty("winlaufen.live.secret", DEFAULT_INGEST_SECRET));
     }

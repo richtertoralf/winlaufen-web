@@ -62,8 +62,8 @@ public final class BridgeMain {
             source.start();
             Runtime.getRuntime().addShutdownHook(
                     Thread.ofPlatform().name("bridge-shutdown").unstarted(shutdown));
-            System.out.printf("Bridge Control läuft: http://localhost:%d/ (Stream %s)%n",
-                    config.get().controlPort(), streamId);
+            System.out.printf("Bridge Control läuft auf %s:%d (Stream %s)%n",
+                    config.get().controlBindAddress(), config.get().controlPort(), streamId);
             System.out.println("Konfiguration: " + configStore.path());
             new CountDownLatch(1).await();
         } catch (Exception ex) {

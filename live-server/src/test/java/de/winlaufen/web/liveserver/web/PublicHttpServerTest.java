@@ -24,7 +24,7 @@ class PublicHttpServerTest {
 
     @BeforeEach
     void start() throws Exception {
-        server = new PublicHttpServer("127.0.0.1", 0, 8081, new PublishedStateStore("local"));
+        server = new PublicHttpServer("127.0.0.1", 0, 44441, new PublishedStateStore("local"));
         server.start();
     }
 
@@ -78,13 +78,13 @@ class PublicHttpServerTest {
     @Test
     void cleanShutdownAllowsImmediateRebindOnTheSamePort() throws Exception {
         int reused = freePort();
-        PublicHttpServer first = new PublicHttpServer("127.0.0.1", reused, 8081,
+        PublicHttpServer first = new PublicHttpServer("127.0.0.1", reused, 44441,
                 new PublishedStateStore("local"));
         first.start();
         assertEquals(reused, first.port());
         first.close();
 
-        PublicHttpServer second = new PublicHttpServer("127.0.0.1", reused, 8081,
+        PublicHttpServer second = new PublicHttpServer("127.0.0.1", reused, 44441,
                 new PublishedStateStore("local"));
         second.start();
         assertEquals(reused, second.port());

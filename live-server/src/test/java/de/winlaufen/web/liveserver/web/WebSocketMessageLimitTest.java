@@ -147,7 +147,7 @@ class WebSocketMessageLimitTest {
 
     private Collector connectBrowser() throws Exception {
         Collector collector = new Collector(new URI("ws://127.0.0.1:" + port + "/live/v1"),
-                Map.of("Origin", "http://127.0.0.1:8080"));
+                Map.of("Origin", "http://127.0.0.1:44440"));
         assertTrue(collector.connectBlocking(3, TimeUnit.SECONDS));
         return collector;
     }

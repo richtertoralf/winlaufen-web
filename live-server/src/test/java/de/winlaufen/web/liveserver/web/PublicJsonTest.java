@@ -86,8 +86,8 @@ class PublicJsonTest {
 
     @Test
     void runtimeHintIsValidJsonAndExposesOnlyTheBrowserEndpoint() throws Exception {
-        JsonNode parsed = MAPPER.readTree(PublicJson.runtime(8081));
-        assertEquals(8081, parsed.get("webSocketPort").asInt());
+        JsonNode parsed = MAPPER.readTree(PublicJson.runtime(44441));
+        assertEquals(44441, parsed.get("webSocketPort").asInt());
         assertEquals("/live/v1", parsed.get("webSocketPath").asText());
         assertEquals(2, parsed.size());
     }

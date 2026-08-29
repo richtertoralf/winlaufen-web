@@ -13,8 +13,10 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 repository_root=$(cd -- "$script_dir/../.." && pwd -P)
 installer_linux="$repository_root/installer/linux/install.sh"
 installer_windows="$repository_root/installer/windows/Install-WinLaufenWeb.ps1"
+uninstaller_windows="$repository_root/installer/windows/Uninstall-WinLaufenWeb.ps1"
 uninstaller_linux="$repository_root/installer/linux/uninstall.sh"
 manifest="$repository_root/installer/common/dist-manifest.env"
+windows_legacy_fixture="$repository_root/installer/tests/fixtures/windows-legacy-java-crlf.properties"
 
 # shellcheck source=../common/dist-manifest.env
 source "$manifest"
@@ -22,7 +24,15 @@ source "$manifest"
 passed=0
 failed=0
 work=$(mktemp -d /tmp/winlaufen-installer-tests.XXXXXX) || exit 1
-trap 'rm -rf -- "$work"' EXIT HUP INT TERM
+listener_pids=()
+cleanup() {
+    local pid
+    for pid in "${listener_pids[@]:-}"; do
+        [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+    done
+    rm -rf -- "$work"
+}
+trap cleanup EXIT HUP INT TERM
 
 ok()   { printf 'PASS  %s\n' "$1"; passed=$((passed + 1)); }
 bad()  { printf 'FAIL  %s\n        %s\n' "$1" "${2:-}" >&2; failed=$((failed + 1)); }
@@ -32,6 +42,60 @@ assert_no_file()   { [[ ! -e "$1" ]] && ok "$2" || bad "$2" "Datei sollte fehlen
 assert_contains()  { grep -qF -- "$2" "$1" 2>/dev/null && ok "$3" || bad "$3" "'$2' fehlt in $1"; }
 assert_absent()    { ! grep -qF -- "$2" "$1" 2>/dev/null && ok "$3" || bad "$3" "'$2' unerwartet in $1"; }
 assert_equals()    { [[ "$1" == "$2" ]] && ok "$3" || bad "$3" "erwartet '$2', erhalten '$1'"; }
+
+start_listener() {
+    local port=$1
+    # Ein bereits belegter Port erfüllt die Testvorbedingung ebenfalls. Das
+    # hält die Suite wiederholbar, ohne einen fremden Listener anzufassen.
+    if python3 - "$port" <<'PY'
+import socket
+import sys
+
+probe = socket.socket()
+probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    probe.bind(("0.0.0.0", int(sys.argv[1])))
+except OSError:
+    raise SystemExit(0)
+finally:
+    probe.close()
+raise SystemExit(1)
+PY
+    then
+        started_listener_pid=""
+        return 0
+    fi
+
+    python3 - "$port" <<'PY' &
+import socket
+import sys
+
+listener = socket.socket()
+listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+listener.bind(("0.0.0.0", int(sys.argv[1])))
+listener.listen()
+while True:
+    connection, _ = listener.accept()
+    connection.close()
+PY
+    started_listener_pid=$!
+    listener_pids+=("$started_listener_pid")
+    local attempt
+    for attempt in $(seq 1 30); do
+        kill -0 "$started_listener_pid" 2>/dev/null || return 1
+        (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null \
+            && { exec 3<&-; exec 3>&-; return 0; }
+        sleep .1
+    done
+    return 1
+}
+
+stop_listener() {
+    local pid=$1
+    [[ -n "$pid" ]] || return 0
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+}
 
 # Fake-Artefakte, damit die Tests keinen Maven-Build benötigen.
 fake_dist="$work/dist"
@@ -54,6 +118,200 @@ run_install() {
     return $status
 }
 
+assert_port_conflict() {
+    local profile=$1 port=$2 purpose=$3 label=$4
+    local root="$work/conflict-$port"
+    start_listener "$port" || { bad "$label" "Test-Listener auf TCP $port konnte nicht starten"; return; }
+    local pid=$started_listener_pid log="$work/conflict-$port.log"
+    bash "$installer_linux" --profile "$profile" --staging-root "$root" --no-systemd \
+        --dist "$fake_dist" > "$log" 2>&1
+    local status=$?
+    stop_listener "$pid"
+
+    ((status != 0)) && ok "$label: Exit-Code ungleich 0" \
+        || bad "$label: Exit-Code ungleich 0" "Installer war trotz Portkonflikt erfolgreich"
+    assert_contains "$log" "TCP-Port $port ist bereits belegt" "$label: Portnummer wird genannt"
+    assert_contains "$log" "Benötigt für: $purpose" "$label: Portzweck wird genannt"
+    assert_contains "$log" "Die Installation wurde nicht erfolgreich abgeschlossen" \
+        "$label: Fehlschlag wird eindeutig gemeldet"
+    assert_absent "$log" "Installation erfolgreich" "$label: keine Erfolgsmeldung"
+}
+
+assert_failed_service_start() {
+    local fake_bin="$work/fake-systemd-bin"
+    local root="$work/service-start-failure"
+    local log="$work/service-start-failure.log"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+    is-active)
+        echo failed
+        exit 1
+        ;;
+    status)
+        echo "simulierter systemd-Status: failed"
+        exit 3
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+EOF
+    chmod +x "$fake_bin/systemctl"
+
+    PATH="$fake_bin:$PATH" WINLAUFEN_INSTALL_TEST_SYSTEMD=1 \
+        bash "$installer_linux" --profile bridge-only --staging-root "$root" \
+        --dist "$fake_dist" > "$log" 2>&1
+    local status=$?
+
+    ((status != 0)) && ok "Fehlgeschlagener Service-Start: Exit-Code ungleich 0" \
+        || bad "Fehlgeschlagener Service-Start: Exit-Code ungleich 0" \
+            "Installer war trotz inaktivem Dienst erfolgreich"
+    assert_contains "$log" "winlaufen-bridge.service ist nach der Startphase nicht active" \
+        "Fehlgeschlagener Service-Start nennt den betroffenen Dienst"
+    assert_contains "$log" "Die Installation wurde nicht erfolgreich abgeschlossen" \
+        "Fehlgeschlagener Service-Start wird eindeutig gemeldet"
+    assert_absent "$log" "Installation erfolgreich" \
+        "Fehlgeschlagener Service-Start erzeugt keine Erfolgsmeldung"
+}
+
+assert_unreachable_local_http() {
+    local fake_bin="$work/fake-unreachable-http"
+    local root="$work/unreachable-http"
+    local log="$work/unreachable-http.log"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+    is-active) [[ " $* " == *" --quiet "* ]] || echo active; exit 0 ;;
+    show) echo 0; exit 0 ;;
+    status) echo "simulierter systemd-Status: active"; exit 0 ;;
+    *) exit 0 ;;
+esac
+EOF
+    cat > "$fake_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+exit 7
+EOF
+    chmod +x "$fake_bin/systemctl" "$fake_bin/curl"
+
+    PATH="$fake_bin:$PATH" WINLAUFEN_INSTALL_TEST_SYSTEMD=1 \
+        WINLAUFEN_INSTALL_TEST_START_ATTEMPTS=1 \
+        bash "$installer_linux" --profile bridge-only --staging-root "$root" \
+        --dist "$fake_dist" > "$log" 2>&1
+    local status=$?
+
+    ((status != 0)) && ok "Nicht erreichbares lokales Bridge Control: Exit-Code ungleich 0" \
+        || bad "Nicht erreichbares lokales Bridge Control: Exit-Code ungleich 0"
+    assert_contains "$log" "Bridge Control ist lokal auf TCP-Port" \
+        "Nicht erreichbares lokales Bridge Control bleibt ein Installationsfehler"
+    assert_absent "$log" "Installation erfolgreich" \
+        "Lokaler HTTP-Fehler erzeugt keine Erfolgsmeldung"
+}
+
+assert_restart_loop() {
+    local fake_bin="$work/fake-restart-loop"
+    local root="$work/restart-loop"
+    local log="$work/restart-loop.log"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+    is-active) [[ " $* " == *" --quiet "* ]] || echo active; exit 0 ;;
+    show) echo 1; exit 0 ;;
+    status) echo "simulierter systemd-Status: active, Neustart erkannt"; exit 0 ;;
+    *) exit 0 ;;
+esac
+EOF
+    cat > "$fake_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '<html>ok</html>'
+EOF
+    chmod +x "$fake_bin/systemctl" "$fake_bin/curl"
+
+    PATH="$fake_bin:$PATH" WINLAUFEN_INSTALL_TEST_SYSTEMD=1 \
+        WINLAUFEN_INSTALL_TEST_START_ATTEMPTS=1 \
+        WINLAUFEN_INSTALL_TEST_STABILITY_SECONDS=0 \
+        bash "$installer_linux" --profile bridge-only --staging-root "$root" \
+        --dist "$fake_dist" > "$log" 2>&1
+    local status=$?
+
+    ((status != 0)) && ok "Restart-Loop: Exit-Code ungleich 0" \
+        || bad "Restart-Loop: Exit-Code ungleich 0"
+    assert_contains "$log" "während der Startphase neu gestartet" \
+        "Restart-Loop bleibt ein Installationsfehler"
+    assert_absent "$log" "Installation erfolgreich" \
+        "Restart-Loop erzeugt keine Erfolgsmeldung"
+}
+
+diagnostic_case=0
+diagnostic_log=""
+
+run_simulated_operational_report() {
+    local profile=$1 source_state=$2 targets_json=$3 outputs_json=$4 label=$5
+    diagnostic_case=$((diagnostic_case + 1))
+    local fake_bin="$work/fake-operational-$diagnostic_case"
+    local root="$work/operational-$diagnostic_case"
+    local log="$work/operational-$diagnostic_case.log"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+    is-active)
+        [[ " $* " == *" --quiet "* ]] || echo active
+        exit 0
+        ;;
+    show)
+        [[ " $* " == *" NRestarts "* || " $* " == *"property=NRestarts"* ]] && echo 0
+        exit 0
+        ;;
+    status)
+        echo "simulierter systemd-Status: active"
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+EOF
+    cat > "$fake_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+url=${!#}
+if [[ "$url" == */api/v1/status ]]; then
+    printf '{"sourceHealth":"%s","outputs":%s}' \
+        "${WINLAUFEN_INSTALL_TEST_SOURCE_STATE:-DISCONNECTED}" \
+        "${WINLAUFEN_INSTALL_TEST_OUTPUTS_JSON:-[]}"
+elif [[ "$url" == */api/v1/config ]]; then
+    printf '{"sourceType":"WINLAUFEN","sourceHost":"%s","sourcePort":4444,"targets":%s,"presentation":{}}' \
+        "${WINLAUFEN_INSTALL_TEST_SOURCE_HOST:-192.168.95.10}" \
+        "${WINLAUFEN_INSTALL_TEST_TARGETS_JSON:-[]}"
+else
+    printf '<html>ok</html>'
+fi
+EOF
+    chmod +x "$fake_bin/systemctl" "$fake_bin/curl"
+
+    PATH="$fake_bin:$PATH" \
+        WINLAUFEN_INSTALL_TEST_SYSTEMD=1 \
+        WINLAUFEN_INSTALL_TEST_START_ATTEMPTS=1 \
+        WINLAUFEN_INSTALL_TEST_DIAGNOSTIC_ATTEMPTS=1 \
+        WINLAUFEN_INSTALL_TEST_STABILITY_SECONDS=0 \
+        WINLAUFEN_INSTALL_TEST_SOURCE_STATE="$source_state" \
+        WINLAUFEN_INSTALL_TEST_TARGETS_JSON="$targets_json" \
+        WINLAUFEN_INSTALL_TEST_OUTPUTS_JSON="$outputs_json" \
+        bash "$installer_linux" --profile "$profile" --staging-root "$root" \
+        --dist "$fake_dist" > "$log" 2>&1
+    local status=$?
+
+    ((status == 0)) && ok "$label: Exit-Code 0" \
+        || bad "$label: Exit-Code 0" "Exitcode $status"
+    assert_contains "$log" "Installation erfolgreich" "$label: Erfolgsmeldung"
+    assert_absent "$log" "Die Installation wurde nicht erfolgreich abgeschlossen" \
+        "$label: Verbindungsstatus erzeugt keinen Installationsfehler"
+    diagnostic_log=$log
+}
+
 echo "=== Syntaxprüfung ==="
 for script in "$installer_linux" "$uninstaller_linux" \
               "$repository_root/installer/common/build-dist.sh" \
@@ -61,6 +319,114 @@ for script in "$installer_linux" "$uninstaller_linux" \
     bash -n "$script" 2>/dev/null && ok "bash -n $(basename "$script")" \
         || bad "bash -n $(basename "$script")" "Syntaxfehler"
 done
+
+echo
+echo "=== Profilabhängiger Port-Preflight ==="
+assert_port_conflict all-in-one "$WINLAUFEN_LIVE_HTTP_PORT" "WinLaufen Web View / HTTP" \
+    "All-in-One erkennt belegten HTTP-Port"
+assert_port_conflict presentation-node "$WINLAUFEN_LIVE_WS_PORT" "Live WebSocket / Bridge Ingest" \
+    "Presentation Node erkennt belegten WebSocket-Port"
+assert_port_conflict bridge-only "$WINLAUFEN_CONTROL_PORT" "Bridge Control" \
+    "Bridge only erkennt belegten Bridge-Control-Port"
+
+start_listener "$WINLAUFEN_LIVE_HTTP_PORT"
+http_listener=$started_listener_pid
+start_listener "$WINLAUFEN_LIVE_WS_PORT"
+ws_listener=$started_listener_pid
+root="$work/bridge-ignores-live-ports"
+if run_install bridge-only "$root"; then
+    ok "Bridge only prüft keine Live-Server-Ports"
+fi
+stop_listener "$http_listener"
+stop_listener "$ws_listener"
+
+start_listener "$WINLAUFEN_CONTROL_PORT"
+control_listener=$started_listener_pid
+root="$work/presentation-ignores-control-port"
+if run_install presentation-node "$root"; then
+    ok "Presentation Node prüft keinen Bridge-Control-Port"
+fi
+stop_listener "$control_listener"
+
+start_listener "$WINLAUFEN_SOURCE_PORT"
+source_listener=$started_listener_pid
+root="$work/source-port-is-remote"
+if run_install all-in-one "$root"; then
+    ok "TCP 4444 wird nicht als lokaler Listener von WinLaufen Web geprüft"
+fi
+stop_listener "$source_listener"
+
+echo
+echo "=== Fehlgeschlagener Service-Start ==="
+assert_failed_service_start
+assert_unreachable_local_http
+assert_restart_loop
+
+echo
+echo "=== Installation und Betriebsbereitschaft sind getrennt ==="
+local_target='[{"id":"local","type":"LOCAL","enabled":true,"endpoint":"ws://127.0.0.1:44441/bridge/v1/channels/local","channelId":"local","secretConfigured":true}]'
+local_connected='[{"targetId":"local","state":"CONNECTED"}]'
+local_disconnected='[{"targetId":"local","state":"DISCONNECTED"}]'
+external_target='[{"id":"presentation-1","type":"SELFHOST","enabled":true,"endpoint":"ws://192.168.95.30:44441/bridge/v1/channels/race","channelId":"race","secretConfigured":true}]'
+external_disconnected='[{"targetId":"presentation-1","state":"RETRY_WAIT"}]'
+disabled_target='[{"id":"backup","type":"SELFHOST","enabled":false,"endpoint":"ws://192.168.95.31:44441/bridge/v1/channels/backup","channelId":"backup","secretConfigured":true}]'
+disabled_runtime='[{"targetId":"backup","state":"DISABLED"}]'
+
+run_simulated_operational_report all-in-one DISCONNECTED "$local_target" "$local_connected" \
+    "All-in-One: Source DISCONNECTED, local CONNECTED"
+assert_contains "$diagnostic_log" "WARNUNG: DISCONNECTED" \
+    "All-in-One meldet die getrennte WinLaufen-Quelle als Warnung"
+assert_contains "$diagnostic_log" "ID: local" "All-in-One meldet das lokale Target"
+assert_contains "$diagnostic_log" "Ziel: 127.0.0.1:44441" \
+    "All-in-One leitet Host und Port des lokalen Targets ab"
+assert_contains "$diagnostic_log" "OK: CONNECTED" "All-in-One meldet local CONNECTED"
+
+run_simulated_operational_report all-in-one DISCONNECTED "$local_target" "$local_disconnected" \
+    "All-in-One: Source und local DISCONNECTED"
+assert_contains "$diagnostic_log" "lokale Datenpfad Bridge -> Live Server ist noch nicht verbunden" \
+    "All-in-One hebt den getrennten lokalen Datenpfad deutlich hervor"
+assert_contains "$diagnostic_log" "Bridge und Live Server wurden erfolgreich installiert" \
+    "All-in-One trennt Local-Target-Warnung vom Installationserfolg"
+
+run_simulated_operational_report all-in-one CONNECTED "$local_target" "$local_connected" \
+    "All-in-One: Source und local CONNECTED"
+assert_contains "$diagnostic_log" "WinLaufen-Quelle:" "All-in-One meldet die Quelle"
+assert_contains "$diagnostic_log" "Ziel: 192.168.95.10:4444" \
+    "All-in-One meldet konfigurierten WinLaufen-Host und Port"
+[[ $(grep -cF 'OK: CONNECTED' "$diagnostic_log") -ge 2 ]] \
+    && ok "All-in-One meldet Quelle und local positiv" \
+    || bad "All-in-One meldet Quelle und local positiv"
+
+run_simulated_operational_report bridge-only DISCONNECTED "$external_target" "$external_disconnected" \
+    "Bridge only: Source und externes Target getrennt"
+assert_contains "$diagnostic_log" "WARNUNG: RETRY_WAIT" \
+    "Bridge only meldet das nicht erreichbare Target"
+assert_contains "$diagnostic_log" "Ziel: 192.168.95.30:44441" \
+    "Bridge only leitet Host und Port des externen Targets ab"
+assert_contains "$diagnostic_log" "Presentation Node installiert und gestartet?" \
+    "Bridge only nennt neutrale nächste Schritte"
+
+run_simulated_operational_report bridge-only CONNECTED "$external_target" "$external_disconnected" \
+    "Bridge only: Source verbunden, externes Target getrennt"
+assert_contains "$diagnostic_log" "OK: CONNECTED" "Bridge only meldet die verbundene Quelle"
+assert_contains "$diagnostic_log" "WARNUNG: RETRY_WAIT" \
+    "Bridge only lässt ein getrenntes Target den Erfolg nicht blockieren"
+
+run_simulated_operational_report bridge-only CONNECTED "$disabled_target" "$disabled_runtime" \
+    "Bridge only: deaktiviertes Target"
+assert_contains "$diagnostic_log" "Status: deaktiviert" \
+    "Ein deaktiviertes Target wird neutral gemeldet"
+assert_absent "$diagnostic_log" "WARNUNG: DISABLED" \
+    "Ein deaktiviertes Target erzeugt keine Warnung"
+
+run_simulated_operational_report presentation-node DISCONNECTED '[]' '[]' \
+    "Presentation Node ohne verbundene Bridge"
+assert_contains "$diagnostic_log" "Bridge-Ingest wartet auf eine Bridge" \
+    "Presentation Node meldet den wartenden Ingest neutral"
+assert_contains "$diagnostic_log" "TCP 44440 erreichbar" \
+    "Presentation Node meldet den lokalen HTTP-Endpunkt"
+assert_contains "$diagnostic_log" "TCP 44441 lauscht" \
+    "Presentation Node meldet den lokalen WebSocket-Listener"
 
 echo
 echo "=== Linux: All-in-One erzeugt Bridge + Live Server ==="
@@ -81,6 +447,20 @@ if run_install all-in-one "$root"; then
         "outputs.0.endpoint=ws://127.0.0.1:$WINLAUFEN_LIVE_WS_PORT$WINLAUFEN_INGEST_PATH_PREFIX$WINLAUFEN_LIVE_CHANNEL" \
         "All-in-One: lokales Target nutzt den regulären Bridge->Live-Server-Pfad"
     assert_contains "$config" "bridge.control.port=$WINLAUFEN_CONTROL_PORT" "All-in-One: Bridge-Control-Port"
+    assert_contains "$config" "bridge.control.bind=$WINLAUFEN_CONTROL_BIND" \
+        "All-in-One: Bridge Control bindet für den LAN-Zugriff"
+    assert_equals "$(stat -c '%a' "$root/etc/winlaufen-web")" "770" \
+        "Konfigurationsverzeichnis erlaubt atomare Updates durch die Dienstgruppe"
+    assert_equals "$(stat -c '%a' "$config")" "640" \
+        "Bridge-Konfiguration bleibt restriktiv"
+    atomic_update=$(mktemp "$root/etc/winlaufen-web/config.properties.XXXXXX")
+    cp -- "$config" "$atomic_update"
+    printf 'presentation.showNation=true\n' >> "$atomic_update"
+    mv -f -- "$atomic_update" "$config"
+    assert_contains "$config" "presentation.showNation=true" \
+        "Atomare Konfigurationsaktualisierung im geschützten Verzeichnis funktioniert"
+    assert_absent "$config" "44443" "All-in-One wählt keinen Ersatzport"
+    assert_absent "$config" "44444" "All-in-One wählt keinen weiteren Ersatzport"
 
     unit="$root/etc/systemd/system/winlaufen-bridge.service"
     assert_contains "$unit" "/opt/winlaufen-web/lib/$WINLAUFEN_BRIDGE_JAR" "Bridge-Service zeigt auf das Bridge-Artefakt"
@@ -98,6 +478,18 @@ if run_install all-in-one "$root"; then
     assert_file "$root/etc/winlaufen-web/live-server.env" "All-in-One erzeugt Live-Server-Konfiguration"
     assert_contains "$root/etc/winlaufen-web/live-server.env" "WINLAUFEN_LIVE_HTTP_PORT=$WINLAUFEN_LIVE_HTTP_PORT" \
         "Live-Server-Konfiguration enthält den HTTP-Port aus dem Code"
+    assert_contains "$root/etc/winlaufen-web/live-server.env" "WINLAUFEN_LIVE_WS_PORT=$WINLAUFEN_LIVE_WS_PORT" \
+        "Live-Server-Konfiguration enthält den gemeinsamen WebSocket-Port"
+    assert_contains "$install_log" "keine Firewall aktiviert und keine Firewallregel" \
+        "Linux All-in-One erklärt, dass keine Firewall verändert wurde"
+    assert_contains "$install_log" "TCP $WINLAUFEN_LIVE_HTTP_PORT – Web View / HTTP" \
+        "Linux All-in-One nennt den eingehenden HTTP-Port"
+    assert_contains "$install_log" "TCP $WINLAUFEN_LIVE_WS_PORT – Live WebSocket / Bridge Ingest" \
+        "Linux All-in-One nennt den eingehenden WebSocket-Port"
+    assert_contains "$install_log" "TCP $WINLAUFEN_CONTROL_PORT – Bridge Control" \
+        "Linux All-in-One nennt den eingehenden Bridge-Control-Port"
+    assert_contains "$install_log" "TCP $WINLAUFEN_SOURCE_PORT zum WinLaufen-PC" \
+        "Linux All-in-One nennt die ausgehende WinLaufen-Verbindung"
 fi
 
 echo
@@ -116,6 +508,10 @@ if run_install bridge-only "$root"; then
     assert_contains "$install_log" "mindestens ein Output Target eintragen" \
         "Bridge only weist auf die noch offene Target-Konfiguration hin"
     assert_absent "$install_log" "fehlgeschlagen" "Bridge only meldet keinen Fehler"
+    assert_contains "$install_log" "TCP $WINLAUFEN_CONTROL_PORT – Bridge Control" \
+        "Linux Bridge only nennt nur seinen eingehenden Listener"
+    assert_absent "$install_log" "TCP $WINLAUFEN_LIVE_HTTP_PORT – Web View / HTTP" \
+        "Linux Bridge only nennt keinen Live-Server-Port"
 fi
 
 echo
@@ -129,6 +525,12 @@ if run_install presentation-node "$root"; then
     assert_no_file "$root/etc/winlaufen-web/bridge.properties" "Presentation Node erzeugt keine Bridge-Konfiguration"
     assert_contains "$install_log" "als Output Target ein" \
         "Presentation Node erklärt den nächsten Schritt auf der Bridge"
+    assert_contains "$install_log" "TCP $WINLAUFEN_LIVE_HTTP_PORT – Web View / HTTP" \
+        "Linux Presentation Node nennt den HTTP-Port"
+    assert_contains "$install_log" "TCP $WINLAUFEN_LIVE_WS_PORT – Live WebSocket / Bridge Ingest" \
+        "Linux Presentation Node nennt den WebSocket-Port"
+    assert_absent "$install_log" "TCP $WINLAUFEN_CONTROL_PORT – Bridge Control" \
+        "Linux Presentation Node nennt keinen Bridge-Control-Port"
 fi
 
 echo
@@ -148,6 +550,56 @@ if run_install all-in-one "$root"; then
     assert_contains "$config" "outputs.1.id=club" "Gepflegte Target-Liste überlebt den Reinstall"
     assert_contains "$install_log" "Bestehende Bridge-Konfiguration beibehalten" \
         "Reinstall meldet den Schutz der bestehenden Konfiguration"
+fi
+
+echo
+echo "=== Konfiguration: frühere Installer-Netzwerkdefaults werden migriert ==="
+root="$work/network-migration"
+if run_install all-in-one "$root"; then
+    config="$root/etc/winlaufen-web/bridge.properties"
+    live_config="$root/etc/winlaufen-web/live-server.env"
+    sed -i \
+        -e 's/^bridge.control.bind=.*/bridge.control.bind=127.0.0.1/' \
+        -e 's/^bridge.control.port=.*/bridge.control.port=8090/' \
+        -e 's#^outputs.0.endpoint=.*#outputs.0.endpoint=ws://127.0.0.1:8081/bridge/v1/channels/local#' \
+        "$config"
+    sed -i \
+        -e 's/^WINLAUFEN_LIVE_HTTP_PORT=.*/WINLAUFEN_LIVE_HTTP_PORT=8080/' \
+        -e 's/^WINLAUFEN_LIVE_WS_PORT=.*/WINLAUFEN_LIVE_WS_PORT=8081/' \
+        "$live_config"
+    run_install all-in-one "$root"
+    assert_contains "$config" "bridge.control.bind=$WINLAUFEN_CONTROL_BIND" \
+        "Alter Bridge-Control-Bind wird auf den Netzwerkvertrag migriert"
+    assert_contains "$config" "bridge.control.port=$WINLAUFEN_CONTROL_PORT" \
+        "Alter Bridge-Control-Port wird auf den Netzwerkvertrag migriert"
+    assert_contains "$config" "outputs.0.endpoint=ws://127.0.0.1:$WINLAUFEN_LIVE_WS_PORT/bridge/v1/channels/local" \
+        "Alter lokaler Ingest-Port wird auf den Netzwerkvertrag migriert"
+    assert_contains "$live_config" "WINLAUFEN_LIVE_HTTP_PORT=$WINLAUFEN_LIVE_HTTP_PORT" \
+        "Alter HTTP-Default wird auf den Netzwerkvertrag migriert"
+    assert_contains "$live_config" "WINLAUFEN_LIVE_WS_PORT=$WINLAUFEN_LIVE_WS_PORT" \
+        "Alter WebSocket-Default wird auf den Netzwerkvertrag migriert"
+
+    sed -i \
+        's#^outputs\.0\.endpoint=.*#outputs.0.endpoint=ws\\://127.0.0.1\\:8081/bridge/v1/channels/local#' \
+        "$config"
+    run_install all-in-one "$root"
+    assert_contains "$config" \
+        "outputs.0.endpoint=ws\\://127.0.0.1\\:$WINLAUFEN_LIVE_WS_PORT/bridge/v1/channels/local" \
+        "Von Properties.store escapeter alter Ingest-Default wird migriert"
+
+    for unchanged_endpoint in \
+            'ws\://127.0.0.1\:9081/bridge/v1/channels/local' \
+            'ws\://192.168.1.20\:8081/bridge/v1/channels/local' \
+            "ws\\://127.0.0.1\\:$WINLAUFEN_LIVE_WS_PORT/bridge/v1/channels/local"; do
+        sed -i "s#^outputs\.0\.endpoint=.*#outputs.0.endpoint=$unchanged_endpoint#" "$config"
+        before=$(sha256sum "$config" | cut -d' ' -f1)
+        run_install all-in-one "$root"
+        after=$(sha256sum "$config" | cut -d' ' -f1)
+        assert_equals "$after" "$before" \
+            "Benutzerdefinierter oder aktueller Endpunkt bleibt unverändert: $unchanged_endpoint"
+        assert_absent "$install_log" "Frühere Installer-Netzwerkdefaults auf den festen Portblock migriert" \
+            "Ohne passende Legacy-Zeile erscheint keine Migrationsmeldung"
+    done
 fi
 
 echo
@@ -207,6 +659,148 @@ assert_contains "$installer_windows" "Bestehende Bridge-Konfiguration beibehalte
     "Windows schützt bestehende Konfiguration"
 assert_contains "$installer_windows" "outputs.0.endpoint=ws://127.0.0.1:\$LiveWsPort\$IngestPathPrefix\$LiveChannel" \
     "Windows All-in-One nutzt den regulären Bridge->Live-Server-Pfad"
+assert_contains "$installer_windows" "Invoke-PortPreflight" \
+    "Windows führt vor der Installation einen Port-Preflight aus"
+assert_contains "$installer_windows" "Assert-ListenerPortAvailable -Port \$LiveHttpPort" \
+    "Windows prüft den HTTP-Port profilabhängig"
+assert_contains "$installer_windows" "Assert-ListenerPortAvailable -Port \$LiveWsPort" \
+    "Windows prüft den WebSocket-Port profilabhängig"
+assert_contains "$installer_windows" "Assert-ListenerPortAvailable -Port \$ControlPort" \
+    "Windows prüft den Bridge-Control-Port profilabhängig"
+assert_contains "$installer_windows" "Wait-InstalledRuntime" \
+    "Windows validiert gestartete Hintergrunddienste und Listener"
+assert_contains "$installer_windows" "Get-BridgeOperationalDiagnostic" \
+    "Windows diagnostiziert Quellen und Targets nach dem lokalen Start"
+assert_contains "$installer_windows" "Get-LocalOutputState" \
+    "Windows beobachtet den lokalen All-in-One-Datenpfad"
+assert_contains "$installer_windows" "Verbindungszustand ist niemals ein" \
+    "Windows behandelt Verbindungen ausdrücklich nicht als Installationsfehler"
+assert_absent "$installer_windows" "Wait-LocalOutputConnected" \
+    "Windows besitzt keine harte Local-Target-Startbedingung mehr"
+assert_contains "$installer_windows" "api/v1/status" \
+    "Windows liest den bestehenden Bridge-Control-Statusvertrag"
+assert_contains "$installer_windows" "Test-ListenerOwnedByThisInstallation" \
+    "Windows erkennt Listener der bestehenden eigenen Installation"
+assert_contains "$installer_windows" "Assert-ConfigurationPrerequisites" \
+    "Windows prüft bestehende Konfiguration vor dem Stop"
+assert_contains "$installer_windows" "Restore-PreviouslyRunningTasks -TaskNames \$previouslyRunningTasks" \
+    "Windows versucht nach einem Fehler den vorherigen Taskzustand wiederherzustellen"
+assert_contains "$installer_windows" "Update-PropertiesLines" \
+    "Windows migriert Properties zeilenweise"
+assert_contains "$installer_windows" "Regex]::Split(\$content, '\\r\\n|\\n')" \
+    "Windows verarbeitet CRLF und LF explizit"
+assert_contains "$installer_windows" 'endpoint=ws\\://127\.0\.0\.1\\:8081/bridge/v1/channels/local$' \
+    "Windows erkennt Properties.store-Escaping nur für den exakten alten Default"
+assert_contains "$installer_windows" "PowerShell als Administrator starten" \
+    "Windows fordert bei fehlenden Rechten eine Administrator-PowerShell"
+assert_contains "$installer_windows" "New-NetFirewallRule -Name \$rule.Name" \
+    "Windows legt eigene benannte Firewallregeln an"
+assert_contains "$installer_windows" "-Profile Private,Domain" \
+    "Windows beschränkt Freigaben auf Private-/Domain-Netze"
+assert_absent "$installer_windows" "-Profile Public" \
+    "Windows legt keine Public-Firewallfreigabe an"
+
+windows_java_line=$(grep -n '^\$javaExe = Resolve-JavaExecutable' "$installer_windows" | cut -d: -f1)
+windows_config_check_line=$(grep -n '^Assert-ConfigurationPrerequisites$' "$installer_windows" | cut -d: -f1)
+windows_first_preflight_line=$(grep -n '^Invoke-PortPreflight -AllowInstalledListeners$' "$installer_windows" | cut -d: -f1)
+windows_snapshot_line=$(grep -n '^\$previouslyRunningTasks = ' "$installer_windows" | cut -d: -f1)
+windows_stop_line=$(grep -n '^    Stop-ExistingWinLaufenProcesses$' "$installer_windows" | cut -d: -f1)
+windows_validation_line=$(grep -n '^    \$localRuntimeValidated = \$true$' "$installer_windows" | cut -d: -f1)
+windows_firewall_line=$(grep -n '^    Sync-WindowsFirewallRules$' "$installer_windows" | cut -d: -f1)
+windows_profile_cleanup_line=$(grep -n '^        Remove-BackgroundTask -TaskName \$LiveTaskName$' "$installer_windows" | cut -d: -f1)
+windows_diagnostic_line=$(grep -n '^        \$bridgeDiagnostic = Get-BridgeOperationalDiagnostic$' "$installer_windows" | cut -d: -f1)
+
+if [[ -n "$windows_java_line" && -n "$windows_config_check_line" &&
+      -n "$windows_first_preflight_line" && -n "$windows_snapshot_line" &&
+      -n "$windows_stop_line" && "$windows_java_line" -lt "$windows_stop_line" &&
+      "$windows_config_check_line" -lt "$windows_stop_line" &&
+      "$windows_first_preflight_line" -lt "$windows_stop_line" &&
+      "$windows_snapshot_line" -lt "$windows_stop_line" ]]; then
+    ok "Windows erledigt fehleranfällige Preflights vor dem Stop einer laufenden Installation"
+else
+    bad "Windows erledigt fehleranfällige Preflights vor dem Stop einer laufenden Installation" \
+        "Java=$windows_java_line Config=$windows_config_check_line Port=$windows_first_preflight_line Snapshot=$windows_snapshot_line Stop=$windows_stop_line"
+fi
+
+if [[ -n "$windows_firewall_line" && -n "$windows_diagnostic_line" &&
+      "$windows_firewall_line" -lt "$windows_diagnostic_line" ]]; then
+    ok "Windows diagnostiziert externe Verbindungen erst nach der Firewall-Synchronisierung"
+else
+    bad "Windows diagnostiziert externe Verbindungen erst nach der Firewall-Synchronisierung" \
+        "Firewall=$windows_firewall_line Diagnose=$windows_diagnostic_line"
+fi
+
+windows_operational_diagnostic=$(sed -n \
+    '/^function Get-BridgeOperationalDiagnostic {/,/^}$/p' "$installer_windows")
+[[ "$windows_operational_diagnostic" != *'throw '* ]] \
+    && ok "Windows-Source-/Target-Diagnose kann die Installation nicht per throw abbrechen" \
+    || bad "Windows-Source-/Target-Diagnose kann die Installation nicht per throw abbrechen" \
+        "$windows_operational_diagnostic"
+
+if [[ -n "$windows_validation_line" && -n "$windows_firewall_line" &&
+      "$windows_validation_line" -lt "$windows_firewall_line" ]]; then
+    ok "Windows synchronisiert Firewallregeln erst nach erfolgreicher Runtime-Validierung"
+else
+    bad "Windows synchronisiert Firewallregeln erst nach erfolgreicher Runtime-Validierung" \
+        "Validierung=$windows_validation_line Firewall=$windows_firewall_line"
+fi
+
+if [[ -n "$windows_firewall_line" && -n "$windows_profile_cleanup_line" &&
+      "$windows_firewall_line" -lt "$windows_profile_cleanup_line" ]]; then
+    ok "Windows entfernt bei Profilwechsel alte Tasks erst nach erfolgreichem Abschluss"
+else
+    bad "Windows entfernt bei Profilwechsel alte Tasks erst nach erfolgreichem Abschluss" \
+        "Firewall=$windows_firewall_line Profilbereinigung=$windows_profile_cleanup_line"
+fi
+
+assert_contains "$installer_windows" '$previouslyRunningTasks = @(Get-RunningWinLaufenTasks)' \
+    "Windows behandelt einen Fresh Install ohne vorhandene Tasks als leeren Ausgangszustand"
+assert_contains "$installer_windows" 'if ($installationWasStopped -and $previouslyRunningTasks.Count -gt 0)' \
+    "Windows startet beim Fresh Install keine nicht vorhandenen Tasks zurück"
+for firewall_rule in WinLaufenWeb-HTTP-44440 WinLaufenWeb-WebSocket-44441 \
+                     WinLaufenWeb-BridgeControl-44442; do
+    assert_contains "$uninstaller_windows" "'$firewall_rule'" \
+        "Windows-Uninstaller kennt nur eigene Regel $firewall_rule"
+done
+assert_contains "$uninstaller_windows" "Get-NetFirewallRule -Name \$ruleName" \
+    "Windows-Uninstaller entfernt Firewallregeln über exakte Namen"
+assert_absent "$uninstaller_windows" "Get-NetFirewallRule -Group" \
+    "Windows-Uninstaller entfernt keine fremden Regeln über eine breite Gruppe"
+assert_contains "$installer_linux" "validate_started_services" \
+    "Linux validiert gestartete systemd-Dienste"
+assert_contains "$installer_linux" "NRestarts" \
+    "Linux erkennt Restart-Schleifen in der Startphase"
+assert_contains "$installer_linux" "--property=MainPID" \
+    "Linux übernimmt bei Reinstall nur Listener des eigenen Dienstprozesses"
+assert_contains "$installer_linux" "wait_for_http" \
+    "Linux prüft Bridge Control und Web View funktional"
+assert_absent "$installer_linux" "ufw allow" \
+    "Linux-Installer legt keine UFW-Regel an"
+assert_absent "$installer_linux" "firewall-cmd --add" \
+    "Linux-Installer legt keine firewalld-Regel an"
+assert_absent "$installer_linux" "nft add" \
+    "Linux-Installer legt keine nftables-Regel an"
+windows_preflight=$(sed -n '/^function Invoke-PortPreflight {/,/^}/p' "$installer_windows")
+[[ "$windows_preflight" != *'$SourcePort'* ]] \
+    && ok "Windows behandelt TCP 4444 nicht als lokalen Listener" \
+    || bad "Windows behandelt TCP 4444 nicht als lokalen Listener" "$windows_preflight"
+
+assert_file "$windows_legacy_fixture" "Windows-CRLF-Legacy-Fixture vorhanden"
+grep -q $'\r$' "$windows_legacy_fixture" \
+    && ok "Windows-Legacy-Fixture verwendet CRLF" \
+    || bad "Windows-Legacy-Fixture verwendet CRLF"
+assert_contains "$windows_legacy_fixture" \
+    'outputs.0.endpoint=ws\://127.0.0.1\:8081/bridge/v1/channels/local' \
+    "Windows-Fixture enthält echtes Properties.store-Escaping"
+assert_contains "$windows_legacy_fixture" \
+    'outputs.1.endpoint=ws\://127.0.0.1\:9081/bridge/v1/channels/local' \
+    "Windows-Fixture enthält einen unverändert zu lassenden Port"
+assert_contains "$windows_legacy_fixture" \
+    'outputs.2.endpoint=ws\://192.168.1.20\:8081/bridge/v1/channels/local' \
+    "Windows-Fixture enthält einen unverändert zu lassenden Host"
+assert_contains "$windows_legacy_fixture" \
+    'outputs.3.endpoint=ws\://127.0.0.1\:44441/bridge/v1/channels/local' \
+    "Windows-Fixture enthält den bereits aktuellen Endpunkt"
 
 echo
 echo "=== Kenngrößen stimmen mit dem Anwendungscode überein ==="
@@ -221,6 +815,40 @@ assert_equals "$code_ws_port" "$WINLAUFEN_LIVE_WS_PORT" "Live-Server-WebSocket-P
 code_http_port=$(grep -oP 'port\("winlaufen.live.http.port", \K[0-9]+' \
     "$repository_root/live-server/src/main/java/de/winlaufen/web/liveserver/config/LiveServerConfig.java")
 assert_equals "$code_http_port" "$WINLAUFEN_LIVE_HTTP_PORT" "Live-Server-HTTP-Port stimmt mit dem Code überein"
+
+code_control_bind=$(grep -oP 'DEFAULT_CONTROL_BIND = "\K[^"]+' \
+    "$repository_root/bridge/src/main/java/de/winlaufen/web/bridge/config/BridgeConfigStore.java")
+assert_equals "$code_control_bind" "$WINLAUFEN_CONTROL_BIND" \
+    "Bridge-Control-Bind stimmt mit dem Code überein"
+
+code_http_bind=$(grep -oP 'winlaufen\.live\.http\.bind", "\K[^"]+' \
+    "$repository_root/live-server/src/main/java/de/winlaufen/web/liveserver/config/LiveServerConfig.java")
+assert_equals "$code_http_bind" "$WINLAUFEN_LIVE_HTTP_BIND" \
+    "Live-Server-HTTP-Bind stimmt mit dem Code überein"
+
+code_ws_bind=$(grep -oP 'winlaufen\.live\.websocket\.bind", "\K[^"]+' \
+    "$repository_root/live-server/src/main/java/de/winlaufen/web/liveserver/config/LiveServerConfig.java")
+assert_equals "$code_ws_bind" "$WINLAUFEN_LIVE_WS_BIND" \
+    "Live-Server-WebSocket-Bind stimmt mit dem Code überein"
+
+windows_control_port=$(grep -oP '^\$ControlPort\s*=\s*\K[0-9]+' "$installer_windows")
+windows_http_port=$(grep -oP '^\$LiveHttpPort\s*=\s*\K[0-9]+' "$installer_windows")
+windows_ws_port=$(grep -oP '^\$LiveWsPort\s*=\s*\K[0-9]+' "$installer_windows")
+windows_control_bind=$(grep -oP '^\$ControlBind\s*=\s*'"'"'\K[^'"'"']+' "$installer_windows")
+windows_http_bind=$(grep -oP '^\$LiveHttpBind\s*=\s*'"'"'\K[^'"'"']+' "$installer_windows")
+windows_ws_bind=$(grep -oP '^\$LiveWsBind\s*=\s*'"'"'\K[^'"'"']+' "$installer_windows")
+assert_equals "$windows_control_port" "$WINLAUFEN_CONTROL_PORT" \
+    "Windows-Installer übernimmt den Bridge-Control-Port aus dem Manifestvertrag"
+assert_equals "$windows_http_port" "$WINLAUFEN_LIVE_HTTP_PORT" \
+    "Windows-Installer übernimmt den HTTP-Port aus dem Manifestvertrag"
+assert_equals "$windows_ws_port" "$WINLAUFEN_LIVE_WS_PORT" \
+    "Windows-Installer übernimmt den WebSocket-Port aus dem Manifestvertrag"
+assert_equals "$windows_control_bind" "$WINLAUFEN_CONTROL_BIND" \
+    "Windows-Installer übernimmt den Bridge-Control-Bind aus dem Manifestvertrag"
+assert_equals "$windows_http_bind" "$WINLAUFEN_LIVE_HTTP_BIND" \
+    "Windows-Installer übernimmt den HTTP-Bind aus dem Manifestvertrag"
+assert_equals "$windows_ws_bind" "$WINLAUFEN_LIVE_WS_BIND" \
+    "Windows-Installer übernimmt den WebSocket-Bind aus dem Manifestvertrag"
 
 code_source_port=$(grep -oP 'WINLAUFEN_PORT = \K[0-9]+' \
     "$repository_root/bridge/src/main/java/de/winlaufen/web/bridge/config/BridgeConfig.java")
@@ -252,6 +880,47 @@ for expected in installer/linux/install.sh installer/linux/uninstall.sh \
                 installer/common/dist-manifest.env; do
     assert_file "$repository_root/$expected" "Erwartetes Installer-Artefakt: $expected"
 done
+
+echo
+echo "=== Reproduzierbarer Developer-Build ==="
+assert_file "$repository_root/mvnw" "Maven Wrapper für Unix vorhanden"
+assert_file "$repository_root/mvnw.cmd" "Maven Wrapper für Windows vorhanden"
+assert_file "$repository_root/.mvn/wrapper/maven-wrapper.properties" \
+    "Maven-Wrapper-Konfiguration vorhanden"
+assert_contains "$repository_root/.mvn/wrapper/maven-wrapper.properties" \
+    "apache-maven-3.9.16-bin.zip" "Maven Wrapper pinnt Maven 3.9.16"
+assert_contains "$repository_root/pom.xml" "<artifactId>maven-compiler-plugin</artifactId>" \
+    "Compiler-Plugin ist explizit konfiguriert"
+assert_contains "$repository_root/pom.xml" "<version>3.15.0</version>" \
+    "Compiler-Plugin-Version ist explizit gepinnt"
+assert_contains "$repository_root/pom.xml" "<release>\${maven.compiler.release}</release>" \
+    "Compiler verwendet den zentralen release-25-Vertrag"
+assert_contains "$repository_root/installer/common/build-dist.sh" "./mvnw -B -q package" \
+    "Linux-Distribution verwendet den Maven Wrapper"
+assert_contains "$repository_root/installer/common/build-dist.ps1" "'mvnw.cmd'" \
+    "Windows-Distribution verwendet den Maven Wrapper"
+
+echo
+echo "=== Dokumentationsvertrag ==="
+assert_contains "$repository_root/README.md" "./mvnw clean package" \
+    "README dokumentiert den Wrapper-Build"
+assert_contains "$repository_root/docs/INSTALLATION.md" ".\\mvnw.cmd clean package" \
+    "Windows-Developer-Build verwendet den Wrapper"
+assert_contains "$repository_root/docs/INSTALLATION.md" \
+    "| Bridge | WinLaufen-PC | TCP 4444 |" "Installation dokumentiert TCP 4444 als ausgehendes Ziel"
+assert_contains "$repository_root/docs/INSTALLATION.md" \
+    "| Viewer | Live Server | TCP 44440 |" "Installation dokumentiert Public HTTP"
+assert_contains "$repository_root/docs/INSTALLATION.md" \
+    "| Browser | Live Server | TCP 44441 |" "Installation dokumentiert Browser-Live"
+assert_contains "$repository_root/docs/INSTALLATION.md" \
+    "| Admin | Bridge | TCP 44442 |" "Installation dokumentiert Bridge Control"
+assert_contains "$repository_root/docs/INSTALLATION.md" \
+    "Der Installer aktiviert weder UFW" "Linux-Firewallverhalten ist dokumentiert"
+assert_contains "$repository_root/docs/INSTALLATION.md" \
+    "PowerShell mit Administratorrechten" "Windows-Adminanforderung ist dokumentiert"
+assert_absent "$repository_root/README.md" \
+    "empfohlen für die Installation direkt auf dem WinLaufen-PC" \
+    "README beschränkt All-in-One nicht auf den WinLaufen-PC"
 
 echo
 echo "----------------------------------------"
