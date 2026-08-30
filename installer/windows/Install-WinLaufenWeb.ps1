@@ -98,10 +98,17 @@ function Test-Administrator {
 
 # Ermittelt die Java-Major-Version ausschließlich über den Konsolen-Launcher
 # java.exe. javaw.exe ist ein GUI-Subsystem-Programm; ob es seine Ausgabe an
-# umgeleitete Handles schreibt, ist nicht zugesichert. Auf Windows 11 mit Temurin
-# 25 liefert javaw.exe beim Einsammeln in eine Variable keinen Treffer, obwohl
-# dasselbe Kommando direkt in eine Pipeline geschrieben funktioniert. javaw.exe
-# darf deshalb nie als Versionsprobe dienen, sondern nur als Startprogramm.
+# umgeleitete Handles schreibt, ist nicht zugesichert und darf deshalb nie als
+# Versionsprobe dienen, sondern nur als Startprogramm.
+#
+# Der Prozess wird bewusst über System.Diagnostics.Process gestartet und nicht
+# über den PowerShell-Operator "&". Java schreibt -XshowSettings:properties auf
+# stderr; Windows PowerShell 5.1 verpackt native stderr-Zeilen in ErrorRecords,
+# und unter dem global gesetzten $ErrorActionPreference = 'Stop' löst bereits die
+# erste dieser Zeilen einen abbrechenden Fehler aus. Eine korrekt installierte
+# Java-25-Runtime wurde dadurch verworfen. Mit eigenen umgeleiteten Strömen ist
+# die Probe von der PowerShell-Fehlerstromsemantik vollständig unabhängig.
+#
 # @return die Major-Version oder 0, wenn sie nicht ermittelt werden konnte.
 function Get-JavaMajorVersion {
     param([string]$JavaExe)
@@ -110,12 +117,40 @@ function Get-JavaMajorVersion {
             -not (Test-Path -LiteralPath $JavaExe -PathType Leaf)) {
         return 0
     }
+
+    $process = $null
+    $standardOutput = ''
+    $standardError = ''
     try {
-        $output = & $JavaExe '-XshowSettings:properties' '-version' 2>&1
+        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = $JavaExe
+        $startInfo.Arguments = '-XshowSettings:properties -version'
+        $startInfo.UseShellExecute = $false
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $startInfo.CreateNoWindow = $true
+
+        $process = [System.Diagnostics.Process]::Start($startInfo)
+        # Beide Ströme asynchron lesen, bevor gewartet wird. Sequenzielles
+        # ReadToEnd() könnte blockieren, sobald der andere Puffer volläuft.
+        $outputReader = $process.StandardOutput.ReadToEndAsync()
+        $errorReader = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $standardOutput = $outputReader.Result
+        $standardError = $errorReader.Result
     } catch {
         return 0
+    } finally {
+        if ($process) {
+            $process.Dispose()
+        }
     }
-    $match = [regex]::Match(($output | Out-String), 'java\.specification\.version\s*=\s*(\d+)')
+
+    # stderr ist hier der eigentliche Informationsträger, nicht ein Fehlersignal.
+    # Deshalb werden beide Ströme zusammengeführt und der Exit-Code bewusst nicht
+    # als Ausschlusskriterium verwendet: entscheidend ist eine lesbare Version.
+    $match = [regex]::Match("$standardOutput`n$standardError",
+        'java\.specification\.version\s*=\s*(\d+)')
     if (-not $match.Success) {
         return 0
     }

@@ -1,0 +1,5 @@
+Property settings:
+    java.home = C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot
+    java.vm.specification.version = 21
+    java.specification.version = 25
+    java.version = 25.0.4.1

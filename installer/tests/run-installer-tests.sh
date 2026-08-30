@@ -893,7 +893,7 @@ echo
 echo "=== Windows: Java-Erkennung über den Konsolen-Launcher ==="
 # Suchmuster und Mindestversion werden aus dem Installer selbst gelesen, damit die
 # Fixtures den real verwendeten Vertrag prüfen und nicht eine Kopie davon.
-java_pattern=$(sed -n "s/.*\[regex\]::Match(.*, '\(.*\)').*/\1/p" "$installer_windows" | head -1)
+java_pattern=$(grep -oE "java\\\\[.]specification\\\\[.]version[^']*" "$installer_windows" | head -1)
 windows_java_release=$(grep -oP '^\$JavaRelease\s*=\s*\K[0-9]+' "$installer_windows")
 [[ -n "$java_pattern" ]] \
     && ok "Suchmuster der Versionsprobe ist im Installer auffindbar" \
@@ -933,6 +933,10 @@ assert_java_major java-21.txt 21 "Ältere Java-Version wird korrekt gelesen"
 assert_java_major java-8.txt 1 "Legacy-Schema 1.8 ergibt Major 1"
 assert_java_major unparsebar.txt 0 "Nicht parsebare Ausgabe ergibt keine Version"
 assert_java_major javaw-leer.txt 0 "Leere Ausgabe ergibt keine Version"
+# java.vm.specification.version steht in echter Ausgabe daneben und trägt eine
+# andere Zahl; ein zu weites Muster würde die falsche Zeile lesen.
+assert_java_major vm-distraktor.txt 25 \
+    "java.vm.specification.version wird nicht mit java.specification.version verwechselt"
 
 assert_java_decision temurin-25.txt akzeptiert "Java 25 wird akzeptiert"
 assert_java_decision java-26.txt akzeptiert "Java > 25 wird akzeptiert"
@@ -944,6 +948,37 @@ assert_java_decision unparsebar.txt abgelehnt "Nicht parsebare Ausgabe wird abge
 assert_java_decision javaw-leer.txt abgelehnt \
     "Eine leere Probenausgabe darf nie als gültige Runtime durchgehen"
 
+# Java schreibt -XshowSettings auf stderr. stdout ist leer, der Informationsträger
+# ist der Fehlerstrom - genau deshalb muss der Installer beide Ströme zusammenführen.
+java_major_of_streams() {
+    python3 - "$java_pattern" "$1" "$2" <<'PY'
+import re
+import sys
+
+pattern, stdout_path, stderr_path = sys.argv[1], sys.argv[2], sys.argv[3]
+
+
+def read(path):
+    with open(path, encoding='utf-8') as handle:
+        return handle.read()
+
+
+match = re.search(pattern, read(stdout_path) + '\n' + read(stderr_path))
+print(match.group(1) if match else '0')
+PY
+}
+
+assert_file "$java_version_fixtures/stdout-leer.txt" "Leerer stdout-Strom als Fixture vorhanden"
+assert_equals \
+    "$(java_major_of_streams "$java_version_fixtures/stdout-leer.txt" "$java_version_fixtures/temurin-25.txt")" \
+    "25" "Version wird gelesen, wenn sie ausschließlich auf stderr steht"
+assert_equals \
+    "$(java_major_of_streams "$java_version_fixtures/temurin-25.txt" "$java_version_fixtures/stdout-leer.txt")" \
+    "25" "Version wird auch gelesen, wenn sie auf stdout steht"
+assert_equals \
+    "$(java_major_of_streams "$java_version_fixtures/stdout-leer.txt" "$java_version_fixtures/javaw-leer.txt")" \
+    "0" "Zwei leere Ströme ergeben keine Version"
+
 windows_java_probe=$(sed -n '/^function Get-JavaMajorVersion {/,/^}$/p' "$installer_windows")
 [[ "$windows_java_probe" == *'-XshowSettings:properties'* ]] \
     && ok "Versionsprobe fragt die Java-Properties ab" \
@@ -951,6 +986,53 @@ windows_java_probe=$(sed -n '/^function Get-JavaMajorVersion {/,/^}$/p' "$instal
 [[ "$windows_java_probe" != *javaw* ]] \
     && ok "Versionsprobe verwendet nie javaw.exe" \
     || bad "Versionsprobe verwendet nie javaw.exe" "$windows_java_probe"
+
+# Regression: unter Windows PowerShell 5.1 werden native stderr-Zeilen zu
+# ErrorRecords. Mit dem global gesetzten $ErrorActionPreference = 'Stop' bricht
+# "& $JavaExe ... 2>&1" deshalb schon bei der ersten Java-Ausgabezeile ab. Die
+# Probe muss daher einen eigenen Prozess mit umgeleiteten Strömen verwenden.
+[[ "$windows_java_probe" == *'System.Diagnostics.ProcessStartInfo'* ]] \
+    && ok "Versionsprobe startet einen eigenen Prozess statt eines PowerShell-Aufrufs" \
+    || bad "Versionsprobe startet einen eigenen Prozess statt eines PowerShell-Aufrufs" \
+        "$windows_java_probe"
+[[ "$windows_java_probe" == *'[System.Diagnostics.Process]::Start($startInfo)'* ]] \
+    && ok "Versionsprobe startet den Prozess über System.Diagnostics.Process" \
+    || bad "Versionsprobe startet den Prozess über System.Diagnostics.Process"
+[[ "$windows_java_probe" == *'$startInfo.UseShellExecute = $false'* ]] \
+    && ok "Versionsprobe läuft ohne Shell" \
+    || bad "Versionsprobe läuft ohne Shell"
+[[ "$windows_java_probe" == *'$startInfo.RedirectStandardOutput = $true'* ]] \
+    && ok "Versionsprobe leitet stdout selbst um" \
+    || bad "Versionsprobe leitet stdout selbst um"
+[[ "$windows_java_probe" == *'$startInfo.RedirectStandardError = $true'* ]] \
+    && ok "Versionsprobe leitet stderr selbst um" \
+    || bad "Versionsprobe leitet stderr selbst um"
+[[ "$windows_java_probe" == *'$process.StandardOutput.ReadToEndAsync()'* ]] \
+    && ok "Versionsprobe liest stdout vollständig" \
+    || bad "Versionsprobe liest stdout vollständig"
+[[ "$windows_java_probe" == *'$process.StandardError.ReadToEndAsync()'* ]] \
+    && ok "Versionsprobe liest stderr vollständig" \
+    || bad "Versionsprobe liest stderr vollständig"
+[[ "$windows_java_probe" == *'$process.WaitForExit()'* ]] \
+    && ok "Versionsprobe wartet auf das Prozessende" \
+    || bad "Versionsprobe wartet auf das Prozessende"
+[[ "$windows_java_probe" == *'[regex]::Match('* ]] \
+    && ok "Version wird über einen .NET-Regex statt über Select-String gelesen" \
+    || bad "Version wird über einen .NET-Regex statt über Select-String gelesen"
+[[ "$windows_java_probe" == *'"$standardOutput`n$standardError"'* ]] \
+    && ok "Version wird aus stdout und stderr zusammen geparst" \
+    || bad "Version wird aus stdout und stderr zusammen geparst"
+[[ "$windows_java_probe" != *'2>&1'* ]] \
+    && ok "Versionsprobe hängt nicht mehr am PowerShell-Fehlerstrom" \
+    || bad "Versionsprobe hängt nicht mehr am PowerShell-Fehlerstrom" "$windows_java_probe"
+[[ "$windows_java_probe" != *'& $JavaExe'* ]] \
+    && ok "Der alte direkte Native-Aufruf als Versionsprobe ist entfernt" \
+    || bad "Der alte direkte Native-Aufruf als Versionsprobe ist entfernt" "$windows_java_probe"
+assert_contains "$installer_windows" "\$ErrorActionPreference = 'Stop'" \
+    "Der Installer bleibt global auf ErrorActionPreference Stop"
+[[ "$windows_java_probe" != *'ErrorActionPreference'* ]] \
+    && ok "Die Probe verstellt ErrorActionPreference nicht als Ersatzlösung" \
+    || bad "Die Probe verstellt ErrorActionPreference nicht als Ersatzlösung"
 assert_absent "$installer_windows" "Get-Command 'javaw.exe'" \
     "javaw.exe wird nicht mehr als Java-Kandidat gesucht"
 assert_contains "$installer_windows" "Get-Command 'java.exe' -All" \
