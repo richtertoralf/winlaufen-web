@@ -31,6 +31,8 @@ input[type=checkbox],input[type=radio]{width:auto;min-height:0;accent-color:var(
 :focus-visible{outline:2px solid var(--head);outline-offset:1px}
 
 /* control - ausschliesslich Bridge Control. */
+/* Kopfzeile und Inhalt beginnen auf breiten Displays an derselben Kante. */
+header{padding-inline:max(var(--pad),calc((100% - 932px)/2))}
 main{max-width:900px;margin:0 auto;padding:16px var(--pad) 32px}
 section{margin-bottom:14px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 h1,h2{margin:0 0 10px}
@@ -45,5 +47,9 @@ output:before{content:"\25CF  "}
 .addresses dt{color:var(--muted);font-size:13px}
 .addresses dd{margin:2px 0 8px}
 .addresses a{color:var(--accent);font-weight:700}
-#source-status{margin:8px 0 0;font-size:14px;color:var(--muted)}
+/* Die Farbe kommt aus der vom Skript gesetzten Zustandsklasse. */
+#source-status{margin:8px 0 0;font-size:14px}
+/* Nur das Speichern ist die Hauptaktion; alles andere bleibt zurueckhaltend. */
+#add,.remove{background:var(--surface);border-color:var(--line-strong);color:var(--ink)}
+.remove{color:var(--bad)}
 #message{margin-left:10px;font-size:14px;color:var(--muted)}
