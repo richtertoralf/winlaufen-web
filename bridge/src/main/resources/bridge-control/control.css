@@ -1,55 +1,45 @@
-/* core - gemeinsame visuelle Basis von WinLaufen Sprecher Web.
-   Dieser Block ist in bridge-control/control.css und web-viewer/viewer.css
-   wortgleich. Bridge und Live Server sind bewusst getrennt installierbar und
-   teilen zur Laufzeit keine Ressourcen, deshalb traegt jede Oberflaeche ihre
-   eigene Kopie. Aenderungen immer in beiden Dateien vornehmen. */
-:root{color-scheme:light;--ink:#16212b;--muted:#5c6b76;--paper:#eef1f4;--surface:#fff;--surface-alt:#f7f9fb;--line:#d3dadf;--line-strong:#b7c1c9;--head:#22394d;--head-ink:#fff;--accent:#086b4b;--warn:#8a5300;--bad:#9c2932;--radius:4px;--pad:clamp(10px,2vw,20px);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,Helvetica,sans-serif}
+/* Bridge Control. Farben, Schrift und Radius sind mit viewer.css abgestimmt,
+   die Komponenten dieser Oberflaeche stehen nur hier. */
+:root{color-scheme:light;--ink:#16212b;--muted:#5c6b76;--paper:#eef1f4;--surface:#fff;--line:#d3dadf;--line-strong:#b7c1c9;--accent:#086b4b;--warn:#8a5300;--bad:#9c2932;--radius:4px;--pad:clamp(10px,2vw,20px);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,Helvetica,sans-serif}
 *{box-sizing:border-box}
 /* Autorenregeln wie label{display:block} wuerden das hidden-Attribut sonst aushebeln. */
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.4}
-header{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:52px;padding:8px var(--pad);background:var(--surface);border-bottom:1px solid var(--line-strong)}
-.brand{display:flex;flex-direction:column;line-height:1.15;font-size:16px;font-weight:800}
-.brand>strong{display:flex;flex-direction:column;font:inherit}
-.brand span{font-size:12px;font-weight:600;color:var(--accent)}
-.status{display:flex;align-items:center;gap:12px}
-#clock{font-weight:700;font-variant-numeric:tabular-nums}
-.pill,#health{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800}
-.pill:before,#health:before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:currentColor}
-.ok,.connected{color:var(--accent)}
-.warn,.stale{color:var(--warn)}
-.disconnected{color:var(--bad)}
+:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+/* Die Kopfzeile beginnt auf breiten Displays an derselben Kante wie das Formular. */
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:52px;padding:8px max(var(--pad),calc((100% - 932px)/2));background:var(--surface);border-bottom:1px solid var(--line-strong)}
+header strong{display:flex;flex-direction:column;font-size:16px;font-weight:800;line-height:1.15}
+header strong span{font-size:12px;font-weight:600;color:var(--accent)}
+.status{display:flex;align-items:center;gap:12px;font-variant-numeric:tabular-nums}
+#health{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800}
+#health:before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:currentColor}
+.ok{color:var(--accent)}
+.warn{color:var(--warn)}
 .muted{color:var(--muted)}
-h1,h2{margin:0;font-size:16px;font-weight:700}
-.hint{margin:8px 0 0;font-size:13px;color:var(--muted)}
-code{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-size:.92em}
-button{min-height:36px;padding:8px 14px;border:1px solid transparent;border-radius:var(--radius);background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer}
-button:disabled{opacity:.6;cursor:default}
-input,select{font:inherit;color:inherit}
-input[type=text],input:not([type]),input[type=password],select{width:100%;min-height:36px;padding:6px 8px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius)}
-input[type=checkbox],input[type=radio]{width:auto;min-height:0;accent-color:var(--accent)}
-:focus-visible{outline:2px solid var(--head);outline-offset:1px}
-
-/* control - ausschliesslich Bridge Control. */
-/* Kopfzeile und Inhalt beginnen auf breiten Displays an derselben Kante. */
-header{padding-inline:max(var(--pad),calc((100% - 932px)/2))}
 main{max-width:900px;margin:0 auto;padding:16px var(--pad) 32px}
 section{margin-bottom:14px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
-h1,h2{margin:0 0 10px}
+h1,h2{margin:0 0 10px;font-size:16px}
 label{display:block;margin-bottom:8px;font-size:14px}
 label .hint{display:block;margin-top:4px}
 legend{padding:0 4px;font-size:13px;font-weight:700}
 .choice label{margin-bottom:4px;font-weight:400}
 fieldset{margin:0 0 10px;padding:12px;border:1px solid var(--line);border-radius:var(--radius)}
+input,select{font:inherit;color:inherit}
+input[type=text],input:not([type]),input[type=password],select{width:100%;min-height:36px;padding:6px 8px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius)}
+input[type=checkbox],input[type=radio]{width:auto;accent-color:var(--accent)}
+button{min-height:36px;padding:8px 14px;border:1px solid transparent;border-radius:var(--radius);background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+button:disabled{opacity:.6;cursor:default}
+/* Nur das Speichern ist die Hauptaktion. */
+#add,.remove{background:var(--surface);border-color:var(--line-strong);color:var(--ink)}
+.remove{color:var(--bad)}
 output{display:block;margin:6px 0;font-size:13px;color:var(--muted)}
 output:before{content:"\25CF  "}
 .addresses{margin:10px 0 0;font-size:14px}
 .addresses dt{color:var(--muted);font-size:13px}
 .addresses dd{margin:2px 0 8px}
 .addresses a{color:var(--accent);font-weight:700}
-/* Die Farbe kommt aus der vom Skript gesetzten Zustandsklasse. */
+.hint{margin:8px 0 0;font-size:13px;color:var(--muted)}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-size:.92em}
+/* Die Zustandsfarbe kommt aus der vom Skript gesetzten Klasse. */
 #source-status{margin:8px 0 0;font-size:14px}
-/* Nur das Speichern ist die Hauptaktion; alles andere bleibt zurueckhaltend. */
-#add,.remove{background:var(--surface);border-color:var(--line-strong);color:var(--ink)}
-.remove{color:var(--bad)}
 #message{margin-left:10px;font-size:14px;color:var(--muted)}

@@ -1,67 +1,44 @@
-/* core - gemeinsame visuelle Basis von WinLaufen Sprecher Web.
-   Dieser Block ist in bridge-control/control.css und web-viewer/viewer.css
-   wortgleich. Bridge und Live Server sind bewusst getrennt installierbar und
-   teilen zur Laufzeit keine Ressourcen, deshalb traegt jede Oberflaeche ihre
-   eigene Kopie. Aenderungen immer in beiden Dateien vornehmen. */
-:root{color-scheme:light;--ink:#16212b;--muted:#5c6b76;--paper:#eef1f4;--surface:#fff;--surface-alt:#f7f9fb;--line:#d3dadf;--line-strong:#b7c1c9;--head:#22394d;--head-ink:#fff;--accent:#086b4b;--warn:#8a5300;--bad:#9c2932;--radius:4px;--pad:clamp(10px,2vw,20px);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,Helvetica,sans-serif}
+/* Web Viewer. Farben, Schrift und Radius sind mit control.css abgestimmt,
+   die Komponenten dieser Oberflaeche stehen nur hier. */
+:root{color-scheme:light;--ink:#16212b;--muted:#5c6b76;--paper:#eef1f4;--surface:#fff;--surface-alt:#f7f9fb;--line:#d3dadf;--line-strong:#b7c1c9;--head:#22394d;--accent:#086b4b;--warn:#8a5300;--bad:#9c2932;--radius:4px;--pad:clamp(10px,2vw,20px);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,Helvetica,sans-serif}
 *{box-sizing:border-box}
-/* Autorenregeln wie label{display:block} wuerden das hidden-Attribut sonst aushebeln. */
-[hidden]{display:none!important}
 html,body{margin:0;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.4}
-header{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:52px;padding:8px var(--pad);background:var(--surface);border-bottom:1px solid var(--line-strong)}
-.brand{display:flex;flex-direction:column;line-height:1.15;font-size:16px;font-weight:800}
-.brand>strong{display:flex;flex-direction:column;font:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+/* Die Kopfzeile beginnt auf breiten Displays an derselben Kante wie die Tabelle. */
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:52px;padding:8px max(var(--pad),calc((100% - 1600px)/2));background:var(--surface);border-bottom:1px solid var(--line-strong)}
+.brand{display:flex;flex-direction:column;font-size:16px;font-weight:800;line-height:1.15}
 .brand span{font-size:12px;font-weight:600;color:var(--accent)}
-.status{display:flex;align-items:center;gap:12px}
-#clock{font-weight:700;font-variant-numeric:tabular-nums}
-.pill,#health{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800}
-.pill:before,#health:before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:currentColor}
-.ok,.connected{color:var(--accent)}
-.warn,.stale{color:var(--warn)}
+.status{display:flex;align-items:center;gap:12px;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800}
+.pill:before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:currentColor}
+.connected{color:var(--accent)}
+.stale{color:var(--warn)}
 .disconnected{color:var(--bad)}
-.muted{color:var(--muted)}
-h1,h2{margin:0;font-size:16px;font-weight:700}
-.hint{margin:8px 0 0;font-size:13px;color:var(--muted)}
-code{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-size:.92em}
-button{min-height:36px;padding:8px 14px;border:1px solid transparent;border-radius:var(--radius);background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer}
-button:disabled{opacity:.6;cursor:default}
-input,select{font:inherit;color:inherit}
-input[type=text],input:not([type]),input[type=password],select{width:100%;min-height:36px;padding:6px 8px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius)}
-input[type=checkbox],input[type=radio]{width:auto;min-height:0;accent-color:var(--accent)}
-:focus-visible{outline:2px solid var(--head);outline-offset:1px}
-
-/* viewer - ausschliesslich Web Viewer mit Startliste, LIVE und Ergebnissen. */
-/* Kopfzeile und Inhalt beginnen auf breiten Displays an derselben Kante. */
-header{padding-inline:max(var(--pad),calc((100% - 1600px)/2))}
 main{max-width:1600px;margin:0 auto;padding:0 var(--pad) 16px}
 .tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;padding:7px 0;background:var(--paper);border-bottom:1px solid var(--line-strong)}
-.tabs button{flex:1 1 0;max-width:200px;min-height:40px;background:var(--surface);border-color:var(--line);color:var(--ink)}
-.tabs button.active{background:var(--head);border-color:var(--head);color:var(--head-ink)}
+.tabs button{flex:1 1 0;max-width:200px;min-height:40px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);color:var(--ink);font:inherit;font-weight:700;cursor:pointer}
+.tabs button.active{background:var(--head);border-color:var(--head);color:#fff}
 .view{display:none}
 .view.active{display:block}
 .context{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:4px 0}
-.context h1{font-size:15px}
+.context h1{margin:0;font-size:15px}
 .label{color:var(--accent)}
 .class-picker{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
-.class-picker select{width:auto;max-width:52vw}
+.class-picker select{max-width:52vw;min-height:36px;padding:6px 8px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);color:var(--ink);font:inherit}
 .notice,.compact-empty{margin:8px 0;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);font-size:14px;color:var(--muted)}
+.notice[hidden]{display:none}
 .compact-empty strong{display:block;margin-bottom:2px;color:var(--ink)}
 .table-wrap{width:100%;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
 th,td{max-width:24vw;padding:6px 10px;overflow:hidden;text-align:left;text-overflow:ellipsis;white-space:nowrap;border-bottom:1px solid var(--line)}
-th{position:sticky;top:0;background:var(--head);color:var(--head-ink);font-size:12px;font-weight:700;border-bottom-color:var(--head)}
+th{position:sticky;top:0;background:var(--head);color:#fff;font-size:12px;font-weight:700;border-bottom-color:var(--head)}
 tbody tr:nth-child(even){background:var(--surface-alt)}
-tbody tr:last-child td{border-bottom:0}
 tbody tr.current{background:#cfe9dc;box-shadow:inset 4px 0 var(--accent);animation:arrival 8s ease-out}
 tbody tr.current td{font-weight:700;border-bottom-color:#a7d1bd}
 @keyframes arrival{0%,55%{background:#9cdcbd}100%{background:#cfe9dc}}
-/* Responsive Reduktion der Tabellen: erste drei plus letzte zwei sichtbare Spalten.
-   Die Regel ist rein strukturell und arbeitet auf der bereits gerenderten Zeile,
-   also nach der bestehenden Spaltenauswahl aus Bridge Control. Ausgeblendet wird
-   jede Zelle ab Position 4, hinter der noch mindestens zwei Zellen stehen. Der
-   gesamte Mittelblock verschwindet dadurch gemeinsam; bei fuenf oder weniger
-   Spalten trifft die Regel auf keine Zelle zu. Die Bedeutung einer Spalte spielt
-   dabei keine Rolle und wird nirgends ausgewertet. */
+/* Schmale Layouts: sichtbar bleiben die ersten drei und die letzten zwei Zellen einer
+   Zeile. Rein strukturell, ohne Auswertung der Ueberschrift; ab fuenf Spalten abwaerts
+   blendet die Regel nichts aus. */
 @media(max-width:800px){th:nth-child(n+4):nth-last-child(n+3),td:nth-child(n+4):nth-last-child(n+3){display:none}}
 @media(max-width:700px){.context{flex-direction:column;align-items:flex-start}.class-picker{width:100%}.class-picker select{flex:1;max-width:none}}
 @media(max-width:520px){table{font-size:13px}th,td{max-width:27vw;padding:5px}th{font-size:11px}}
