@@ -2,6 +2,7 @@ let state = null;
 let display = null;
 let liveClassIndex = null;
 let resultsClassIndex = null;
+let renderedClasses = null;
 let publicationRevision = -1;
 const health = document.querySelector('#health');
 const clock = document.querySelector('#clock');
@@ -42,11 +43,18 @@ function renderChrome() {
 function displayRoundOrHeat(rawRoundOrHeat) { return rawRoundOrHeat + 1; }
 function renderTables() {
   const classes = state.competition?.classes || [];
-  const previous = resultsClassIndex;
-  select.replaceChildren(...classes.map(item => new Option(item.name, item.index)));
-  if (previous !== null && classes.some(item => item.index === previous)) resultsClassIndex = previous;
-  else if (resultsClassIndex === null && classes.length) resultsClassIndex = classes[0].index;
-  if (resultsClassIndex !== null) select.value = resultsClassIndex;
+  // Ein Uhrtelegramm laesst die Klassenliste unveraendert. Die Auswahl wird deshalb nur
+  // neu aufgebaut, wenn sich die angebotenen Klassen wirklich geaendert haben; ein
+  // Neuaufbau bei jedem Snapshot wuerde eine gerade offene Auswahl zerstoeren.
+  const signature = JSON.stringify(classes.map(item => [item.index, item.name]));
+  if (signature !== renderedClasses) {
+    renderedClasses = signature;
+    const previous = resultsClassIndex;
+    select.replaceChildren(...classes.map(item => new Option(item.name, item.index)));
+    if (previous !== null && classes.some(item => item.index === previous)) resultsClassIndex = previous;
+    else if (resultsClassIndex === null && classes.length) resultsClassIndex = classes[0].index;
+    if (resultsClassIndex !== null) select.value = resultsClassIndex;
+  }
   const live = classes.find(item => item.index === liveClassIndex);
   const round = state.competition ? ` · Runde/Durchgang ${displayRoundOrHeat(state.competition.roundOrHeat)}` : '';
   document.querySelector('#live-context').textContent = live ? `${live.name}${round}` : 'Noch keine aktuellen Ergebnisse von WinLaufen.';
