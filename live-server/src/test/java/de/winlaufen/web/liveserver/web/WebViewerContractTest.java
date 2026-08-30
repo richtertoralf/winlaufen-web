@@ -83,6 +83,37 @@ class WebViewerContractTest {
     }
 
     @Test
+    void rebuildsTheClassPickerOnlyWhenTheOfferedClassesChanged() throws Exception {
+        String script = resource("/web-viewer/viewer.js");
+
+        // Ein Uhrtelegramm erzeugt sekuendlich einen Snapshot. Baut die Ergebnisansicht dabei
+        // ihre Klassenauswahl neu auf, zerstoert das eine offene mobile Auswahl.
+        assertTrue(script.contains("JSON.stringify(classes.map(item => [item.index, item.name]))"),
+                "the picker follows the offered classes, not every snapshot");
+        assertEquals(1, occurrences(script, "select.replaceChildren("),
+                "the option list is rebuilt in exactly one place");
+        assertEquals(1, occurrences(script, "select.value = resultsClassIndex"),
+                "the value is assigned in exactly one place");
+
+        int guard = script.indexOf("if (signature !== renderedClasses)");
+        int rebuild = script.indexOf("select.replaceChildren(");
+        int value = script.indexOf("select.value = resultsClassIndex");
+        int afterBlock = script.indexOf("const live = classes.find");
+        assertTrue(guard > 0, "the rebuild is guarded by the class signature");
+        assertTrue(guard < rebuild && rebuild < afterBlock,
+                "the option list is only replaced inside the guard");
+        assertTrue(guard < value && value < afterBlock,
+                "the selected value is only reassigned inside the guard");
+
+        // Die bestaetigte Auswahl bleibt Sache des change-Listeners.
+        assertTrue(script.contains("resultsClassIndex = Number(select.value)"),
+                "a confirmed choice is still stored");
+        // LIVE bleibt von der Auswahl unabhaengig und folgt weiter der uebertragenen Klasse.
+        assertTrue(script.contains("if (state.currentFinish) liveClassIndex = state.currentFinish.classIndex;"),
+                "LIVE keeps following the transmitted class");
+    }
+
+    @Test
     void keepsViewsPublicOnlyRevisionGuardCurrentFinishAndConditionalMessages() throws Exception {
         String html = resource("/web-viewer/viewer.html");
         String script = resource("/web-viewer/viewer.js");
