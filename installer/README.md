@@ -19,6 +19,12 @@ Vorher wird die Distribution gebaut:
 | Linux | `common/build-dist.sh [--with-runtime]` |
 | Windows | `common/build-dist.ps1 [-WithRuntime]` |
 
+Die Build-Skripte verwenden `mvnw`/`mvnw.cmd`; ein separat installiertes Maven
+ist nicht erforderlich. Developer benötigen Git und JDK 25. Endanwender laden
+später das passende Release-Archiv herunter und benötigen weder Git noch Maven
+oder einen Source Checkout. Bei gebündelter `jlink`-Runtime ist auch kein
+separates Laufzeit-JDK nötig.
+
 ## Struktur
 
 ```text
@@ -37,10 +43,10 @@ installer/
         run-installer-tests.sh automatisierte Prüfungen ohne root und systemd
 ```
 
-`common/dist-manifest.env` ist die einzige Stelle, an der Ports, Pfade,
-Artefaktnamen und die Java-Version stehen. Die Werte stammen aus dem
-Anwendungscode; `tests/run-installer-tests.sh` prüft laufend, dass sie nicht
-auseinanderlaufen.
+`common/dist-manifest.env` ist die gemeinsame Referenz der Shell-Installer für
+Ports, Pfade, Artefaktnamen und Java-Version. Der Windows-Installer enthält die
+entsprechenden PowerShell-Konstanten. `tests/run-installer-tests.sh` prüft, dass
+beide mit dem Anwendungscode übereinstimmen.
 
 ## Profile
 
@@ -61,6 +67,12 @@ die spätere Runtime-Konfiguration über Bridge Control.
 
 Vorhandene Konfiguration wird nie überschrieben. Defaults entstehen nur bei
 einer echten Erstinstallation.
+
+Vor dem Service-Start werden nur die profilabhängigen lokalen Listener 44440,
+44441 und/oder 44442 geprüft. TCP 4444 ist das ausgehende Ziel der Bridge und
+kein lokaler Preflight-Port. Linux verändert keine Firewall. Windows erfordert
+Administratorrechte und legt nur eigene Private-/Domain-Regeln an; der
+Uninstaller entfernt nur diese Regeln.
 
 ## Tests
 

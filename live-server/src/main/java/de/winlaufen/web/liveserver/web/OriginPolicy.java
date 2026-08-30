@@ -6,7 +6,7 @@ import java.net.URI;
  * Browser WebSocket Origin policy.
  *
  * <p>HTTP and WebSocket intentionally use different ports, so a page served from
- * {@code http://host:8080} legitimately connects to {@code ws://host:8081}. The Origin host must
+ * {@code http://host:44440} legitimately connects to {@code ws://host:44441}. The Origin host must
  * equal the WebSocket request host; the Origin port is not compared. Foreign Origins and requests
  * without an Origin are rejected. {@code https} is accepted because the live server may be served
  * through TLS in front of, or inside, the process.
@@ -30,7 +30,7 @@ public final class OriginPolicy {
         }
     }
 
-    /** Strips an optional port and IPv6 brackets, so {@code [::1]:8081} matches {@code [::1]}. */
+    /** Strips an optional port and IPv6 brackets, so {@code [::1]:44441} matches {@code [::1]}. */
     static String hostOnly(String value) {
         if (value.startsWith("[")) {
             int end = value.indexOf(']');

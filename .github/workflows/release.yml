@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Build und Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Getaggten Source auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exakten Tag-Commit bestätigen
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-list -n 1 "$GITHUB_REF_NAME")" = "$GITHUB_SHA"
+      - name: JDK 25 einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: Tag und POM-Version prüfen
+        run: ./installer/common/verify-release-tag.sh "$GITHUB_REF_NAME"
+      - name: Vollständiger Maven-Build
+        run: ./mvnw -B clean package
+      - name: Installer-Tests
+        run: ./installer/tests/run-installer-tests.sh
+      - name: Release-Workflow-Tests
+        run: ./installer/tests/run-release-workflow-tests.sh
+      - name: Zwei-Prozess-/Fan-out-Smoke-Test
+        run: ./devtools/smoke-fanout.sh
+
+  linux-package:
+    name: Linux amd64 paketieren
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Getaggten Source auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exakten Tag-Commit bestätigen
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: JDK 25 einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: Tag und POM-Version prüfen
+        run: ./installer/common/verify-release-tag.sh "$GITHUB_REF_NAME"
+      - name: Artefakte bauen und testen
+        run: ./mvnw -B clean package
+      - name: Linux-Distribution mit Runtime bauen
+        shell: bash
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          bundle="winlaufen-web-${version}-linux-amd64"
+          ./installer/common/build-dist.sh --skip-build --with-runtime \
+            --output "$RUNNER_TEMP/$bundle"
+          tar -C "$RUNNER_TEMP" -czf "$GITHUB_WORKSPACE/$bundle.tar.gz" "$bundle"
+      - name: Linux-Release-Asset bereitstellen
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-release
+          path: winlaufen-web-*-linux-amd64.tar.gz
+          if-no-files-found: error
+
+  windows-package:
+    name: Windows x64 paketieren
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - name: Getaggten Source auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exakten Tag-Commit bestätigen
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: JDK 25 einrichten
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: Tag und POM-Version prüfen
+        shell: bash
+        run: ./installer/common/verify-release-tag.sh "$GITHUB_REF_NAME"
+      - name: Artefakte bauen und testen
+        shell: pwsh
+        run: .\mvnw.cmd -B clean package
+      - name: Windows-Distribution mit Runtime bauen
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          $bundle = "winlaufen-web-$version-windows-x64"
+          $output = Join-Path $env:RUNNER_TEMP $bundle
+          .\installer\common\build-dist.ps1 -SkipBuild -WithRuntime -Output $output
+          Compress-Archive -LiteralPath $output `
+            -DestinationPath (Join-Path $env:GITHUB_WORKSPACE "$bundle.zip")
+      - name: Windows-Release-Asset bereitstellen
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-release
+          path: winlaufen-web-*-windows-x64.zip
+          if-no-files-found: error
+
+  publish:
+    name: GitHub Release veröffentlichen
+    needs:
+      - validate
+      - linux-package
+      - windows-package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Release-Assets herunterladen
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*-release"
+          path: release-assets
+          merge-multiple: true
+      - name: SHA256SUMS erzeugen
+        shell: bash
+        working-directory: release-assets
+        run: sha256sum winlaufen-web-* > SHA256SUMS
+      - name: GitHub Release anlegen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            release-assets/winlaufen-web-* \
+            release-assets/SHA256SUMS

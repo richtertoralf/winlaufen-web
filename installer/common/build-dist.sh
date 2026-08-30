@@ -37,14 +37,14 @@ while (($#)); do
 done
 
 if ((skip_build == 0)); then
-    echo "== Baue Artefakte (mvn package) =="
-    (cd "$repository_root" && mvn -B -q package)
+    echo "== Baue Artefakte (Maven Wrapper: package) =="
+    (cd "$repository_root" && ./mvnw -B -q package)
 fi
 
 bridge_jar="$repository_root/bridge/target/$WINLAUFEN_BRIDGE_JAR"
 live_jar="$repository_root/live-server/target/$WINLAUFEN_LIVE_JAR"
 for jar in "$bridge_jar" "$live_jar"; do
-    [[ -f "$jar" ]] || { echo "FEHLER: $jar fehlt. Zuerst 'mvn package' ausführen." >&2; exit 1; }
+    [[ -f "$jar" ]] || { echo "FEHLER: $jar fehlt. Zuerst './mvnw package' ausführen." >&2; exit 1; }
 done
 
 echo "== Erzeuge Distribution in $output =="
@@ -62,8 +62,11 @@ if ((with_runtime)); then
     command -v jlink >/dev/null 2>&1 || { echo "FEHLER: jlink nicht gefunden." >&2; exit 1; }
     # Nur die tatsächlich benötigten Module. jdk.crypto.ec wird für TLS/WSS
     # gebraucht, java.net.http nur von den Tests, daher hier nicht enthalten.
+    # --strip-debug wird bewusst nicht verwendet: einige Linux-JDKs delegieren
+    # das Strippen an das externe Programm objcopy. Die Distribution soll nur
+    # JDK 25 voraussetzen und nicht stillschweigend zusätzlich binutils.
     jlink --add-modules java.base,java.logging,java.naming,java.xml,jdk.httpserver,jdk.crypto.ec \
-          --strip-debug --no-header-files --no-man-pages --compress=zip-6 \
+          --no-header-files --no-man-pages --compress=zip-6 \
           --output "$output/runtime"
     echo "   Runtime: $("$output/runtime/bin/java" -version 2>&1 | head -1)"
 fi

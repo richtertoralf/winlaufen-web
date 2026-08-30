@@ -1,0 +1,8 @@
+Property settings:
+    java.home = /usr/lib/jvm/java-25-openjdk-amd64
+    java.specification.version = 26
+    java.vendor = Ubuntu
+    java.vendor.url = https://ubuntu.com/
+    java.vendor.url.bug = https://bugs.launchpad.net/ubuntu/+source/openjdk-25
+    java.version = 26.0.1
+    java.version.date = 2026-07-21

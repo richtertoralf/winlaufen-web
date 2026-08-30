@@ -12,35 +12,47 @@ Der zentrale Grundsatz:
 Ein Rechner kann damit Tage vor der Veranstaltung vollständig installiert
 werden, auch wenn das spätere Veranstaltungsnetz noch unbekannt ist.
 
+Nicht erreichbare externe Quellen und Output Targets verhindern die
+Installation nicht. Der Installer prüft nach erfolgreicher lokaler Installation
+den aktuellen Verbindungszustand und gibt Hinweise zur weiteren Konfiguration
+aus. Ein nicht verbundener lokaler All-in-One-Datenpfad wird als Warnung
+gemeldet. Lokale Dienst-, Listener- und HTTP-Fehler bleiben dagegen
+Installationsfehler.
+
 ## 1. Installationsprofile
 
 Der Installer fragt genau eine Sache ab: das Profil.
 
 | Profil | Installiert | Typischer Einsatz |
 |---|---|---|
-| **All-in-One** | Bridge + Live Server | Standard; direkt auf dem WinLaufen-PC |
+| **All-in-One** | Bridge + Live Server | Standard; ein Rechner im lokalen Netz |
 | **Bridge only** | nur Bridge | eigener Rechner nur für die WinLaufen-Anbindung |
 | **Presentation Node** | nur Live Server / Web View | eigener Webserver im LAN oder WAN |
 
 ### All-in-One — empfohlener Standard
 
 ```text
-WinLaufen
-    |
-    v
-Bridge
-    |
-    v
-lokaler Live Server
-    |
-    v
-Web View
+WinLaufen-PC
+      |
+      | TCP 4444
+      v
+All-in-One-Rechner
+ Bridge + Live Server
+      |
+      | LAN/WLAN
+      v
+Tablet / Handy / Notebook
 ```
 
-Der Installer legt eine Konfiguration an, die WinLaufen lokal erwartet
+All-in-One ist für einen einzelnen Rechner im lokalen Netz gedacht, etwa den
+WinLaufen-PC, einen Sprecher-PC, einen separaten LAN-PC oder einen Raspberry Pi.
+Der Browser darf auf beliebigen vorgesehenen LAN-/WLAN-Geräten laufen.
+
+Der Installer legt eine Konfiguration an, die WinLaufen zunächst lokal erwartet
 (`127.0.0.1:4444`) und den lokalen Live Server als reguläres Output Target
-einträgt. Läuft WinLaufen auf demselben Rechner, ist das ein Zero-Config-Fall:
-nach der Installation ist keine weitere Netzwerkkonfiguration nötig.
+einträgt. Läuft WinLaufen auf demselben Rechner, ist das ein Zero-Config-Fall.
+Andernfalls wird nach der Installation nur der WinLaufen-Host in Bridge Control
+angepasst.
 
 Das lokale Target verwendet denselben Bridge→Live-Server-Pfad wie ein entferntes
 Ziel, inklusive Snapshot, ACK, Retry und Full Resync. Es gibt keinen zweiten
@@ -106,9 +118,53 @@ Presentation Node auf Windows wird bewusst nicht unterstützt, weil dieses
 Szenario nicht getestet und gepflegt wird. Für einen eigenständigen
 Presentation Node bitte Linux verwenden.
 
-## 3. Java Runtime
+## 3. Release- und Developer-Installation
 
-Die Anwendung benötigt **Java 25** (`maven.compiler.release=25` im Root-POM).
+### Release-Installation für Endanwender
+
+Für ein veröffentlichtes Release gilt:
+
+1. passendes Linux- oder Windows-Archiv von GitHub Releases herunterladen,
+2. Archiv entpacken,
+3. enthaltenen Installer starten und nur das Profil wählen.
+
+Endanwender benötigen dafür weder Git noch Maven, keinen Source Checkout und
+keinen eigenen Maven-Build. Enthält das Paket eine `jlink`-Runtime, ist auch
+kein separat installiertes JDK für den Betrieb erforderlich.
+
+### Developer-Installation aus dem Source Checkout
+
+Voraussetzungen:
+
+- Git
+- JDK 25
+
+System-Maven ist keine Voraussetzung. Der Maven Wrapper verwendet die im
+Repository festgelegte Maven-Version.
+
+Linux:
+
+```sh
+git clone https://github.com/richtertoralf/winlaufen-web.git
+cd winlaufen-web
+./mvnw clean package
+sudo ./installer/linux/install.sh
+```
+
+Windows:
+
+```powershell
+git clone https://github.com/richtertoralf/winlaufen-web.git
+Set-Location winlaufen-web
+.\mvnw.cmd clean package
+# Danach PowerShell als Administrator starten:
+.\installer\windows\Install-WinLaufenWeb.ps1
+```
+
+## 4. Java Runtime
+
+Der Developer-Build benötigt **JDK 25** (`maven.compiler.release=25` im
+Root-POM). Für die Installation gilt:
 
 Der Installer geht in dieser Reihenfolge vor:
 
@@ -132,12 +188,12 @@ Die Runtime ist immer plattformspezifisch: ein Linux-Build erzeugt eine
 Linux-Runtime, ein Windows-Build eine Windows-Runtime. Ein Cross-Build wird
 bewusst nicht versucht.
 
-## 4. Linux-Installation
+## 5. Linux-Installation
 
 ### Ablauf
 
 ```sh
-# 1. Distribution bauen (auf einem Rechner mit JDK 25 und Maven)
+# 1. Optional eine Distribution auf dem Developer-Rechner bauen
 ./installer/common/build-dist.sh --with-runtime
 
 # 2. dist/ auf den Zielrechner kopieren, dort:
@@ -152,6 +208,17 @@ sudo ./installer/linux/install.sh --profile all-in-one
 sudo ./installer/linux/install.sh --profile bridge-only
 sudo ./installer/linux/install.sh --profile presentation-node
 ```
+
+Vor dem Start prüft er ausschließlich die Listenerports des gewählten Profils.
+Ein Konflikt nennt Port, Zweck und soweit ermittelbar Prozess/PID sowie den
+systemd-Dienst. Es wird kein Ersatzport gewählt. TCP 4444 wird nicht geprüft,
+weil die Bridge sich dorthin ausgehend verbindet.
+
+Nach dem Start validiert der Installer die installierten systemd-Units, ihre
+Stabilität, die eigenen Listener und die lokalen HTTP-Endpunkte. Erst wenn diese
+lokale Installationsintegrität gegeben ist, folgt ein separater
+Betriebsbereitschaftsbericht. `DISCONNECTED` oder `RETRY_WAIT` bei WinLaufen und
+Output Targets sind dort Hinweise und führen nicht zu Exit-Code ungleich 0.
 
 ### Verzeichnisstruktur
 
@@ -198,6 +265,25 @@ Der Installer ist upgrade-fähig:
 * Units werden ersetzt, nicht dupliziert.
 * Ein Profilwechsel entfernt den nicht mehr benötigten Dienst, statt ihn
   verwaist zurückzulassen.
+* Die exakten früheren Installer-Netzwerkdefaults werden auf 44440–44442
+  migriert; gepflegte Veranstalterwerte und Target-Listen bleiben erhalten.
+
+### Firewall unter Linux
+
+Der Installer aktiviert weder UFW noch firewalld und ändert keine UFW-,
+nftables- oder firewalld-Regeln. Er erkennt bekannte aktive lokale Firewalls
+soweit möglich und gibt nur Hinweise aus. Je nach Profil müssen lokale oder
+externe Firewalls folgende Verbindungen für die vorgesehenen LAN-Clients
+zulassen:
+
+| Profil | Eingehend | Ausgehend |
+|---|---|---|
+| All-in-One | TCP 44440, 44441, 44442 | TCP 4444 zum WinLaufen-PC |
+| Bridge only | TCP 44442 | TCP 4444 zum WinLaufen-PC |
+| Presentation Node | TCP 44440, 44441 | keine WinLaufen-Verbindung |
+
+Ein lokal laufender Listener beweist nicht, dass eine lokale, externe,
+Router-, VLAN- oder Cloud-Firewall die Verbindung aus dem LAN zulässt.
 
 ### Deinstallation
 
@@ -210,12 +296,12 @@ Ohne `--purge` bleiben `/etc/winlaufen-web` und `/var/lib/winlaufen-web`
 erhalten, damit eine gepflegte WinLaufen-Adresse und Target-Liste eine
 Neuinstallation überleben.
 
-## 5. Windows-11-Installation
+## 6. Windows-11-Installation
 
 ### Ablauf
 
 ```powershell
-# 1. Distribution bauen (Rechner mit JDK 25 und Maven)
+# 1. Optional eine Distribution auf dem Developer-Rechner bauen
 .\installer\common\build-dist.ps1 -WithRuntime
 
 # 2. dist\ auf den Zielrechner kopieren, PowerShell als Administrator:
@@ -228,6 +314,16 @@ Nicht-interaktiv:
 .\installer\windows\Install-WinLaufenWeb.ps1 -Profile AllInOne
 .\installer\windows\Install-WinLaufenWeb.ps1 -Profile BridgeOnly
 ```
+
+Die Installation muss in einer PowerShell mit Administratorrechten erfolgen.
+Ohne diese Rechte bricht der Installer vor Änderungen mit einem entsprechenden
+Hinweis ab. Er prüft die profilabhängigen Listenerports und wählt bei Konflikten
+keinen Ersatzport.
+
+Nach erfolgreicher lokaler Validierung synchronisiert der Installer die
+Windows-Firewallregeln und gibt anschließend die nicht blockierende
+Betriebsdiagnose für WinLaufen und Output Targets aus. Deren Verbindungszustand
+entscheidet nicht über den Installationserfolg.
 
 ### Verzeichnisstruktur
 
@@ -274,12 +370,24 @@ Start-ScheduledTask   -TaskName 'WinLaufen Web Bridge'
 .\installer\windows\Uninstall-WinLaufenWeb.ps1 -Purge
 ```
 
-## 6. Was der Installer bewusst nicht tut
+### Windows Defender Firewall
+
+Der Installer legt nur die für das Profil erforderlichen eingehenden TCP-Regeln
+an. Sie sind auf die Netzwerkprofile `Private` und `Domain` beschränkt; für
+`Public` wird keine Freigabe erzeugt. Bridge only erhält nur TCP 44442,
+All-in-One TCP 44440, 44441 und 44442. Der Uninstaller entfernt ausschließlich
+die von WinLaufen Web selbst benannten Regeln.
+
+## 7. Was der Installer bewusst nicht tut
 
 * Er fragt **keine** WinLaufen-IP, Target-IP, Hostnamen, URL, Domain oder
   WSS-Adresse ab.
 * Er blockiert die Installation **nicht**, wenn der spätere WinLaufen-PC, die
   LAN-IP, der Presentation Node oder ein WAN-Ziel noch unbekannt sind.
+* Er behandelt eine nicht erreichbare Quelle, ein nicht verbundenes Output
+  Target oder einen noch nicht verbundenen lokalen All-in-One-Datenpfad nicht
+  als lokalen Installationsfehler. Diese Zustände erscheinen im
+  Betriebsbereitschaftsbericht als Hinweis oder Warnung.
 * Er speichert erkannte lokale IP-Adressen **nicht** als dauerhafte
   Konfiguration.
 * Er erzeugt **kein** eigenes Ingest-Secret. Es bleibt beim dokumentierten
@@ -287,7 +395,7 @@ Start-ScheduledTask   -TaskName 'WinLaufen Web Bridge'
   ohne zusätzlichen Abgleich zusammenarbeiten. Siehe README.md, Abschnitt
   „Known prototype security limitation".
 
-## 7. Nach der Installation
+## 8. Netzwerkvertrag und Zugriff nach der Installation
 
 | Profil | Nächster Schritt |
 |---|---|
@@ -295,13 +403,34 @@ Start-ScheduledTask   -TaskName 'WinLaufen Web Bridge'
 | Bridge only | WinLaufen-Adresse prüfen und mindestens ein Output Target eintragen. |
 | Presentation Node | Diesen Node auf der gewünschten Bridge als Output Target eintragen. |
 
-Erreichbarkeit nach der Installation:
+| Quelle | Ziel | Protokoll/Port | Zweck |
+|---|---|---|---|
+| Bridge | WinLaufen-PC | TCP 4444 | WinLaufen Sprecher-PC-Protokoll |
+| Viewer | Live Server | TCP 44440 | Web View / Public HTTP / API |
+| Browser | Live Server | TCP 44441 | Live WebSocket auf `/live/v1` |
+| Bridge | Live Server | TCP 44441 | authentifizierter Bridge-Ingest auf `/bridge/v1/channels/<channel>` |
+| Admin | Bridge | TCP 44442 | Bridge Control |
 
-```text
-Bridge Control:  http://localhost:8090/
-Web View:        http://<live-server>:8080/
-Browser-Live:    ws://<live-server>:8081/live/v1
-Bridge-Ingest:   ws://<live-server>:8081/bridge/v1/channels/local
-```
+Typische URLs:
+
+- Web View: `http://<live-server-ip>:44440/`
+- Bridge Control: `http://<bridge-ip>:44442/`
+
+44440/44441 müssen für Viewer im gewünschten LAN/WLAN erreichbar sein,
+44442 für die vorgesehenen Administrationsgeräte. TCP 4444 ist die ausgehende
+Verbindung der Bridge zum WinLaufen-PC. Der gemeinsame Port 44441 bleibt über
+Pfade, Browser-Originprüfung und Ingest-Authentifizierung getrennt.
+
+Der bekannte Prototyp-Ingest-Secret bleibt eine Sicherheitsbegrenzung. Port
+44441 darf nicht unkontrolliert ins Internet weitergeleitet werden; Details
+stehen in README.md unter „Known prototype security limitation".
+
+TCP 44442 ist der Administrationsport der Bridge. Bridge Control besitzt in
+v0.1 bewusst keine Benutzer- oder Login-Authentifizierung. Jeder Teilnehmer im
+erreichbaren Netz kann die Oberfläche grundsätzlich öffnen und Konfigurationen
+ändern. Der Port gehört daher nur in ein vertrauenswürdiges LAN, nicht in ein
+Gäste-WLAN, hinter eine unkontrollierte Portweiterleitung oder direkt ins
+öffentliche Internet. Die Control-API gibt Target-Secrets nicht aus; das ersetzt
+keine Netzgrenze für den Administrationszugriff.
 
 Die manuellen Abnahmetests stehen in [SMOKE_TESTS.md](SMOKE_TESTS.md).

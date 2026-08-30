@@ -66,14 +66,31 @@ Speicher greifende Nachrichtenlimits: Ingest höchstens einen Vertragssnapshot,
 Browser nur eine sehr kleine Nutzlast. Klartext-`ws` ist nur für `localhost`
 und für Loopback-/LAN-IP-Literale zulässig; alle anderen Ziele erfordern WSS.
 
-## Ports
+## Netzwerkvertrag
 
-- WinLaufen: TCP 4444
-- Bridge Control: `127.0.0.1:8090`
-- Live Server HTTP: `0.0.0.0:8080`
-- Live Server WebSocket: `0.0.0.0:8081`
+| Quelle | Ziel | Protokoll/Port | Zweck |
+|---|---|---|---|
+| Bridge | WinLaufen-PC | TCP 4444 | read-only Sprecher-PC-Protokoll |
+| Viewer | Live Server | TCP 44440 | Web View / Public HTTP / API; Bind `0.0.0.0` |
+| Browser | Live Server | TCP 44441 | `/live/v1`; Bind `0.0.0.0` |
+| Bridge | Live Server | TCP 44441 | `/bridge/v1/channels/<channel>`; gleicher Listener |
+| Admin | Bridge | TCP 44442 | Bridge Control; Bind `0.0.0.0` |
 
-Portbelegung ist ein klarer Startfehler. Die vollständigen Entscheidungen,
+TCP 4444 ist nur die ausgehende Verbindung der Bridge. Die Installation prüft
+profilabhängig ausschließlich eigene Listenerports und validiert danach Dienste
+und lokale HTTP-Endpunkte. Portbelegung ist ein klarer Startfehler; es wird kein
+Ersatzport gewählt. Linux-Firewalls werden nicht verändert. Windows erhält nur
+die profilabhängigen Regeln für Private-/Domain-Netze.
+
+Bridge Control auf TCP 44442 ist eine Administrationsgrenze ohne Benutzer- oder
+Login-Authentifizierung in v0.1. Jeder Teilnehmer im erreichbaren Netz kann
+grundsätzlich Konfigurationen ändern. Der Port darf deshalb nur im
+vertrauenswürdigen LAN erreichbar sein, nicht im Gäste-WLAN, über
+unkontrollierte Portweiterleitungen oder direkt aus dem öffentlichen Internet.
+Die Control-API liefert keine Target-Secrets aus; dies ersetzt keine
+Netzwerkzugriffskontrolle.
+
+Die vollständigen Entscheidungen,
 Contract-Felder, Sicherheits- und Acceptance-Regeln stehen in der modularen
 Architekturdokumentation.
 

@@ -32,10 +32,17 @@ public final class BridgeConfigStore {
      */
     public static final String DEFAULT_LOCAL_SECRET = "local-development-secret";
 
-    public static final int DEFAULT_LIVE_WEBSOCKET_PORT = 8081;
-    public static final int DEFAULT_LIVE_HTTP_PORT = 8080;
-    public static final int DEFAULT_CONTROL_PORT = 8090;
-    public static final String DEFAULT_CONTROL_BIND = "127.0.0.1";
+    public static final int DEFAULT_LIVE_WEBSOCKET_PORT = 44441;
+    public static final int DEFAULT_LIVE_HTTP_PORT = 44440;
+    public static final int DEFAULT_CONTROL_PORT = 44442;
+    public static final String DEFAULT_CONTROL_BIND = "0.0.0.0";
+
+    private static final int FORMER_DEFAULT_LIVE_HTTP_PORT = 8080;
+    private static final int FORMER_DEFAULT_LIVE_WEBSOCKET_PORT = 8081;
+    private static final URI FORMER_DEFAULT_LOCAL_ENDPOINT =
+            URI.create("ws://127.0.0.1:8081/bridge/v1/channels/local");
+    private static final URI DEFAULT_LOCAL_ENDPOINT =
+            URI.create("ws://127.0.0.1:44441/bridge/v1/channels/local");
 
     private static final Pattern HOST = Pattern.compile("[A-Za-z0-9](?:[A-Za-z0-9._:-]{0,251}[A-Za-z0-9])?");
     private static final int MAX_HOST_CHARS = 253;
@@ -98,7 +105,7 @@ public final class BridgeConfigStore {
             targets.add(migrateLegacyLocalTarget(values, notices));
         } else {
             for (int index = 0; index < count; index++) {
-                targets.add(target(values, index));
+                targets.add(target(values, index, notices));
             }
         }
 
@@ -112,7 +119,8 @@ public final class BridgeConfigStore {
     /**
      * Turns the former exclusive LOCAL output mode into a regular output target. The old browser
      * WebSocket port is reused for the local ingest endpoint; the old HTTP port now belongs to the
-     * live-server process and is reported instead of silently discarded.
+     * live-server process and is reported instead of silently discarded. Exact former default
+     * ports are migrated to the fixed current network contract, while individual values remain.
      */
     private static OutputTargetConfig migrateLegacyLocalTarget(Properties values, List<String> notices) {
         boolean legacy = values.getProperty("winlaufen.host") != null
@@ -120,8 +128,10 @@ public final class BridgeConfigStore {
                 || values.getProperty("websocket.port") != null
                 || values.getProperty("http.port") != null;
 
-        int webSocketPort = port(values.getProperty("websocket.port"), DEFAULT_LIVE_WEBSOCKET_PORT);
-        int httpPort = port(values.getProperty("http.port"), DEFAULT_LIVE_HTTP_PORT);
+        int webSocketPort = migratedLegacyPort(values.getProperty("websocket.port"),
+                DEFAULT_LIVE_WEBSOCKET_PORT, FORMER_DEFAULT_LIVE_WEBSOCKET_PORT);
+        int httpPort = migratedLegacyPort(values.getProperty("http.port"),
+                DEFAULT_LIVE_HTTP_PORT, FORMER_DEFAULT_LIVE_HTTP_PORT);
 
         if (legacy) {
             notices.add("Alte Konfiguration übernommen: LOCAL wurde zum Output Target \"local\".");
@@ -191,13 +201,18 @@ public final class BridgeConfigStore {
         }
     }
 
-    private static OutputTargetConfig target(Properties values, int index) {
+    private static OutputTargetConfig target(Properties values, int index, List<String> notices) {
         String prefix = "outputs." + index + ".";
+        URI endpoint = URI.create(required(values, prefix + "endpoint"));
+        if (FORMER_DEFAULT_LOCAL_ENDPOINT.equals(endpoint)) {
+            endpoint = DEFAULT_LOCAL_ENDPOINT;
+            notices.add("Früherer lokaler Ingest-Default auf Port 44441 migriert.");
+        }
         return new OutputTargetConfig(
                 required(values, prefix + "id"),
                 OutputTargetType.valueOf(required(values, prefix + "type")),
                 bool(values, prefix + "enabled", false),
-                URI.create(required(values, prefix + "endpoint")),
+                endpoint,
                 required(values, prefix + "channelId"),
                 required(values, prefix + "secret"));
     }
@@ -238,5 +253,10 @@ public final class BridgeConfigStore {
     private static int port(String value, int fallback) {
         int parsed = integer(value, fallback);
         return parsed > 0 && parsed <= 65535 ? parsed : fallback;
+    }
+
+    private static int migratedLegacyPort(String value, int currentDefault, int formerDefault) {
+        int parsed = port(value, currentDefault);
+        return parsed == formerDefault ? currentDefault : parsed;
     }
 }

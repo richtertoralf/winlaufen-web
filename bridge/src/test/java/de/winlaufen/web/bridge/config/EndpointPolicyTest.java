@@ -12,23 +12,23 @@ class EndpointPolicyTest {
 
     @Test
     void plaintextIsAllowedForLoopbackAndLanAddressLiterals() {
-        assertDoesNotThrow(() -> target(OutputTargetType.LOCAL, "ws://127.0.0.1:8081/x"));
-        assertDoesNotThrow(() -> target(OutputTargetType.LOCAL, "ws://localhost:8081/x"));
-        assertDoesNotThrow(() -> target(OutputTargetType.LOCAL, "ws://[::1]:8081/x"));
-        assertDoesNotThrow(() -> target(OutputTargetType.SELFHOST, "ws://192.168.1.20:8081/x"));
-        assertDoesNotThrow(() -> target(OutputTargetType.SELFHOST, "ws://10.77.0.18:8081/x"));
-        assertDoesNotThrow(() -> target(OutputTargetType.SELFHOST, "ws://172.16.3.4:8081/x"));
-        assertDoesNotThrow(() -> target(OutputTargetType.SELFHOST, "ws://169.254.4.5:8081/x"));
+        assertDoesNotThrow(() -> target(OutputTargetType.LOCAL, "ws://127.0.0.1:44441/x"));
+        assertDoesNotThrow(() -> target(OutputTargetType.LOCAL, "ws://localhost:44441/x"));
+        assertDoesNotThrow(() -> target(OutputTargetType.LOCAL, "ws://[::1]:44441/x"));
+        assertDoesNotThrow(() -> target(OutputTargetType.SELFHOST, "ws://192.168.1.20:44441/x"));
+        assertDoesNotThrow(() -> target(OutputTargetType.SELFHOST, "ws://10.77.0.18:44441/x"));
+        assertDoesNotThrow(() -> target(OutputTargetType.SELFHOST, "ws://172.16.3.4:44441/x"));
+        assertDoesNotThrow(() -> target(OutputTargetType.SELFHOST, "ws://169.254.4.5:44441/x"));
     }
 
     @Test
     void plaintextIsRejectedForPublicAddressesAndForEveryHostname() {
         assertThrows(IllegalArgumentException.class,
-                () -> target(OutputTargetType.SELFHOST, "ws://203.0.113.7:8081/x"));
+                () -> target(OutputTargetType.SELFHOST, "ws://203.0.113.7:44441/x"));
         assertThrows(IllegalArgumentException.class,
                 () -> target(OutputTargetType.SELFHOST, "ws://liveserver.example.com/x"));
         assertThrows(IllegalArgumentException.class,
-                () -> target(OutputTargetType.LOCAL, "ws://liveserver.local:8081/x"));
+                () -> target(OutputTargetType.LOCAL, "ws://liveserver.local:44441/x"));
     }
 
     @Test
@@ -36,7 +36,7 @@ class EndpointPolicyTest {
         assertDoesNotThrow(() -> target(OutputTargetType.SELFHOST, "wss://liveserver.example.com/x"));
         assertDoesNotThrow(() -> target(OutputTargetType.RICHTER_PROJECTS, "wss://live.example/x"));
         assertThrows(IllegalArgumentException.class,
-                () -> target(OutputTargetType.RICHTER_PROJECTS, "ws://127.0.0.1:8081/x"));
+                () -> target(OutputTargetType.RICHTER_PROJECTS, "ws://127.0.0.1:44441/x"));
         assertThrows(IllegalArgumentException.class,
                 () -> target(OutputTargetType.RICHTER_PROJECTS, "ws://live.example/x"));
     }
@@ -44,7 +44,7 @@ class EndpointPolicyTest {
     @Test
     void rejectsNonWebSocketSchemesAndMissingHosts() {
         assertThrows(IllegalArgumentException.class,
-                () -> target(OutputTargetType.LOCAL, "http://127.0.0.1:8081/x"));
+                () -> target(OutputTargetType.LOCAL, "http://127.0.0.1:44441/x"));
         assertThrows(IllegalArgumentException.class,
                 () -> target(OutputTargetType.LOCAL, "file:///etc/passwd"));
         assertThrows(IllegalArgumentException.class,

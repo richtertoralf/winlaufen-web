@@ -56,8 +56,9 @@ public final class LiveServerMain {
             webSocket.awaitStart();
             Runtime.getRuntime().addShutdownHook(
                     Thread.ofPlatform().name("live-server-shutdown").unstarted(shutdown));
-            System.out.printf("Live Server läuft: http://localhost:%d/ (WebSocket: %d)%n",
-                    config.httpPort(), config.webSocketPort());
+            System.out.printf("Live Server läuft: HTTP %s:%d, WebSocket %s:%d%n",
+                    config.httpBindAddress(), config.httpPort(), config.webSocketBindAddress(),
+                    config.webSocketPort());
             if (config.usesDefaultSecret()) {
                 System.out.println("WARNUNG: Bekanntes Prototyp-Ingest-Secret aktiv. "
                         + "Port " + config.webSocketPort() + " darf nur in einem kontrollierten "

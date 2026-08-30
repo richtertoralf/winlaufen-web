@@ -23,6 +23,11 @@ $InstallPrefix  = Join-Path $env:ProgramFiles 'WinLaufen Web'
 $ConfigDir      = Join-Path $env:ProgramData 'WinLaufen Web'
 $BridgeTaskName = 'WinLaufen Web Bridge'
 $LiveTaskName   = 'WinLaufen Web Live Server'
+$FirewallRuleNames = @(
+    'WinLaufenWeb-HTTP-44440',
+    'WinLaufenWeb-WebSocket-44441',
+    'WinLaufenWeb-BridgeControl-44442'
+)
 
 function Get-StagedPath {
     param([string]$Path)
@@ -44,6 +49,15 @@ if ([string]::IsNullOrWhiteSpace($StagingRoot)) {
             Stop-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue
             Unregister-ScheduledTask -TaskName $task -Confirm:$false
             Write-Host "  entfernt: $task"
+        }
+    }
+
+    Write-Host "== Eigene Windows-Firewallregeln entfernen =="
+    foreach ($ruleName in $FirewallRuleNames) {
+        $rule = Get-NetFirewallRule -Name $ruleName -ErrorAction SilentlyContinue
+        if ($rule) {
+            $rule | Remove-NetFirewallRule
+            Write-Host "  entfernt: $ruleName"
         }
     }
 

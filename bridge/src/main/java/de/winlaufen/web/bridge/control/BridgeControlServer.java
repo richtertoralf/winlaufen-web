@@ -27,8 +27,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * The only organiser user interface. It binds to loopback by default and never serves the web
- * viewer or any public state.
+ * The only organiser user interface. It binds to all local interfaces by default for trusted-LAN
+ * administration and never serves the web viewer or any public state.
  */
 public final class BridgeControlServer implements AutoCloseable {
 
@@ -168,7 +168,7 @@ public final class BridgeControlServer implements AutoCloseable {
         }
     }
 
-    /** Strips an optional port and IPv6 brackets, so {@code [::1]:8090} matches {@code [::1]}. */
+    /** Strips an optional port and IPv6 brackets, so {@code [::1]:44442} matches {@code [::1]}. */
     static String hostOnly(String value) {
         String host = value;
         if (host.startsWith("[")) {
