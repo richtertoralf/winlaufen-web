@@ -23,16 +23,18 @@
     AllInOne (Standard) oder BridgeOnly.
 
 .PARAMETER DistPath
-    Verzeichnis der Distribution (mit lib\ und optional runtime\).
-    Standard: das übergeordnete Verzeichnis dieses Skripts.
+    Wurzel der Distribution (mit lib\ und optional runtime\) oder eines
+    Source-Checkouts (mit pom.xml und bridge\target\).
+    Standard: zwei Ebenen über diesem Skript, also das Verzeichnis, das
+    installer\ enthält.
 
 .PARAMETER StagingRoot
     Nur für Tests: installiert in ein Verzeichnis statt in die Systempfade und
     legt keine geplanten Aufgaben an.
 
 .EXAMPLE
-    .\Install-WinLaufenWeb.ps1
-    .\Install-WinLaufenWeb.ps1 -Profile BridgeOnly
+    .\dist\installer\windows\Install-WinLaufenWeb.ps1
+    .\installer\windows\Install-WinLaufenWeb.ps1 -Profile BridgeOnly
 #>
 [CmdletBinding()]
 param(
@@ -153,26 +155,60 @@ $installLive = ($Profile -eq 'AllInOne')
 
 # ------------------------------------------------------------ Vorbedingungen
 
+# Dieses Skript liegt in <Wurzel>\installer\windows. Die Wurzel liegt damit zwei
+# Ebenen darüber - in einer gebauten Distribution ist das dist\, in einem
+# Source-Checkout das Repository. Der Linux-Installer verwendet dieselbe Tiefe.
 if (-not $DistPath) {
-    $DistPath = Split-Path -Parent $PSScriptRoot
+    $DistPath = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 }
 $DistPath = (Resolve-Path -LiteralPath $DistPath).Path
 
-$libDir = Join-Path $DistPath 'lib'
-if (Test-Path -LiteralPath (Join-Path $libDir $BridgeJar)) {
-    $bridgeSource = Join-Path $libDir $BridgeJar
-    $liveSource = Join-Path $libDir $LiveJar
-} else {
-    # Direkt aus dem Repository heraus (Entwicklungsfall).
-    $bridgeSource = Join-Path $DistPath "bridge\target\$BridgeJar"
-    $liveSource = Join-Path $DistPath "live-server\target\$LiveJar"
+# Bestimmt, aus welchem der beiden unterstützten Layouts installiert wird. Beide
+# hängen an derselben Wurzel und werden an einer eindeutigen Marke erkannt statt
+# geraten: eine gebaute Distribution besitzt lib\, ein Source-Checkout das
+# Root-POM. Ein Release-Paket enthält immer lib\ und kann deshalb nie
+# versehentlich als Source-Checkout behandelt werden.
+function Resolve-ArtifactLayout {
+    param([string]$Root)
+
+    $libDir = Join-Path $Root 'lib'
+    if (Test-Path -LiteralPath $libDir -PathType Container) {
+        return [pscustomobject]@{
+            Kind = 'Distribution'
+            Bridge = Join-Path $libDir $BridgeJar
+            Live = Join-Path $libDir $LiveJar
+            Hint = 'installer\common\build-dist.ps1'
+        }
+    }
+    if (Test-Path -LiteralPath (Join-Path $Root 'pom.xml') -PathType Leaf) {
+        return [pscustomobject]@{
+            Kind = 'SourceTree'
+            Bridge = Join-Path $Root "bridge\target\$BridgeJar"
+            Live = Join-Path $Root "live-server\target\$LiveJar"
+            Hint = '.\mvnw.cmd package'
+        }
+    }
+    throw @"
+Unter $Root wurde weder eine gebaute Distribution noch ein Source-Checkout gefunden.
+
+Erwartet wird entweder
+  $libDir\$BridgeJar          aus installer\common\build-dist.ps1
+oder
+  $Root\pom.xml mit bridge\target\$BridgeJar   aus .\mvnw.cmd package
+
+Der Installer erwartet sich selbst unter <Wurzel>\installer\windows\.
+"@
 }
 
-if ($installBridge -and -not (Test-Path -LiteralPath $bridgeSource)) {
-    throw "$bridgeSource fehlt. Zuerst '.\mvnw.cmd package' oder installer\common\build-dist.ps1 ausführen."
+$layout = Resolve-ArtifactLayout -Root $DistPath
+$bridgeSource = $layout.Bridge
+$liveSource = $layout.Live
+
+if ($installBridge -and -not (Test-Path -LiteralPath $bridgeSource -PathType Leaf)) {
+    throw "$bridgeSource fehlt (Layout: $($layout.Kind)). Zuerst $($layout.Hint) ausführen."
 }
-if ($installLive -and -not (Test-Path -LiteralPath $liveSource)) {
-    throw "$liveSource fehlt. Zuerst '.\mvnw.cmd package' oder installer\common\build-dist.ps1 ausführen."
+if ($installLive -and -not (Test-Path -LiteralPath $liveSource -PathType Leaf)) {
+    throw "$liveSource fehlt (Layout: $($layout.Kind)). Zuerst $($layout.Hint) ausführen."
 }
 
 $InstallPrefix = Join-Path $env:ProgramFiles 'WinLaufen Web'
@@ -363,6 +399,7 @@ try {
 
 Write-Host ""
 Write-Host "== Installiere Profil: $Profile =="
+Write-Note "Quelle:        $DistPath ($($layout.Kind))"
 Write-Note "Java:          $javaExe"
 Write-Note "Programm:      $(Get-StagedPath $InstallPrefix)"
 Write-Note "Konfiguration: $(Get-StagedPath $ConfigDir)"

@@ -628,6 +628,78 @@ if run_install all-in-one "$root"; then
 fi
 
 echo
+echo "=== Distributionslayout: Installer finden ihre Artefakte ==="
+# Eine echte Distribution mit dem echten build-dist.sh erzeugen, aber ohne
+# Maven-Build: das Skript leitet seine Repository-Wurzel aus der eigenen Lage ab,
+# deshalb genügt eine Kopie mit gefälschten target-Artefakten.
+dist_source="$work/dist-source"
+mkdir -p "$dist_source/installer" "$dist_source/bridge/target" "$dist_source/live-server/target"
+cp -R "$repository_root/installer/common" "$repository_root/installer/linux" \
+      "$repository_root/installer/windows" "$dist_source/installer/"
+printf 'fake bridge jar\n' > "$dist_source/bridge/target/$WINLAUFEN_BRIDGE_JAR"
+printf 'fake live jar\n' > "$dist_source/live-server/target/$WINLAUFEN_LIVE_JAR"
+dist_root="$work/dist"
+if bash "$dist_source/installer/common/build-dist.sh" --skip-build --output "$dist_root" \
+        > "$work/build-dist.log" 2>&1; then
+    ok "build-dist.sh erzeugt eine Distribution ohne Maven-Build"
+else
+    bad "build-dist.sh erzeugt eine Distribution ohne Maven-Build" \
+        "$(tail -3 "$work/build-dist.log" | tr '\n' ' ')"
+fi
+
+assert_file "$dist_root/lib/$WINLAUFEN_BRIDGE_JAR" "Distribution enthält das Bridge-Artefakt in lib/"
+assert_file "$dist_root/lib/$WINLAUFEN_LIVE_JAR" "Distribution enthält das Live-Server-Artefakt in lib/"
+assert_file "$dist_root/VERSION" "Distribution enthält VERSION in der Wurzel"
+assert_file "$dist_root/installer/linux/install.sh" "Distribution enthält den Linux-Installer"
+assert_file "$dist_root/installer/windows/Install-WinLaufenWeb.ps1" "Distribution enthält den Windows-Installer"
+assert_file "$dist_root/installer/common/dist-manifest.env" "Distribution enthält das gemeinsame Manifest"
+
+# Beide Installer liegen in <Wurzel>/installer/<os>/ und lösen ihre Wurzel zwei
+# Ebenen darüber auf. Genau diese Tiefe wird hier am real erzeugten Baum geprüft.
+expected_root=$(cd -- "$dist_root" && pwd -P)
+windows_root=$(cd -- "$dist_root/installer/windows/../.." && pwd -P)
+linux_root=$(cd -- "$dist_root/installer/linux/../.." && pwd -P)
+assert_equals "$windows_root" "$expected_root" \
+    "Windows-Installer löst aus installer/windows die Distributionswurzel auf"
+assert_equals "$linux_root" "$expected_root" \
+    "Linux-Installer löst dieselbe Distributionswurzel auf"
+assert_file "$windows_root/lib/$WINLAUFEN_BRIDGE_JAR" \
+    "Aus der Windows-Installerlage ist lib/ mit dem Bridge-Artefakt erreichbar"
+assert_file "$windows_root/lib/$WINLAUFEN_LIVE_JAR" \
+    "Aus der Windows-Installerlage ist lib/ mit dem Live-Server-Artefakt erreichbar"
+# Regression: die Wurzel darf nicht eine Ebene zu hoch bei installer/ stehen
+# bleiben, sonst sucht der Installer in installer/bridge/target/.
+assert_no_file "$dist_root/installer/lib" "Eine Distribution hat kein installer/lib"
+assert_no_file "$dist_root/installer/bridge/target/$WINLAUFEN_BRIDGE_JAR" \
+    "Eine Distribution hat kein installer/bridge/target; dieses Maven-Layout darf nicht erwartet werden"
+assert_no_file "$dist_root/bridge/target/$WINLAUFEN_BRIDGE_JAR" \
+    "Eine Distribution setzt überhaupt kein Maven-target-Verzeichnis voraus"
+
+# Ausführbarer Nachweis desselben Vertrags: der Linux-Installer wird direkt aus
+# der Distribution gestartet und muss seine Artefakte in lib/ finden.
+root="$work/dist-install"
+dist_log="$work/dist-install.log"
+if bash "$dist_root/installer/linux/install.sh" --profile all-in-one \
+        --staging-root "$root" --no-systemd > "$dist_log" 2>&1; then
+    ok "Installer läuft direkt aus der Distribution heraus"
+    assert_file "$root/opt/winlaufen-web/lib/$WINLAUFEN_BRIDGE_JAR" \
+        "Bridge-Artefakt stammt aus der Distribution, nicht aus einem Source-Baum"
+    assert_file "$root/opt/winlaufen-web/lib/$WINLAUFEN_LIVE_JAR" \
+        "Live-Server-Artefakt stammt aus der Distribution"
+    assert_absent "$dist_log" "target/$WINLAUFEN_BRIDGE_JAR" \
+        "Der Installer verlangt in der Distribution kein Maven-target-Verzeichnis"
+else
+    bad "Installer läuft direkt aus der Distribution heraus" \
+        "$(tail -3 "$dist_log" | tr '\n' ' ')"
+fi
+
+# Source-Checkout: dieselbe Tiefe zeigt auf die Repository-Wurzel mit dem Root-POM.
+source_root=$(cd -- "$repository_root/installer/windows/../.." && pwd -P)
+assert_equals "$source_root" "$repository_root" \
+    "Aus installer/windows führen zwei Ebenen auf die Repository-Wurzel"
+assert_file "$source_root/pom.xml" "Die Repository-Wurzel trägt das Root-POM als Source-Layout-Marke"
+
+echo
 echo "=== Installer fragt keine Netzwerkadressen ab ==="
 # Ein Netzwerkpflichtfeld würde sich als interaktive Leseanweisung zeigen.
 network_prompts=$(grep -nE '(read[^|]*-p|Read-Host)[^\n]*(IP|Adresse|address|Host|host|URL|url|Ziel|[Tt]arget|Domain|WSS|wss)' \
@@ -659,6 +731,20 @@ assert_contains "$installer_windows" "Bestehende Bridge-Konfiguration beibehalte
     "Windows schützt bestehende Konfiguration"
 assert_contains "$installer_windows" "outputs.0.endpoint=ws://127.0.0.1:\$LiveWsPort\$IngestPathPrefix\$LiveChannel" \
     "Windows All-in-One nutzt den regulären Bridge->Live-Server-Pfad"
+assert_contains "$installer_windows" 'Split-Path -Parent (Split-Path -Parent $PSScriptRoot)' \
+    "Windows-Installer löst seine Wurzel zwei Ebenen über installer\\windows auf"
+assert_absent "$installer_windows" '$DistPath = Split-Path -Parent $PSScriptRoot' \
+    "Windows-Installer bleibt nicht eine Ebene zu hoch bei installer\\ stehen"
+assert_contains "$installer_windows" "Resolve-ArtifactLayout" \
+    "Windows-Installer trennt Distribution und Source-Checkout in einer eigenen Auflösung"
+assert_contains "$installer_windows" "Test-Path -LiteralPath (Join-Path \$Root 'pom.xml') -PathType Leaf" \
+    "Windows-Installer erkennt das Source-Layout am Root-POM statt es zu raten"
+assert_contains "$installer_windows" "Test-Path -LiteralPath \$libDir -PathType Container" \
+    "Windows-Installer erkennt das Distributionslayout an lib\\"
+assert_contains "$installer_windows" 'Join-Path $Root "bridge\target\$BridgeJar"' \
+    "Das Maven-Layout hängt an derselben Wurzel wie lib\\ und nicht an installer\\"
+assert_contains "$installer_windows" "\$runtimeSource = Join-Path \$DistPath 'runtime'" \
+    "Die gebündelte Runtime wird aus der Distributionswurzel installiert"
 assert_contains "$installer_windows" "Invoke-PortPreflight" \
     "Windows führt vor der Installation einen Port-Preflight aus"
 assert_contains "$installer_windows" "Assert-ListenerPortAvailable -Port \$LiveHttpPort" \
