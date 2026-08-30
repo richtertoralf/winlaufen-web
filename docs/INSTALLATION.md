@@ -1,7 +1,11 @@
-# WinLaufen Web — Installation
+# WinLaufen Sprecher Web — Installation
 
 Dieses Dokument beschreibt die rollenbasierte Installation für Linux und
 Windows 11.
+
+WinLaufen Sprecher Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
+Es nutzt deren Sprecher-PC-Schnittstelle auf TCP 4444 und stellt die gelieferten
+Live-Ergebnisdaten webbasiert bereit.
 
 Der zentrale Grundsatz:
 
@@ -376,7 +380,7 @@ Der Installer legt nur die für das Profil erforderlichen eingehenden TCP-Regeln
 an. Sie sind auf die Netzwerkprofile `Private` und `Domain` beschränkt; für
 `Public` wird keine Freigabe erzeugt. Bridge only erhält nur TCP 44442,
 All-in-One TCP 44440, 44441 und 44442. Der Uninstaller entfernt ausschließlich
-die von WinLaufen Web selbst benannten Regeln.
+die von diesem Projekt selbst benannten Regeln.
 
 ## 7. Was der Installer bewusst nicht tut
 
@@ -413,8 +417,13 @@ die von WinLaufen Web selbst benannten Regeln.
 
 Typische URLs:
 
-- Web View: `http://<live-server-ip>:44440/`
-- Bridge Control: `http://<bridge-ip>:44442/`
+- Live-Ergebnisse: `http://<live-server-ip>:44440/`, lokal `http://localhost:44440/`
+- Bridge Control: `http://<bridge-ip>:44442/`, lokal `http://localhost:44442/`
+
+Notebooks, Tablets und Smartphones im selben Netz rufen die Live-Ergebnisse über
+die LAN-Adresse des Rechners auf. In der realen Abnahme vom 30.08.2026 war das
+zum Beispiel `http://192.168.95.198:44440/` — ein Beispiel aus jener Umgebung,
+kein Vorgabewert.
 
 44440/44441 müssen für Viewer im gewünschten LAN/WLAN erreichbar sein,
 44442 für die vorgesehenen Administrationsgeräte. TCP 4444 ist die ausgehende
@@ -432,5 +441,59 @@ erreichbaren Netz kann die Oberfläche grundsätzlich öffnen und Konfiguratione
 Gäste-WLAN, hinter eine unkontrollierte Portweiterleitung oder direkt ins
 öffentliche Internet. Die Control-API gibt Target-Secrets nicht aus; das ersetzt
 keine Netzgrenze für den Administrationszugriff.
+
+## 9. WinLaufen verbinden
+
+Die Bridge kann die Sprecher-PC-Schnittstelle **nicht selbst aktivieren**. Sie
+muss in WinLaufen freigegeben werden:
+
+1. WinLaufen starten
+2. Wettkampf öffnen
+3. in WinLaufen: **Abwicklung → Sprecher-PC… → Verbinden**
+4. erst jetzt stellt WinLaufen die Schnittstelle auf TCP 4444 bereit
+5. die Bridge verbindet sich automatisch dorthin
+6. Bridge Control wechselt auf **Verbunden**
+7. die Ergebnisse werden an den Live Server übertragen
+8. Browser zeigen die Live-Ergebnisse
+
+Solange Schritt 3 nicht erfolgt ist, meldet Bridge Control **Nicht verbunden**.
+Das ist ein erwarteter Betriebszustand und kein Installationsfehler; die
+Installation gilt trotzdem als erfolgreich.
+
+## 10. Bridge Control nach der Installation
+
+Bridge Control fragt nur nach dem, was wirklich entschieden werden muss.
+
+**WinLaufen.** Die Auswahl lautet „Auf diesem Computer" oder „Auf einem anderen
+Computer". Die erste Variante verwendet intern `127.0.0.1` und blendet das
+Host-Feld aus. Die zweite blendet ein Feld für IPv4-Adresse oder Hostname ein,
+zum Beispiel `192.168.95.20` oder `WINLAUFEN-PC` — keine URL mit `http://`.
+TCP 4444 ist fest und nicht konfigurierbar.
+
+**Live-Ergebnisse im Browser.** Im All-in-One-Betrieb erscheint die lokale
+Ansicht unter diesem Namen mit ihrem Verbindungszustand und den Browseradressen.
+Target-ID, Typ, Endpoint, Channel und Secret des eingebauten lokalen Ziels sind
+dort verborgen und nicht bearbeitbar, damit die Ansicht nicht versehentlich
+abgeschaltet wird. Intern bleibt sie ein normales Output Target; siehe
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
+**Weitere Übertragung.** Zusätzliche externe Live Server werden über „Weiteren
+Live-Server verbinden" angelegt. Die Typen `SELFHOST` und `RICHTER_PROJECTS`
+existieren technisch; ihre Konfiguration ist noch technisch, Endpoint, Channel
+und Secret werden von Hand eingetragen. Ein Pairing über einen kurzen
+Verbindungscode ist **nicht implementiert**.
+
+## 11. Installationsstatus
+
+Real bestätigt ist die Windows-11-All-in-One-Installation aus dem Source
+Checkout mit realer WinLaufen-Kopplung, dauerhaft laufenden geplanten Aufgaben,
+Live-Ergebnissen und Bridge Control lokal wie aus dem LAN sowie Firewallregeln
+für Private und Domain ohne Public-Freigabe. Der Nachweis ist in
+[SMOKE_TESTS.md](SMOKE_TESTS.md) protokolliert.
+
+Noch nicht abgenommen sind das endgültige Windows-x64-Releasepaket mit
+gebündelter Runtime, eine echte Fresh Installation ohne Git, Maven und JDK, die
+reale Linux-Endabnahme, die Linux-Releasepakete für AMD64 und ARM64 sowie die
+vollständigen Reboot-, Reinstall- und Profilwechsel-Abnahmen.
 
 Die manuellen Abnahmetests stehen in [SMOKE_TESTS.md](SMOKE_TESTS.md).
