@@ -2,7 +2,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);color:var(--ink)}
 header{min-height:52px;padding:7px clamp(10px,2vw,20px);display:flex;align-items:center;justify-content:space-between;background:var(--surface);border-bottom:1px solid var(--line)}
-.brand{font-weight:800;font-size:18px}.brand span{color:var(--green)}
+.brand{font-weight:800;font-size:18px;display:flex;flex-direction:column;line-height:1.15}.brand span{color:var(--green);font-size:13px}
 .renderer-status{display:flex;align-items:center;gap:12px;font-variant-numeric:tabular-nums}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;text-transform:uppercase}.pill:before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
 .connected{color:var(--green)}.stale{color:var(--amber)}.disconnected{color:var(--red)}

@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bridge Control · WinLaufen Web</title>
+<title>Bridge Control · WinLaufen Sprecher Web</title>
 <link rel="stylesheet" href="/assets/control.css">
 </head>
 <body>
 <header>
-  <strong>WinLaufen <span>Bridge Control</span></strong>
-  <div><span id="health">DISCONNECTED</span> · <b id="clock">--:--:--</b></div>
+  <strong>WinLaufen Sprecher Web<span>Bridge Control</span></strong>
+  <div><span id="health">Nicht verbunden</span> · <b id="clock">--:--:--</b></div>
 </header>
 <main>
 <form id="config">
@@ -17,7 +17,10 @@
     <h1>Quelle</h1>
     <label>Quellsystem<input value="WINLAUFEN" disabled></label>
     <label>Host<input name="sourceHost" required autocomplete="off"></label>
-    <p>Port 4444 · read-only · fest</p>
+    <p class="hint">Sprecher-PC-Schnittstelle · TCP 4444</p>
+    <p id="source-status"></p>
+    <p id="source-help" class="hint" hidden>Läuft WinLaufen und wurde unter
+    Abwicklung → Sprecher-PC… → Verbinden die Sprecher-PC-Verbindung aktiviert?</p>
   </section>
   <section>
     <h2>Outputs</h2>

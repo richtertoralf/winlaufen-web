@@ -2,7 +2,10 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);color:var(--ink)}
 header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
-header span{color:var(--green)}
+header strong{display:flex;flex-direction:column;line-height:1.2}
+header strong span{color:var(--green);font-size:13px}
+#health.ok{color:var(--green)}
+#health.warn{color:var(--amber)}
 main{max-width:860px;margin:0 auto;padding:16px}
 section{margin-bottom:16px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:5px}
 h1,h2{margin:0 0 10px;font-size:17px}
@@ -13,6 +16,10 @@ fieldset{margin-bottom:10px;padding:12px;border:1px solid var(--line);border-rad
 output{display:block;margin:6px 0;font-size:13px;color:var(--muted)}
 output.ok{color:var(--green)}
 output.warn{color:var(--amber)}
+output.muted{color:var(--muted)}
+#source-status{margin:8px 0 0;font-size:14px;color:var(--muted)}
+#source-status.ok{color:var(--green)}
+#source-status.warn{color:var(--amber)}
 button{padding:8px 13px;border:0;border-radius:4px;background:var(--green);color:#fff;font-weight:700;cursor:pointer}
 button:disabled{opacity:.6;cursor:default}
 .hint{margin:8px 0 0;font-size:13px;color:var(--muted)}

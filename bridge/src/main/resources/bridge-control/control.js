@@ -3,6 +3,33 @@ const targets = document.querySelector('#targets');
 const template = document.querySelector('#target-template');
 const message = document.querySelector('#message');
 
+// Die Runtime-Zustände des Backends bleiben unverändert; hier werden sie nur für
+// die normale Benutzeransicht übersetzt. Ein unbekannter Zustand wird bewusst roh
+// durchgereicht, statt ihn zu verschlucken.
+const SOURCE_HEALTH_TEXT = {
+  CONNECTED: 'Verbunden',
+  DISCONNECTED: 'Nicht verbunden',
+  STALE: 'Keine Daten – Verbindung wird erneuert'
+};
+
+const TARGET_STATE_TEXT = {
+  CONNECTED: 'Verbunden',
+  CONNECTING: 'Verbinde …',
+  RETRY_WAIT: 'Nicht erreichbar – neuer Versuch läuft',
+  STALE: 'Verbunden, aber keine Bestätigung',
+  DISABLED: 'Nicht in Verwendung'
+};
+
+function sourceHealthText(state) { return SOURCE_HEALTH_TEXT[state] || state; }
+
+function targetStateText(state) { return TARGET_STATE_TEXT[state] || state; }
+
+function stateClass(state) {
+  if (state === 'CONNECTED') return 'ok';
+  if (state === 'DISABLED') return 'muted';
+  return 'warn';
+}
+
 function addTarget(value = {}) {
   const node = template.content.firstElementChild.cloneNode(true);
   for (const input of node.querySelectorAll('[data-name]')) {
@@ -50,20 +77,28 @@ async function load() {
 }
 
 function showStatus(status) {
-  document.querySelector('#health').textContent = status.sourceHealth;
+  const health = document.querySelector('#health');
+  health.textContent = sourceHealthText(status.sourceHealth);
+  health.className = stateClass(status.sourceHealth);
   document.querySelector('#clock').textContent = status.clock || '--:--:--';
+
+  const sourceStatus = document.querySelector('#source-status');
+  sourceStatus.textContent = sourceHealthText(status.sourceHealth);
+  sourceStatus.className = stateClass(status.sourceHealth);
+  document.querySelector('#source-help').hidden = status.sourceHealth !== 'DISCONNECTED';
+
   [...targets.children].forEach(node => {
     const id = node.querySelector('[data-name=id]').value;
     const runtime = status.outputs.find(output => output.targetId === id);
     const output = node.querySelector('output');
     if (!runtime) {
-      output.textContent = 'noch kein Runtime-Status';
-      output.className = '';
+      output.textContent = 'Noch kein Status';
+      output.className = 'muted';
       return;
     }
     const error = runtime.lastError ? ` · ${runtime.lastError}` : '';
-    output.textContent = `${runtime.state} · ACK ${runtime.lastAckedSourceRevision}${error}`;
-    output.className = runtime.state === 'CONNECTED' ? 'ok' : 'warn';
+    output.textContent = `${targetStateText(runtime.state)}${error}`;
+    output.className = stateClass(runtime.state);
   });
 }
 
