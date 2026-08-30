@@ -116,6 +116,18 @@ class WebViewerContractTest {
     }
 
     @Test
+    void showsTheSpeakerWebProductNameAndTheSurfaceName() throws Exception {
+        String html = resource("/web-viewer/viewer.html");
+
+        assertTrue(html.contains("<title>Live-Ergebnisse · WinLaufen Sprecher Web</title>"),
+                "the browser tab names the product and the surface");
+        assertTrue(html.contains(
+                        "<span class=\"brand\">WinLaufen Sprecher Web<span>Live-Ergebnisse</span></span>"),
+                "the header names the product and the surface");
+        assertFalse(html.contains("WinLaufen Web"), "the former ambiguous product name is gone");
+    }
+
+    @Test
     void temporarilyHighlightsTheCurrentFinishRow() throws Exception {
         String css = resource("/web-viewer/viewer.css");
         assertTrue(css.contains("tbody tr.current"), "the current finish row keeps a marker");

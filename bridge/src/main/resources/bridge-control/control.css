@@ -1,18 +1,35 @@
 :root{color-scheme:light;--ink:#14231e;--muted:#65716c;--paper:#f5f7f6;--surface:#fff;--line:#d7dfdb;--green:#086b4b;--amber:#8a5300;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 *{box-sizing:border-box}
+/* Autorenregeln wie label{display:block} wuerden das hidden-Attribut sonst aushebeln. */
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--paper);color:var(--ink)}
 header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
-header span{color:var(--green)}
+header strong{display:flex;flex-direction:column;line-height:1.2}
+header strong span{color:var(--green);font-size:13px}
+#health.ok{color:var(--green)}
+#health.warn{color:var(--amber)}
 main{max-width:860px;margin:0 auto;padding:16px}
 section{margin-bottom:16px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:5px}
 h1,h2{margin:0 0 10px;font-size:17px}
 label{display:block;margin-bottom:8px;font-size:14px}
 input[type=text],input:not([type]),input[type=password],select{width:100%;padding:7px;border:1px solid var(--line);border-radius:4px}
-input[type=checkbox]{width:auto}
+input[type=checkbox],input[type=radio]{width:auto}
+legend{padding:0 4px;font-size:14px;font-weight:700}
+.choice label{margin-bottom:4px;font-weight:400}
+label .hint{display:block;margin-top:4px}
 fieldset{margin-bottom:10px;padding:12px;border:1px solid var(--line);border-radius:4px}
 output{display:block;margin:6px 0;font-size:13px;color:var(--muted)}
 output.ok{color:var(--green)}
 output.warn{color:var(--amber)}
+output.muted{color:var(--muted)}
+output:before{content:"\25CF  "}
+.addresses{margin:10px 0 0;font-size:14px}
+.addresses dt{color:var(--muted);font-size:13px}
+.addresses dd{margin:2px 0 8px}
+.addresses a{color:var(--green);font-weight:700}
+#source-status{margin:8px 0 0;font-size:14px;color:var(--muted)}
+#source-status.ok{color:var(--green)}
+#source-status.warn{color:var(--amber)}
 button{padding:8px 13px;border:0;border-radius:4px;background:var(--green);color:#fff;font-weight:700;cursor:pointer}
 button:disabled{opacity:.6;cursor:default}
 .hint{margin:8px 0 0;font-size:13px;color:var(--muted)}

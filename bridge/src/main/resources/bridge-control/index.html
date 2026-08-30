@@ -3,26 +3,42 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bridge Control · WinLaufen Web</title>
+<title>Bridge Control · WinLaufen Sprecher Web</title>
 <link rel="stylesheet" href="/assets/control.css">
 </head>
 <body>
 <header>
-  <strong>WinLaufen <span>Bridge Control</span></strong>
-  <div><span id="health">DISCONNECTED</span> · <b id="clock">--:--:--</b></div>
+  <strong>WinLaufen Sprecher Web<span>Bridge Control</span></strong>
+  <div><span id="health">Nicht verbunden</span> · <b id="clock">--:--:--</b></div>
 </header>
 <main>
 <form id="config">
   <section>
-    <h1>Quelle</h1>
-    <label>Quellsystem<input value="WINLAUFEN" disabled></label>
-    <label>Host<input name="sourceHost" required autocomplete="off"></label>
-    <p>Port 4444 · read-only · fest</p>
+    <h1>WinLaufen</h1>
+    <fieldset class="choice">
+      <legend>Wo läuft WinLaufen?</legend>
+      <label><input type="radio" name="sourceLocation" value="local"> Auf diesem Computer</label>
+      <label><input type="radio" name="sourceLocation" value="remote"> Auf einem anderen Computer</label>
+    </fieldset>
+    <label id="source-host-field" hidden>WinLaufen-Computer<input id="source-host" autocomplete="off">
+      <span class="hint">Hostname oder IPv4-Adresse, z. B. WINLAUFEN-PC oder 192.168.95.20</span></label>
+    <!-- Der POST-Vertrag bleibt unverändert: gesendet wird weiterhin genau sourceHost. -->
+    <input type="hidden" name="sourceHost">
+    <p class="hint">Sprecher-PC-Schnittstelle · TCP 4444</p>
+    <p id="source-status"></p>
+    <p id="source-help" class="hint" hidden>Läuft WinLaufen und wurde unter
+    Abwicklung → Sprecher-PC… → Verbinden die Sprecher-PC-Verbindung aktiviert?</p>
+  </section>
+  <section id="browser-view" hidden>
+    <h2>Live-Ergebnisse im Browser</h2>
+    <div id="local-targets"></div>
+    <dl id="browser-addresses" class="addresses"></dl>
   </section>
   <section>
-    <h2>Outputs</h2>
+    <h2>Weitere Übertragung</h2>
+    <p class="hint">Zusätzliche Live Server, an die dieselben Ergebnisse übertragen werden.</p>
     <div id="targets"></div>
-    <button type="button" id="add">Target hinzufügen</button>
+    <button type="button" id="add">Weiteren Live-Server verbinden</button>
     <p class="hint">Unverschlüsseltes <code>ws://</code> ist nur für <code>localhost</code> und
     LAN-IP-Adressen zulässig. Andere Ziele benötigen <code>wss://</code>.</p>
   </section>
@@ -38,6 +54,18 @@
   <span id="message" role="status"></span>
 </form>
 </main>
+<template id="local-target-template">
+  <fieldset class="local-target">
+    <!-- Unveränderte Werte des bestehenden Targets; sie gehen vollständig mit in den POST. -->
+    <input type="hidden" data-name="id">
+    <input type="hidden" data-name="type">
+    <input type="hidden" data-name="enabled">
+    <input type="hidden" data-name="endpoint">
+    <input type="hidden" data-name="channelId">
+    <input type="hidden" data-name="secret">
+    <output></output>
+  </fieldset>
+</template>
 <template id="target-template">
   <fieldset>
     <label>ID<input data-name="id" required></label>
