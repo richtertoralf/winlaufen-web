@@ -11,7 +11,10 @@ section{margin-bottom:16px;padding:14px;background:var(--surface);border:1px sol
 h1,h2{margin:0 0 10px;font-size:17px}
 label{display:block;margin-bottom:8px;font-size:14px}
 input[type=text],input:not([type]),input[type=password],select{width:100%;padding:7px;border:1px solid var(--line);border-radius:4px}
-input[type=checkbox]{width:auto}
+input[type=checkbox],input[type=radio]{width:auto}
+legend{padding:0 4px;font-size:14px;font-weight:700}
+.choice label{margin-bottom:4px;font-weight:400}
+label .hint{display:block;margin-top:4px}
 fieldset{margin-bottom:10px;padding:12px;border:1px solid var(--line);border-radius:4px}
 output{display:block;margin:6px 0;font-size:13px;color:var(--muted)}
 output.ok{color:var(--green)}

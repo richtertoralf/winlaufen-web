@@ -14,9 +14,16 @@
 <main>
 <form id="config">
   <section>
-    <h1>Quelle</h1>
-    <label>Quellsystem<input value="WINLAUFEN" disabled></label>
-    <label>Host<input name="sourceHost" required autocomplete="off"></label>
+    <h1>WinLaufen</h1>
+    <fieldset class="choice">
+      <legend>Wo läuft WinLaufen?</legend>
+      <label><input type="radio" name="sourceLocation" value="local"> Auf diesem Computer</label>
+      <label><input type="radio" name="sourceLocation" value="remote"> Auf einem anderen Computer</label>
+    </fieldset>
+    <label id="source-host-field" hidden>WinLaufen-Computer<input id="source-host" autocomplete="off">
+      <span class="hint">Hostname oder IPv4-Adresse, z. B. WINLAUFEN-PC oder 192.168.95.20</span></label>
+    <!-- Der POST-Vertrag bleibt unverändert: gesendet wird weiterhin genau sourceHost. -->
+    <input type="hidden" name="sourceHost">
     <p class="hint">Sprecher-PC-Schnittstelle · TCP 4444</p>
     <p id="source-status"></p>
     <p id="source-help" class="hint" hidden>Läuft WinLaufen und wurde unter

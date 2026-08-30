@@ -84,6 +84,66 @@ class BridgeControlUiContractTest {
                 "the help text appears only while the source is disconnected");
     }
 
+    @Test
+    void asksWhereWinLaufenRunsInsteadOfShowingTechnicalSourceFields() throws Exception {
+        String html = resource("/bridge-control/index.html");
+
+        assertTrue(html.contains("Wo läuft WinLaufen?"), "the source section asks a plain question");
+        assertTrue(html.contains("value=\"local\"> Auf diesem Computer"));
+        assertTrue(html.contains("value=\"remote\"> Auf einem anderen Computer"));
+        assertTrue(html.contains("Hostname oder IPv4-Adresse, z. B. WINLAUFEN-PC oder 192.168.95.20"),
+                "the remote field explains what belongs in it");
+        assertFalse(html.contains("WINLAUFEN\" disabled"),
+                "the source system is not variable and is no longer shown as a field");
+        assertTrue(html.contains("Sprecher-PC-Schnittstelle · TCP 4444"),
+                "the fixed protocol port stays visible as information");
+        assertFalse(html.contains("name=\"sourcePort\""), "the fixed port is never an input");
+    }
+
+    @Test
+    void keepsTheUnchangedSourceHostContract() throws Exception {
+        String html = resource("/bridge-control/index.html");
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(html.contains("<input type=\"hidden\" name=\"sourceHost\">"),
+                "the POST still carries exactly sourceHost");
+        assertEquals(1, occurrences(html, "name=\"sourceHost\""),
+                "there is exactly one sourceHost field in the request");
+        assertTrue(script.contains("body.delete('sourceLocation')"),
+                "the radio group is a form helper and must not reach the API");
+        assertTrue(script.contains("const LOCAL_SOURCE_HOST = '127.0.0.1'"));
+    }
+
+    @Test
+    void adoptsAStoredHostVerbatimAndCanonicalisesOnlyOnAnExplicitChoice() throws Exception {
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(script.contains("form.sourceHost.value = host;"),
+                "loading keeps the stored host byte for byte");
+        assertTrue(script.contains("form.sourceHost.value = remote ? hostInput.value.trim() : LOCAL_SOURCE_HOST;"),
+                "only a user choice replaces the host with the loopback address");
+        assertTrue(script.contains("radio.onchange = sourceLocationChanged"),
+                "canonicalisation is bound to the radio change, not to loading");
+        assertTrue(script.contains("value === 'localhost'") && script.contains("/^127\\.\\d+\\.\\d+\\.\\d+$/"),
+                "loopback detection covers localhost and the 127.0.0.0/8 range");
+        assertTrue(script.contains("value === '::1'"), "IPv6 loopback counts as this computer");
+    }
+
+    @Test
+    void explainsThatAHostIsNeitherAUrlNorRestrictedToIpv4() throws Exception {
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(script.contains("ohne http:// oder https://"),
+                "a pasted URL is explained in the browser before the request is sent");
+        assertTrue(script.contains("setCustomValidity"), "the hint uses standard form validation");
+        assertFalse(script.contains("hostname only") || script.contains("nur IPv4"),
+                "hostnames stay supported because the backend resolves them");
+    }
+
+    private static int occurrences(String value, String needle) {
+        return (value.length() - value.replace(needle, "").length()) / needle.length();
+    }
+
     private static String names(Enum<?>[] values) {
         StringBuilder builder = new StringBuilder();
         for (Enum<?> value : values) {

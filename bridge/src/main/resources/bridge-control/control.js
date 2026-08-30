@@ -30,6 +30,63 @@ function stateClass(state) {
   return 'warn';
 }
 
+const hostField = document.querySelector('#source-host-field');
+const hostInput = document.querySelector('#source-host');
+
+/** Der Wert, der beim ausdrücklichen Wechsel auf "Auf diesem Computer" gesendet wird. */
+const LOCAL_SOURCE_HOST = '127.0.0.1';
+
+/** Nur eindeutige Loopback-Schreibweisen gelten als "dieser Computer". */
+function isLocalSourceHost(host) {
+  const value = String(host || '').trim().toLowerCase();
+  return value === 'localhost' || value === '::1' || value === '[::1]'
+      || value === '0:0:0:0:0:0:0:1' || /^127\.\d+\.\d+\.\d+$/.test(value);
+}
+
+function sourceLocation() {
+  return form.elements.sourceLocation.value;
+}
+
+/**
+ * Übernimmt den gespeicherten Host beim Laden unverändert. Ein bestehender Wert wird
+ * hier nie umgeschrieben; das passiert erst, wenn der Benutzer die Auswahl selbst
+ * ändert.
+ */
+function showSourceHost(host) {
+  const local = isLocalSourceHost(host);
+  form.elements.sourceLocation.value = local ? 'local' : 'remote';
+  hostInput.value = local ? '' : host;
+  form.sourceHost.value = host;
+  updateSourceHostField();
+}
+
+function updateSourceHostField() {
+  const remote = sourceLocation() === 'remote';
+  hostField.hidden = !remote;
+  hostInput.required = remote;
+  if (!remote) {
+    hostInput.setCustomValidity('');
+  }
+}
+
+/** Wird nur durch eine Benutzeraktion ausgelöst und darf deshalb kanonisieren. */
+function sourceLocationChanged() {
+  updateSourceHostField();
+  const remote = sourceLocation() === 'remote';
+  form.sourceHost.value = remote ? hostInput.value.trim() : LOCAL_SOURCE_HOST;
+}
+
+function sourceHostTyped() {
+  const value = hostInput.value.trim();
+  hostInput.setCustomValidity(/^[a-z][a-z0-9+.-]*:\/\//i.test(value)
+    ? 'Bitte nur Hostname oder IP-Adresse eingeben, ohne http:// oder https://'
+    : '');
+  form.sourceHost.value = value;
+}
+
+for (const radio of form.elements.sourceLocation) radio.onchange = sourceLocationChanged;
+hostInput.oninput = sourceHostTyped;
+
 function addTarget(value = {}) {
   const node = template.content.firstElementChild.cloneNode(true);
   for (const input of node.querySelectorAll('[data-name]')) {
@@ -43,6 +100,8 @@ function addTarget(value = {}) {
 
 function values() {
   const body = new URLSearchParams(new FormData(form));
+  // Reine Bedienhilfe des Formulars; der bestehende POST-Vertrag kennt sie nicht.
+  body.delete('sourceLocation');
   const nodes = [...targets.children];
   body.set('targetCount', nodes.length);
   nodes.forEach((node, index) => node.querySelectorAll('[data-name]').forEach(input => {
@@ -69,7 +128,7 @@ async function load() {
     fetch('/api/v1/config').then(json),
     fetch('/api/v1/status').then(json)
   ]);
-  form.sourceHost.value = config.sourceHost;
+  showSourceHost(config.sourceHost);
   for (const [name, checked] of Object.entries(config.presentation)) form.elements[name].checked = checked;
   targets.replaceChildren();
   config.targets.forEach(addTarget);
