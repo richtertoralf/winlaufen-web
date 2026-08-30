@@ -1,0 +1,2 @@
+java version reported an error
+Unrecognized option: -XshowSettings:properties

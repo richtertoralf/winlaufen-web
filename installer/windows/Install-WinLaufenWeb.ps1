@@ -96,26 +96,87 @@ function Test-Administrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+# Ermittelt die Java-Major-Version ausschließlich über den Konsolen-Launcher
+# java.exe. javaw.exe ist ein GUI-Subsystem-Programm; ob es seine Ausgabe an
+# umgeleitete Handles schreibt, ist nicht zugesichert. Auf Windows 11 mit Temurin
+# 25 liefert javaw.exe beim Einsammeln in eine Variable keinen Treffer, obwohl
+# dasselbe Kommando direkt in eine Pipeline geschrieben funktioniert. javaw.exe
+# darf deshalb nie als Versionsprobe dienen, sondern nur als Startprogramm.
+# @return die Major-Version oder 0, wenn sie nicht ermittelt werden konnte.
+function Get-JavaMajorVersion {
+    param([string]$JavaExe)
+
+    if ([string]::IsNullOrWhiteSpace($JavaExe) -or
+            -not (Test-Path -LiteralPath $JavaExe -PathType Leaf)) {
+        return 0
+    }
+    try {
+        $output = & $JavaExe '-XshowSettings:properties' '-version' 2>&1
+    } catch {
+        return 0
+    }
+    $match = [regex]::Match(($output | Out-String), 'java\.specification\.version\s*=\s*(\d+)')
+    if (-not $match.Success) {
+        return 0
+    }
+    return [int]$match.Groups[1].Value
+}
+
+# Wählt zu einer geprüften java.exe das Startprogramm aus DERSELBEN Installation.
+# javaw.exe startet ohne Konsolenfenster und wird bevorzugt; fehlt es, bleibt es
+# bei der geprüften java.exe. Es werden nie zwei Java-Installationen gemischt.
+function Select-RuntimeLauncher {
+    param([string]$JavaExe)
+
+    $launcher = Join-Path (Split-Path -Parent $JavaExe) 'javaw.exe'
+    if (Test-Path -LiteralPath $launcher -PathType Leaf) {
+        return $launcher
+    }
+    return $JavaExe
+}
+
+# System-Java-Kandidaten in fester Reihenfolge: JAVA_HOME vor PATH, immer als
+# Konsolen-Launcher. Pfade mit Leerzeichen bleiben unverändert, weil ausschließlich
+# Join-Path und -LiteralPath verwendet werden.
+function Get-SystemJavaCandidates {
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:JAVA_HOME)) {
+        $candidates += (Join-Path $env:JAVA_HOME 'bin\java.exe')
+    }
+    foreach ($command in @(Get-Command 'java.exe' -All -ErrorAction SilentlyContinue)) {
+        if ($command.Source) {
+            $candidates += $command.Source
+        }
+    }
+    return ($candidates | Where-Object { $_ } | Select-Object -Unique)
+}
+
 function Resolve-JavaExecutable {
     param([string]$DistRoot, [string]$InstalledPrefix)
 
-    # Bevorzugt eine mitgelieferte jlink-Runtime.
-    $bundled = Join-Path $DistRoot 'runtime\bin\javaw.exe'
-    if (Test-Path -LiteralPath $bundled) {
-        return (Join-Path $InstalledPrefix 'runtime\bin\javaw.exe')
+    # Eine mitgelieferte jlink-Runtime hat Vorrang, wird aber genauso geprüft wie
+    # System-Java: die bloße Existenz eines Startprogramms genügt nicht.
+    $bundledJava = Join-Path $DistRoot 'runtime\bin\java.exe'
+    if (Test-Path -LiteralPath $bundledJava -PathType Leaf) {
+        $bundledMajor = Get-JavaMajorVersion -JavaExe $bundledJava
+        if ($bundledMajor -lt $JavaRelease) {
+            throw @"
+Die gebündelte Java-Runtime unter $DistRoot\runtime ist nicht verwendbar.
+Gemeldete Java-Version: $(if ($bundledMajor -gt 0) { $bundledMajor } else { 'nicht ermittelbar' }); benötigt wird >= $JavaRelease.
+Die Distribution neu bauen: installer\common\build-dist.ps1 -WithRuntime
+"@
+        }
+        # Nach der Installation liegt dieselbe Runtime unter $InstalledPrefix.
+        $bundledLauncher = Split-Path -Leaf (Select-RuntimeLauncher -JavaExe $bundledJava)
+        return (Join-Path $InstalledPrefix "runtime\bin\$bundledLauncher")
     }
 
-    # Sonst System-Java. javaw.exe startet ohne Konsolenfenster.
-    $candidate = Get-Command 'javaw.exe' -ErrorAction SilentlyContinue
-    if (-not $candidate) { $candidate = Get-Command 'java.exe' -ErrorAction SilentlyContinue }
-    if (-not $candidate) { return $null }
-
-    $output = & $candidate.Source '-XshowSettings:properties' '-version' 2>&1
-    $match = $output | Select-String -Pattern 'java\.specification\.version\s*=\s*(\d+)'
-    if (-not $match) { return $null }
-    $major = [int]$match.Matches[0].Groups[1].Value
-    if ($major -lt $JavaRelease) { return $null }
-    return $candidate.Source
+    foreach ($candidate in (Get-SystemJavaCandidates)) {
+        if ((Get-JavaMajorVersion -JavaExe $candidate) -ge $JavaRelease) {
+            return (Select-RuntimeLauncher -JavaExe $candidate)
+        }
+    }
+    return $null
 }
 
 # ------------------------------------------------------------ Profilauswahl
@@ -374,10 +435,16 @@ function Sync-WindowsFirewallRules {
 
 $javaExe = Resolve-JavaExecutable -DistRoot $DistPath -InstalledPrefix $InstallPrefix
 if (-not $javaExe) {
+    $searched = (Get-SystemJavaCandidates) -join "`n  "
     throw @"
 Keine passende Java-Runtime gefunden (benötigt Java >= $JavaRelease).
-Entweder ein JDK/JRE >= $JavaRelease installieren oder eine Distribution mit
-gebündelter Runtime verwenden: installer\common\build-dist.ps1 -WithRuntime
+
+Geprüft wurden (jeweils java.exe, nicht javaw.exe):
+  $(if ($searched) { $searched } else { '(weder JAVA_HOME noch java.exe im PATH)' })
+
+Entweder ein JDK/JRE >= $JavaRelease installieren und JAVA_HOME bzw. PATH setzen
+oder eine Distribution mit gebündelter Runtime verwenden:
+installer\common\build-dist.ps1 -WithRuntime
 "@
 }
 

@@ -1,0 +1,4 @@
+Property settings:
+    java.home = C:\Program Files\Java\jre1.8.0_401
+    java.specification.version = 1.8
+    java.version = 1.8.0_401

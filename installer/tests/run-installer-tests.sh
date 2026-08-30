@@ -17,6 +17,7 @@ uninstaller_windows="$repository_root/installer/windows/Uninstall-WinLaufenWeb.p
 uninstaller_linux="$repository_root/installer/linux/uninstall.sh"
 manifest="$repository_root/installer/common/dist-manifest.env"
 windows_legacy_fixture="$repository_root/installer/tests/fixtures/windows-legacy-java-crlf.properties"
+java_version_fixtures="$repository_root/installer/tests/fixtures/java-version"
 
 # shellcheck source=../common/dist-manifest.env
 source "$manifest"
@@ -887,6 +888,101 @@ assert_contains "$windows_legacy_fixture" \
 assert_contains "$windows_legacy_fixture" \
     'outputs.3.endpoint=ws\://127.0.0.1\:44441/bridge/v1/channels/local' \
     "Windows-Fixture enthält den bereits aktuellen Endpunkt"
+
+echo
+echo "=== Windows: Java-Erkennung über den Konsolen-Launcher ==="
+# Suchmuster und Mindestversion werden aus dem Installer selbst gelesen, damit die
+# Fixtures den real verwendeten Vertrag prüfen und nicht eine Kopie davon.
+java_pattern=$(sed -n "s/.*\[regex\]::Match(.*, '\(.*\)').*/\1/p" "$installer_windows" | head -1)
+windows_java_release=$(grep -oP '^\$JavaRelease\s*=\s*\K[0-9]+' "$installer_windows")
+[[ -n "$java_pattern" ]] \
+    && ok "Suchmuster der Versionsprobe ist im Installer auffindbar" \
+    || bad "Suchmuster der Versionsprobe ist im Installer auffindbar"
+assert_equals "$windows_java_release" "$WINLAUFEN_JAVA_RELEASE" \
+    "Windows-Installer verlangt dieselbe Java-Version wie das Manifest"
+
+java_major_of() {
+    python3 - "$java_pattern" "$1" <<'PY'
+import re
+import sys
+
+pattern, path = sys.argv[1], sys.argv[2]
+with open(path, encoding='utf-8') as handle:
+    match = re.search(pattern, handle.read())
+print(match.group(1) if match else '0')
+PY
+}
+
+assert_java_major() {
+    local fixture="$java_version_fixtures/$1"
+    assert_file "$fixture" "Java-Fixture vorhanden: $1"
+    assert_equals "$(java_major_of "$fixture")" "$2" "$3"
+}
+
+assert_java_decision() {
+    local fixture="$java_version_fixtures/$1" major decision
+    major=$(java_major_of "$fixture")
+    decision="abgelehnt"
+    ((major >= windows_java_release)) && decision="akzeptiert"
+    assert_equals "$decision" "$2" "$3"
+}
+
+assert_java_major temurin-25.txt 25 "Echte JDK-25-Ausgabe ergibt Major 25"
+assert_java_major java-26.txt 26 "Neuere Java-Version wird korrekt gelesen"
+assert_java_major java-21.txt 21 "Ältere Java-Version wird korrekt gelesen"
+assert_java_major java-8.txt 1 "Legacy-Schema 1.8 ergibt Major 1"
+assert_java_major unparsebar.txt 0 "Nicht parsebare Ausgabe ergibt keine Version"
+assert_java_major javaw-leer.txt 0 "Leere Ausgabe ergibt keine Version"
+
+assert_java_decision temurin-25.txt akzeptiert "Java 25 wird akzeptiert"
+assert_java_decision java-26.txt akzeptiert "Java > 25 wird akzeptiert"
+assert_java_decision java-21.txt abgelehnt "Java < 25 wird abgelehnt"
+assert_java_decision java-8.txt abgelehnt "Java 1.8 wird abgelehnt"
+assert_java_decision unparsebar.txt abgelehnt "Nicht parsebare Ausgabe wird abgelehnt"
+# Regression: genau so verhielt sich javaw.exe unter Windows 11 - die Probe lieferte
+# nichts und eine korrekt installierte Java-25-Runtime wurde abgelehnt.
+assert_java_decision javaw-leer.txt abgelehnt \
+    "Eine leere Probenausgabe darf nie als gültige Runtime durchgehen"
+
+windows_java_probe=$(sed -n '/^function Get-JavaMajorVersion {/,/^}$/p' "$installer_windows")
+[[ "$windows_java_probe" == *'-XshowSettings:properties'* ]] \
+    && ok "Versionsprobe fragt die Java-Properties ab" \
+    || bad "Versionsprobe fragt die Java-Properties ab"
+[[ "$windows_java_probe" != *javaw* ]] \
+    && ok "Versionsprobe verwendet nie javaw.exe" \
+    || bad "Versionsprobe verwendet nie javaw.exe" "$windows_java_probe"
+assert_absent "$installer_windows" "Get-Command 'javaw.exe'" \
+    "javaw.exe wird nicht mehr als Java-Kandidat gesucht"
+assert_contains "$installer_windows" "Get-Command 'java.exe' -All" \
+    "System-Java wird über den Konsolen-Launcher im PATH gesucht"
+assert_contains "$installer_windows" "Join-Path \$env:JAVA_HOME 'bin\\java.exe'" \
+    "JAVA_HOME wird berücksichtigt und über Join-Path zusammengesetzt"
+
+windows_java_launcher=$(sed -n '/^function Select-RuntimeLauncher {/,/^}$/p' "$installer_windows")
+[[ "$windows_java_launcher" == *'Split-Path -Parent $JavaExe'* ]] \
+    && ok "Startprogramm stammt aus derselben Java-Installation wie die Prüfung" \
+    || bad "Startprogramm stammt aus derselben Java-Installation wie die Prüfung"
+[[ "$windows_java_launcher" == *"'javaw.exe'"* ]] \
+    && ok "javaw.exe bleibt das bevorzugte Startprogramm ohne Konsolenfenster" \
+    || bad "javaw.exe bleibt das bevorzugte Startprogramm ohne Konsolenfenster"
+[[ "$windows_java_launcher" == *'return $JavaExe'* ]] \
+    && ok "Ohne javaw.exe wird die geprüfte java.exe gestartet" \
+    || bad "Ohne javaw.exe wird die geprüfte java.exe gestartet"
+
+windows_java_resolve=$(sed -n '/^function Resolve-JavaExecutable {/,/^}$/p' "$installer_windows")
+[[ "$windows_java_resolve" == *'runtime\bin\java.exe'* ]] \
+    && ok "Gebündelte Runtime wird über ihre java.exe geprüft" \
+    || bad "Gebündelte Runtime wird über ihre java.exe geprüft"
+[[ "$windows_java_resolve" == *'Get-JavaMajorVersion -JavaExe $bundledJava'* ]] \
+    && ok "Gebündelte Runtime wird nicht ungeprüft akzeptiert" \
+    || bad "Gebündelte Runtime wird nicht ungeprüft akzeptiert"
+[[ "$windows_java_resolve" == *'Join-Path $InstalledPrefix "runtime\bin\$bundledLauncher"'* ]] \
+    && ok "Gebündelte Runtime wird nach der Installation aus dem Zielpfad gestartet" \
+    || bad "Gebündelte Runtime wird nach der Installation aus dem Zielpfad gestartet"
+assert_contains "$installer_windows" '"$javaExe" "-D$BridgeConfigProperty=$bridgeConfig"' \
+    "Der Bridge-Starter zitiert den Java-Pfad, damit Leerzeichen zulässig bleiben"
+assert_contains "$installer_windows" "& '\$javaExe' @arguments" \
+    "Der Live-Server-Starter zitiert den Java-Pfad ebenfalls"
 
 echo
 echo "=== Kenngrößen stimmen mit dem Anwendungscode überein ==="
