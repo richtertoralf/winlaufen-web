@@ -1063,8 +1063,198 @@ windows_java_resolve=$(sed -n '/^function Resolve-JavaExecutable {/,/^}$/p' "$in
     || bad "Gebündelte Runtime wird nach der Installation aus dem Zielpfad gestartet"
 assert_contains "$installer_windows" '"$javaExe" "-D$BridgeConfigProperty=$bridgeConfig"' \
     "Der Bridge-Starter zitiert den Java-Pfad, damit Leerzeichen zulässig bleiben"
-assert_contains "$installer_windows" "& '\$javaExe' @arguments" \
-    "Der Live-Server-Starter zitiert den Java-Pfad ebenfalls"
+assert_contains "$installer_windows" "\`\$startInfo.FileName = '\$javaExe'" \
+    "Der Live-Server-Starter übergibt den Java-Pfad als eigenständigen Dateinamen"
+
+echo
+echo "=== Windows: Live-Server-Starter bleibt am Java-Prozess ==="
+# Der erzeugte Starter wird aus der Installer-Vorlage gerendert und als
+# PowerShell-Quelltext geprüft. Das deckt zugleich Escaping-Fehler in der
+# Here-String-Vorlage auf, die sonst erst auf Windows sichtbar würden.
+live_launcher_rendered="$work/start-live-server.ps1"
+python3 - "$installer_windows" "$live_launcher_rendered" <<'PY'
+import re
+import sys
+
+source = open(sys.argv[1], encoding='utf-8').read()
+block = re.search(r'\$launcherScript = @"\n(.*?)\n"@\n', source, re.S).group(1)
+values = {
+    'ProductName': 'WinLaufen Web',
+    'liveConfig': r'C:\ProgramData\WinLaufen Web\live-server.properties',
+    'InstallPrefix': r'C:\Program Files\WinLaufen Web',
+    'LiveJar': 'winlaufen-web-live-server.jar',
+    'javaExe': r'C:\Program Files\Eclipse Adoptium\jdk-25\bin\javaw.exe',
+}
+out, index = [], 0
+while index < len(block):
+    if block[index] == '`' and index + 1 < len(block) and block[index + 1] == '$':
+        out.append('$')
+        index += 2
+        continue
+    if block[index] == '$':
+        name = re.match(r'\$([A-Za-z_][A-Za-z0-9_]*)', block[index:])
+        if name and name.group(1) in values:
+            out.append(values[name.group(1)])
+            index += name.end()
+            continue
+    out.append(block[index])
+    index += 1
+open(sys.argv[2], 'w', encoding='utf-8').write(''.join(out))
+PY
+assert_file "$live_launcher_rendered" "Live-Server-Starter lässt sich aus der Vorlage rendern"
+assert_contains "$live_launcher_rendered" '[System.Diagnostics.Process]::Start($startInfo)' \
+    "Der Starter startet den Java-Prozess selbst"
+assert_contains "$live_launcher_rendered" '$process.WaitForExit()' \
+    "Der Starter wartet explizit auf das Ende des Java-Prozesses"
+assert_contains "$live_launcher_rendered" 'exit $process.ExitCode' \
+    "Der Starter reicht den Exit-Code des Java-Prozesses weiter"
+assert_contains "$live_launcher_rendered" '$startInfo.UseShellExecute = $false' \
+    "Der Starter läuft ohne Shell"
+assert_contains "$live_launcher_rendered" '$startInfo.CreateNoWindow = $true' \
+    "Der Starter zeigt keine zusätzliche Konsole"
+assert_contains "$live_launcher_rendered" \
+    "\$startInfo.FileName = 'C:\Program Files\Eclipse Adoptium\jdk-25\bin\javaw.exe'" \
+    "javaw.exe bleibt der Launcher und sein Pfad mit Leerzeichen bleibt unversehrt"
+assert_contains "$live_launcher_rendered" \
+    "\$arguments += 'C:\Program Files\WinLaufen Web\lib\winlaufen-web-live-server.jar'" \
+    "Der JAR-Pfad mit Leerzeichen wird als eigenes Argument übergeben"
+assert_contains "$live_launcher_rendered" 'ConvertTo-CommandLineArgument $_' \
+    "Jedes Argument läuft einzeln durch die Quotierung"
+assert_contains "$live_launcher_rendered" '$arguments += "-D$key=$($config[$key])"' \
+    "Die -D-Argumente entstehen weiterhin einzeln aus der Properties-Datei"
+# Regression: genau dieser fire-and-forget-Aufruf liess die geplante Aufgabe
+# auf Ready zurückfallen, obwohl javaw.exe weiterlief.
+assert_absent "$live_launcher_rendered" '@arguments' \
+    "Der alte fire-and-forget-Aufruf mit @arguments ist entfernt"
+assert_absent "$live_launcher_rendered" 'exit $LASTEXITCODE' \
+    "Der Starter verlässt sich nicht mehr auf LASTEXITCODE eines nicht abgewarteten Prozesses"
+assert_absent "$live_launcher_rendered" '`$' \
+    "Die gerenderte Vorlage enthält keine unaufgelösten Escapes"
+for unresolved in '$ProductName' '$liveConfig' '$InstallPrefix' '$LiveJar' '$javaExe'; do
+    assert_absent "$live_launcher_rendered" "$unresolved" \
+        "Die gerenderte Vorlage enthält keine unaufgelöste Installer-Variable $unresolved"
+done
+assert_contains "$installer_windows" 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$ps1"' \
+    "Die geplante Aufgabe ruft den Starter weiterhin ohne Konsolenfenster auf"
+assert_contains "$installer_windows" 'exit /b %errorlevel%' \
+    "Die cmd-Hülle reicht den Exit-Code an die geplante Aufgabe weiter"
+
+# Die Quotierungsregeln von CommandLineToArgvW werden hier als Vertrag geprüft.
+# Die PowerShell-Umsetzung wird zusätzlich strukturell festgenagelt, damit eine
+# Änderung dort nicht unbemerkt an diesem Modell vorbeigeht.
+if python3 - "$live_launcher_rendered" > "$work/argument-quoting.log" 2>&1 <<'PY'
+import re
+import sys
+
+
+def quote(value):
+    if len(value) > 0 and not re.search(r'[\s"]', value):
+        return value
+    out, index = ['"'], 0
+    while index < len(value):
+        backslashes = 0
+        while index < len(value) and value[index] == '\\':
+            backslashes += 1
+            index += 1
+        if index == len(value):
+            out.append('\\' * (backslashes * 2))
+        elif value[index] == '"':
+            out.append('\\' * (backslashes * 2 + 1))
+            out.append('"')
+            index += 1
+        else:
+            out.append('\\' * backslashes)
+            out.append(value[index])
+            index += 1
+    out.append('"')
+    return ''.join(out)
+
+
+def parse(commandline):
+    args, current, index, quoted, started = [], [], 0, False, False
+    while index < len(commandline):
+        char = commandline[index]
+        if char == '\\':
+            backslashes = 0
+            while index < len(commandline) and commandline[index] == '\\':
+                backslashes += 1
+                index += 1
+            if index < len(commandline) and commandline[index] == '"':
+                current.append('\\' * (backslashes // 2))
+                started = True
+                if backslashes % 2 == 0:
+                    quoted = not quoted
+                else:
+                    current.append('"')
+                index += 1
+            else:
+                current.append('\\' * backslashes)
+                started = True
+        elif char == '"':
+            quoted = not quoted
+            started = True
+            index += 1
+        elif char in ' \t' and not quoted:
+            if started:
+                args.append(''.join(current))
+                current, started = [], False
+            index += 1
+        else:
+            current.append(char)
+            started = True
+            index += 1
+    if started:
+        args.append(''.join(current))
+    return args
+
+
+cases = [
+    '-Dwinlaufen.live.http.port=44440',
+    '-Dwinlaufen.live.secret=local-development-secret',
+    '-jar',
+    r'C:\Program Files\WinLaufen Web\lib\winlaufen-web-live-server.jar',
+    '-Dwinlaufen.live.secret=geheim mit leerzeichen',
+    '-Dkey=C:\\pfad mit\\',
+    '-Dkey=hat"anfuehrungszeichen',
+    '',
+]
+for case in cases:
+    assert parse(quote(case)) == [case], (case, quote(case), parse(quote(case)))
+joined = ' '.join(quote(case) for case in cases if case != '')
+assert parse(joined) == [case for case in cases if case != ''], joined
+
+rendered = open(sys.argv[1], encoding='utf-8').read()
+for marker in ("[char]'\\'", "[char]'\"'", '$backslashes * 2', '$backslashes * 2 + 1',
+               "-notmatch '[\\s\"]'"):
+    assert marker in rendered, marker
+PY
+then
+    ok "Argumentquotierung überlebt Leerzeichen, Backslashes und Anführungszeichen"
+else
+    bad "Argumentquotierung überlebt Leerzeichen, Backslashes und Anführungszeichen" \
+        "$(tail -3 "$work/argument-quoting.log" | tr '\n' ' ')"
+fi
+
+windows_wait_runtime=$(sed -n '/^function Wait-InstalledRuntime {/,/^}$/p' "$installer_windows")
+[[ "$windows_wait_runtime" == *'Test-TaskRunning -TaskName $TaskName'* ]] \
+    && ok "Readiness verlangt weiterhin eine laufende geplante Aufgabe" \
+    || bad "Readiness verlangt weiterhin eine laufende geplante Aufgabe"
+[[ "$windows_wait_runtime" == *'Get-ListenerOwner -Port $port'* ]] \
+    && ok "Readiness verlangt weiterhin die eigenen Listener" \
+    || bad "Readiness verlangt weiterhin die eigenen Listener"
+[[ "$windows_wait_runtime" == *'Test-HttpEndpoint -Port $HttpPort'* ]] \
+    && ok "Readiness verlangt weiterhin einen erreichbaren HTTP-Endpunkt" \
+    || bad "Readiness verlangt weiterhin einen erreichbaren HTTP-Endpunkt"
+[[ "$windows_wait_runtime" == *'Start-Sleep -Seconds 3'* ]] \
+    && ok "Readiness durchläuft weiterhin eine Stabilitätsphase" \
+    || bad "Readiness durchläuft weiterhin eine Stabilitätsphase"
+assert_contains "$installer_windows" '-Ports @($LiveHttpPort, $LiveWsPort) -HttpPort $LiveHttpPort' \
+    "Live Server wird weiterhin auf 44440 und 44441 plus HTTP geprüft"
+assert_contains "$installer_windows" '-Ports @($ControlPort) -HttpPort $ControlPort' \
+    "Bridge wird weiterhin auf 44442 plus HTTP geprüft"
+assert_contains "$installer_windows" \
+    '"$javaExe" "-D$BridgeConfigProperty=$bridgeConfig" -jar "$InstallPrefix\lib\$BridgeJar"' \
+    "Der Bridge-Starter bleibt unverändert; cmd wartet dort bereits auf javaw.exe"
 
 echo
 echo "=== Kenngrößen stimmen mit dem Anwendungscode überein ==="

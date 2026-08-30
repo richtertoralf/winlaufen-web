@@ -704,6 +704,47 @@ if ($installLive) {
     $ps1 = Join-Path $InstallPrefix 'start-live-server.ps1'
     $launcherScript = @"
 # $ProductName - Live Server Starter
+#
+# Die geplante Aufgabe muss so lange Running bleiben, wie der Live Server laeuft.
+# Der PowerShell-Aufrufoperator "&" kehrt bei javaw.exe sofort zurueck, weil das
+# ein GUI-Subsystem-Programm ohne umgeleitete Stroeme ist; PowerShell und cmd
+# beendeten sich dann sofort und die Aufgabe fiel auf Ready zurueck, obwohl der
+# Java-Prozess weiterlief. Deshalb wird der Prozess hier explizit gestartet und
+# auf sein Ende gewartet.
+
+# Windows uebergibt Argumente als eine einzige Zeichenkette, die der Zielprozess
+# mit CommandLineToArgvW wieder zerlegt. Diese Funktion setzt genau dessen Regeln
+# um, damit Leerzeichen, Backslashes und Anfuehrungszeichen in Pfaden und Secrets
+# unveraendert ankommen.
+function ConvertTo-CommandLineArgument {
+    param([string]`$Value)
+
+    if (`$Value.Length -gt 0 -and `$Value -notmatch '[\s"]') { return `$Value }
+    `$builder = New-Object System.Text.StringBuilder
+    [void]`$builder.Append('"')
+    `$index = 0
+    while (`$index -lt `$Value.Length) {
+        `$backslashes = 0
+        while (`$index -lt `$Value.Length -and `$Value[`$index] -eq [char]'\') {
+            `$backslashes++
+            `$index++
+        }
+        if (`$index -eq `$Value.Length) {
+            [void]`$builder.Append('\' * (`$backslashes * 2))
+        } elseif (`$Value[`$index] -eq [char]'"') {
+            [void]`$builder.Append('\' * (`$backslashes * 2 + 1))
+            [void]`$builder.Append('"')
+            `$index++
+        } else {
+            [void]`$builder.Append('\' * `$backslashes)
+            [void]`$builder.Append(`$Value[`$index])
+            `$index++
+        }
+    }
+    [void]`$builder.Append('"')
+    return `$builder.ToString()
+}
+
 `$config = @{}
 Get-Content -LiteralPath '$liveConfig' | ForEach-Object {
     if (`$_ -match '^\s*([^#=]+)=(.*)$') { `$config[`$Matches[1].Trim()] = `$Matches[2].Trim() }
@@ -712,8 +753,16 @@ Get-Content -LiteralPath '$liveConfig' | ForEach-Object {
 foreach (`$key in `$config.Keys) { `$arguments += "-D`$key=`$(`$config[`$key])" }
 `$arguments += '-jar'
 `$arguments += '$InstallPrefix\lib\$LiveJar'
-& '$javaExe' @arguments
-exit `$LASTEXITCODE
+
+`$startInfo = New-Object System.Diagnostics.ProcessStartInfo
+`$startInfo.FileName = '$javaExe'
+`$startInfo.Arguments = ((`$arguments | ForEach-Object { ConvertTo-CommandLineArgument `$_ }) -join ' ')
+`$startInfo.UseShellExecute = `$false
+`$startInfo.CreateNoWindow = `$true
+
+`$process = [System.Diagnostics.Process]::Start(`$startInfo)
+`$process.WaitForExit()
+exit `$process.ExitCode
 "@
     Set-Content -LiteralPath (Get-StagedPath $ps1) -Value $launcherScript -Encoding UTF8
 
@@ -721,6 +770,7 @@ exit `$LASTEXITCODE
 @echo off
 rem $ProductName - Live Server. Wird von der geplanten Aufgaben-Instanz aufgerufen.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$ps1"
+exit /b %errorlevel%
 "@
     Set-Content -LiteralPath (Get-StagedPath $liveLauncher) -Value $cmd -Encoding ASCII
 }
