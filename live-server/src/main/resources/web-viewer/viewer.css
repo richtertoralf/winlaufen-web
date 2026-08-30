@@ -31,9 +31,11 @@ input[type=checkbox],input[type=radio]{width:auto;min-height:0;accent-color:var(
 :focus-visible{outline:2px solid var(--head);outline-offset:1px}
 
 /* viewer - ausschliesslich Web Viewer mit Startliste, LIVE und Ergebnissen. */
-main{padding:0 var(--pad) 16px}
-.tabs{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:7px 0;background:var(--paper);border-bottom:1px solid var(--line-strong)}
-.tabs button{min-height:40px;background:var(--surface);border-color:var(--line);color:var(--ink)}
+/* Kopfzeile und Inhalt beginnen auf breiten Displays an derselben Kante. */
+header{padding-inline:max(var(--pad),calc((100% - 1600px)/2))}
+main{max-width:1600px;margin:0 auto;padding:0 var(--pad) 16px}
+.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;padding:7px 0;background:var(--paper);border-bottom:1px solid var(--line-strong)}
+.tabs button{flex:1 1 0;max-width:200px;min-height:40px;background:var(--surface);border-color:var(--line);color:var(--ink)}
 .tabs button.active{background:var(--head);border-color:var(--head);color:var(--head-ink)}
 .view{display:none}
 .view.active{display:block}
@@ -46,7 +48,7 @@ main{padding:0 var(--pad) 16px}
 .compact-empty strong{display:block;margin-bottom:2px;color:var(--ink)}
 .table-wrap{width:100%;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
-th,td{max-width:34vw;padding:6px 10px;overflow:hidden;text-align:left;text-overflow:ellipsis;white-space:nowrap;border-bottom:1px solid var(--line)}
+th,td{max-width:24vw;padding:6px 10px;overflow:hidden;text-align:left;text-overflow:ellipsis;white-space:nowrap;border-bottom:1px solid var(--line)}
 th{position:sticky;top:0;background:var(--head);color:var(--head-ink);font-size:12px;font-weight:700;border-bottom-color:var(--head)}
 tbody tr:nth-child(even){background:var(--surface-alt)}
 tbody tr:last-child td{border-bottom:0}
