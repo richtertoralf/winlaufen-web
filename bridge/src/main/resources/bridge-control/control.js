@@ -1,6 +1,7 @@
 const form = document.querySelector('#config');
 const targets = document.querySelector('#targets');
 const template = document.querySelector('#target-template');
+const localTemplate = document.querySelector('#local-target-template');
 const message = document.querySelector('#message');
 
 // Die Runtime-Zustände des Backends bleiben unverändert; hier werden sie nur für
@@ -87,7 +88,46 @@ function sourceHostTyped() {
 for (const radio of form.elements.sourceLocation) radio.onchange = sourceLocationChanged;
 hostInput.oninput = sourceHostTyped;
 
+/**
+ * Erkennt das vom Setup eingerichtete lokale Ziel konservativ: Typ LOCAL und ein
+ * Endpunkt auf einen eindeutigen Loopback-Host. Im Zweifel wird auf die technische
+ * Darstellung zurückgefallen, damit ein fremdes Target nie fälschlich als
+ * eingebautes Standardziel behandelt wird.
+ */
+function isBuiltInLocalTarget(value) {
+  if (value.type !== 'LOCAL' || !value.endpoint) return false;
+  let host;
+  try {
+    host = new URL(value.endpoint).hostname;
+  } catch (error) {
+    return false;
+  }
+  return isLocalSourceHost(host);
+}
+
+/**
+ * Zeigt das lokale Ziel als benannte Zeile statt als Konfigurationsblock. ID, Typ,
+ * enabled, Endpunkt, Channel und Secret werden unverändert in versteckten Feldern
+ * mitgeführt, damit der bestehende POST-Vertrag bitgleich erhalten bleibt und beim
+ * Speichern kein überflüssiger Reconnect entsteht.
+ */
+function addLocalTarget(value) {
+  const node = localTemplate.content.firstElementChild.cloneNode(true);
+  const field = name => node.querySelector(`[data-name=${name}]`);
+  field('id').value = value.id;
+  field('type').value = value.type;
+  field('enabled').value = value.enabled ? 'on' : '';
+  field('endpoint').value = value.endpoint;
+  field('channelId').value = value.channelId;
+  field('secret').value = '';
+  targets.append(node);
+}
+
 function addTarget(value = {}) {
+  if (isBuiltInLocalTarget(value)) {
+    addLocalTarget(value);
+    return;
+  }
   const node = template.content.firstElementChild.cloneNode(true);
   for (const input of node.querySelectorAll('[data-name]')) {
     const name = input.dataset.name;

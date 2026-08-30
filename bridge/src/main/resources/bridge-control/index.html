@@ -30,9 +30,9 @@
     Abwicklung → Sprecher-PC… → Verbinden die Sprecher-PC-Verbindung aktiviert?</p>
   </section>
   <section>
-    <h2>Outputs</h2>
+    <h2>Ausgabeziele</h2>
     <div id="targets"></div>
-    <button type="button" id="add">Target hinzufügen</button>
+    <button type="button" id="add">Weiteres Ausgabeziel hinzufügen</button>
     <p class="hint">Unverschlüsseltes <code>ws://</code> ist nur für <code>localhost</code> und
     LAN-IP-Adressen zulässig. Andere Ziele benötigen <code>wss://</code>.</p>
   </section>
@@ -48,6 +48,21 @@
   <span id="message" role="status"></span>
 </form>
 </main>
+<template id="local-target-template">
+  <fieldset class="local-target">
+    <strong>Web View auf diesem Computer</strong>
+    <p class="hint">Vom Setup eingerichtet. Endpunkt, Channel und Zugangsschlüssel gehören zu
+    dieser Installation und werden deshalb hier nicht bearbeitet.</p>
+    <!-- Unveränderte Werte des bestehenden Targets; sie gehen vollständig mit in den POST. -->
+    <input type="hidden" data-name="id">
+    <input type="hidden" data-name="type">
+    <input type="hidden" data-name="enabled">
+    <input type="hidden" data-name="endpoint">
+    <input type="hidden" data-name="channelId">
+    <input type="hidden" data-name="secret">
+    <output></output>
+  </fieldset>
+</template>
 <template id="target-template">
   <fieldset>
     <label>ID<input data-name="id" required></label>

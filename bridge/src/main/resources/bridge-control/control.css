@@ -20,6 +20,8 @@ output{display:block;margin:6px 0;font-size:13px;color:var(--muted)}
 output.ok{color:var(--green)}
 output.warn{color:var(--amber)}
 output.muted{color:var(--muted)}
+.local-target strong{display:block;font-size:15px}
+.local-target .hint{margin:4px 0 0}
 #source-status{margin:8px 0 0;font-size:14px;color:var(--muted)}
 #source-status.ok{color:var(--green)}
 #source-status.warn{color:var(--amber)}

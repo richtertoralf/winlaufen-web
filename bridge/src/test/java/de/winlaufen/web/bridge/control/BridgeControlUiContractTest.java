@@ -140,6 +140,85 @@ class BridgeControlUiContractTest {
                 "hostnames stay supported because the backend resolves them");
     }
 
+    @Test
+    void presentsTheBuiltInLocalTargetAsANamedLineInsteadOfAConfigurationBlock() throws Exception {
+        String html = resource("/bridge-control/index.html");
+        String localTemplate = between(html, "<template id=\"local-target-template\">", "</template>");
+
+        assertTrue(localTemplate.contains("Web View auf diesem Computer"),
+                "the built-in target carries a name a user understands");
+        for (String field : new String[]{"id", "type", "enabled", "endpoint", "channelId", "secret"}) {
+            assertTrue(localTemplate.contains("<input type=\"hidden\" data-name=\"" + field + "\">"),
+                    field + " travels with the request but is not shown");
+        }
+        assertEquals(6, occurrences(localTemplate, "<input "),
+                "the built-in target has no input other than the six hidden ones");
+        assertEquals(6, occurrences(localTemplate, "type=\"hidden\""),
+                "no field of the built-in target is editable");
+        assertFalse(localTemplate.contains("class=\"remove\""),
+                "the built-in target cannot be removed in the normal view");
+        assertFalse(localTemplate.contains("type=\"checkbox\""),
+                "the built-in target cannot be switched off by accident");
+    }
+
+    @Test
+    void detectsTheBuiltInLocalTargetConservatively() throws Exception {
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(script.contains("value.type !== 'LOCAL'"), "type LOCAL is required");
+        assertTrue(script.contains("new URL(value.endpoint).hostname"),
+                "the endpoint host decides, not the freely chosen id");
+        assertTrue(script.contains("return isLocalSourceHost(host)"),
+                "only a loopback endpoint counts as the built-in target");
+        assertTrue(script.contains("} catch (error) {\n    return false;\n  }"),
+                "an unparsable endpoint falls back to the technical rendering");
+        assertFalse(script.contains("value.id === 'local'"),
+                "the id is not reserved and must not decide this");
+    }
+
+    @Test
+    void keepsEveryHiddenValueOfTheBuiltInTargetInTheRequest() throws Exception {
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(script.contains("field('id').value = value.id;"), "the stored id is kept as is");
+        assertTrue(script.contains("field('endpoint').value = value.endpoint;"),
+                "the stored endpoint is kept byte for byte and never recomputed");
+        assertTrue(script.contains("field('channelId').value = value.channelId;"),
+                "the stored channel is kept as is");
+        assertTrue(script.contains("field('enabled').value = value.enabled ? 'on' : '';"),
+                "the stored enabled flag is carried over instead of being forced on");
+        assertTrue(script.contains("field('secret').value = '';"),
+                "an empty secret keeps the stored one, exactly as before");
+        assertTrue(script.contains("body.set(`target.${index}.${input.dataset.name}`"),
+                "the serialisation still walks every data-name field of every target");
+        assertFalse(script.contains("crypto.randomUUID") || script.contains("Math.random"),
+                "no new identifier is generated for an existing target");
+    }
+
+    @Test
+    void leavesForeignTargetsFullyEditable() throws Exception {
+        String html = resource("/bridge-control/index.html");
+        String technical = between(html, "<template id=\"target-template\">", "</template>");
+
+        assertTrue(technical.contains("<option>SELFHOST</option>"));
+        assertTrue(technical.contains("<option>RICHTER_PROJECTS</option>"));
+        for (String field : new String[]{"id", "endpoint", "channelId", "secret"}) {
+            assertTrue(technical.contains("data-name=\"" + field + "\""),
+                    field + " stays editable for a foreign target");
+        }
+        assertTrue(technical.contains("type=\"checkbox\" data-name=\"enabled\""),
+                "a foreign target can still be switched off");
+        assertTrue(technical.contains("class=\"remove\""), "a foreign target can still be removed");
+    }
+
+    private static String between(String value, String start, String end) {
+        int from = value.indexOf(start);
+        assertTrue(from >= 0, "missing " + start);
+        int to = value.indexOf(end, from);
+        assertTrue(to > from, "missing " + end + " after " + start);
+        return value.substring(from, to);
+    }
+
     private static int occurrences(String value, String needle) {
         return (value.length() - value.replace(needle, "").length()) / needle.length();
     }
