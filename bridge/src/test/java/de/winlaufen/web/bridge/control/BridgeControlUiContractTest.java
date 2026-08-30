@@ -158,12 +158,82 @@ class BridgeControlUiContractTest {
     }
 
     @Test
-    void presentsTheBuiltInLocalTargetAsANamedLineInsteadOfAConfigurationBlock() throws Exception {
+    void namesTheLocalViewAfterWhatTheUserOpensInTheBrowser() throws Exception {
+        String html = resource("/bridge-control/index.html");
+        String section = between(html, "<section id=\"browser-view\"", "</section>");
+
+        assertTrue(section.contains("<h2>Live-Ergebnisse im Browser</h2>"),
+                "the local view is named after what the user opens, not after the transport");
+        assertTrue(html.contains("<section id=\"browser-view\" hidden>"),
+                "without a built-in local target the section stays away");
+        for (String technical : new String[]{"Ausgabeziel", "Output Target", "LOCAL", "Endpoint",
+                "Channel", "Secret"}) {
+            assertFalse(section.contains(technical),
+                    "the local view must not expose the technical term " + technical);
+        }
+    }
+
+    @Test
+    void separatesTheLocalViewFromAdditionalLiveServers() throws Exception {
+        String html = resource("/bridge-control/index.html");
+
+        assertFalse(html.contains("Ausgabeziele"),
+                "the internal fan-out term is gone from the surface");
+        assertFalse(html.contains("Weiteres Ausgabeziel hinzufügen"), "the old button label is gone");
+        assertTrue(html.contains("<h2>Weitere Übertragung</h2>"),
+                "additional live servers get their own section");
+        assertTrue(html.contains(">Weiteren Live-Server verbinden</button>"),
+                "the button says what it does in the user's words");
+        assertTrue(html.indexOf("browser-view") < html.indexOf("Weitere Übertragung"),
+                "the local view comes before the optional additional transmission");
+    }
+
+    @Test
+    void showsHowToReachTheLocalViewInABrowser() throws Exception {
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(script.contains("const LIVE_HTTP_PORT = 44440"), "the fixed HTTP port is used");
+        assertTrue(script.contains("addAddress('Auf diesem Computer:', `http://localhost:${port}/`)"),
+                "the local address is always shown");
+        assertTrue(script.contains("addAddress('Im lokalen Netzwerk:', `http://${host}:${port}/`)"),
+                "the LAN address is shown when a usable host is known");
+        assertTrue(script.contains("link.href = url"), "the addresses are clickable");
+        // Lieber ein Hinweis als eine womöglich falsche Adresse.
+        assertTrue(script.contains("Number(new URL(endpoint).port) === LIVE_WEBSOCKET_PORT ? LIVE_HTTP_PORT : 0"),
+                "an unusual live server port yields no invented address");
+        assertTrue(script.contains("addNote("), "an unknown address is explained instead of guessed");
+    }
+
+    @Test
+    void usesOnlyAUsableLanHostForTheNetworkAddress() throws Exception {
+        String script = resource("/bridge-control/control.js");
+        String detection = collapse(between(script, "function lanHost", "\n}\n"));
+
+        assertTrue(detection.contains("location.hostname"),
+                "the host Bridge Control was opened with is demonstrably reachable");
+        assertTrue(detection.contains("isLocalSourceHost(host)"), "loopback is not a LAN address");
+        assertTrue(detection.contains("host === '0.0.0.0'"), "the unspecified address is rejected");
+        assertTrue(detection.contains("/^169\\.254\\./"), "link-local is rejected");
+    }
+
+    @Test
+    void keepsTheStoredTargetOrderAcrossTheTwoSections() throws Exception {
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(script.contains("node.dataset.order = order"),
+                "every target remembers its position in the stored configuration");
+        assertTrue(script.contains("[...localTargets.children, ...targets.children]")
+                        && script.contains("Number(left.dataset.order) - Number(right.dataset.order)"),
+                "serialisation restores the original order, so outputs.N indices stay stable");
+        assertTrue(script.contains("const nodes = targetNodes();"),
+                "the request is built from both sections");
+    }
+
+    @Test
+    void keepsTheBuiltInLocalTargetFreeOfEditableFields() throws Exception {
         String html = resource("/bridge-control/index.html");
         String localTemplate = between(html, "<template id=\"local-target-template\">", "</template>");
 
-        assertTrue(localTemplate.contains("Web View auf diesem Computer"),
-                "the built-in target carries a name a user understands");
         for (String field : new String[]{"id", "type", "enabled", "endpoint", "channelId", "secret"}) {
             assertTrue(localTemplate.contains("<input type=\"hidden\" data-name=\"" + field + "\">"),
                     field + " travels with the request but is not shown");

@@ -29,10 +29,16 @@
     <p id="source-help" class="hint" hidden>Läuft WinLaufen und wurde unter
     Abwicklung → Sprecher-PC… → Verbinden die Sprecher-PC-Verbindung aktiviert?</p>
   </section>
+  <section id="browser-view" hidden>
+    <h2>Live-Ergebnisse im Browser</h2>
+    <div id="local-targets"></div>
+    <dl id="browser-addresses" class="addresses"></dl>
+  </section>
   <section>
-    <h2>Ausgabeziele</h2>
+    <h2>Weitere Übertragung</h2>
+    <p class="hint">Zusätzliche Live Server, an die dieselben Ergebnisse übertragen werden.</p>
     <div id="targets"></div>
-    <button type="button" id="add">Weiteres Ausgabeziel hinzufügen</button>
+    <button type="button" id="add">Weiteren Live-Server verbinden</button>
     <p class="hint">Unverschlüsseltes <code>ws://</code> ist nur für <code>localhost</code> und
     LAN-IP-Adressen zulässig. Andere Ziele benötigen <code>wss://</code>.</p>
   </section>
@@ -50,9 +56,6 @@
 </main>
 <template id="local-target-template">
   <fieldset class="local-target">
-    <strong>Web View auf diesem Computer</strong>
-    <p class="hint">Vom Setup eingerichtet. Endpunkt, Channel und Zugangsschlüssel gehören zu
-    dieser Installation und werden deshalb hier nicht bearbeitet.</p>
     <!-- Unveränderte Werte des bestehenden Targets; sie gehen vollständig mit in den POST. -->
     <input type="hidden" data-name="id">
     <input type="hidden" data-name="type">

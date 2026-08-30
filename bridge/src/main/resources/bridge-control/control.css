@@ -22,8 +22,11 @@ output{display:block;margin:6px 0;font-size:13px;color:var(--muted)}
 output.ok{color:var(--green)}
 output.warn{color:var(--amber)}
 output.muted{color:var(--muted)}
-.local-target strong{display:block;font-size:15px}
-.local-target .hint{margin:4px 0 0}
+output:before{content:"\25CF  "}
+.addresses{margin:10px 0 0;font-size:14px}
+.addresses dt{color:var(--muted);font-size:13px}
+.addresses dd{margin:2px 0 8px}
+.addresses a{color:var(--green);font-weight:700}
 #source-status{margin:8px 0 0;font-size:14px;color:var(--muted)}
 #source-status.ok{color:var(--green)}
 #source-status.warn{color:var(--amber)}
