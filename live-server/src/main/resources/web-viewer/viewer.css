@@ -55,5 +55,14 @@ tbody tr:last-child td{border-bottom:0}
 tbody tr.current{background:#cfe9dc;box-shadow:inset 4px 0 var(--accent);animation:arrival 8s ease-out}
 tbody tr.current td{font-weight:700;border-bottom-color:#a7d1bd}
 @keyframes arrival{0%,55%{background:#9cdcbd}100%{background:#cfe9dc}}
+/* Responsive Reduktion der Tabellen: erste drei plus letzte zwei sichtbare Spalten.
+   Die Regel ist rein strukturell und arbeitet auf der bereits gerenderten Zeile,
+   also nach der bestehenden Spaltenauswahl aus Bridge Control. Ausgeblendet wird
+   jede Zelle ab Position 4, hinter der noch mindestens zwei Zellen stehen. Der
+   gesamte Mittelblock verschwindet dadurch gemeinsam; bei fuenf oder weniger
+   Spalten trifft die Regel auf keine Zelle zu. Die Bedeutung einer Spalte spielt
+   dabei keine Rolle und wird nirgends ausgewertet. */
+@media(max-width:800px){th:nth-child(n+4):nth-last-child(n+3),td:nth-child(n+4):nth-last-child(n+3){display:none}}
 @media(max-width:700px){.context{flex-direction:column;align-items:flex-start}.class-picker{width:100%}.class-picker select{flex:1;max-width:none}}
+@media(max-width:520px){table{font-size:13px}th,td{max-width:27vw;padding:5px}th{font-size:11px}}
 @media(prefers-reduced-motion:reduce){tbody tr.current{animation:none}*{scroll-behavior:auto!important}}
