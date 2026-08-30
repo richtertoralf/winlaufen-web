@@ -1,8 +1,19 @@
-# WinLaufen Web — Architecture
+# WinLaufen Sprecher Web — Architecture
 
 Die Anwendung implementiert die in
 [MODULAR_ARCHITECTURE.md](MODULAR_ARCHITECTURE.md) festgelegte modulare
 Architektur. Dieses Dokument fasst den aktuellen technischen IST-Stand zusammen.
+
+Das Produkt heißt sichtbar **WinLaufen Sprecher Web**; die technischen Namen
+`winlaufen-web-*`, die Java-Packages und die Installationspfade bleiben aus
+Kompatibilitätsgründen unverändert. WinLaufen Sprecher Web ist keine
+Web-Version von WinLaufen, sondern nutzt dessen Sprecher-PC-Schnittstelle.
+
+Dieses Dokument beschreibt das **interne Modell**. Die Benutzeroberfläche von
+Bridge Control fasst Teile davon bewusst zusammen: Die lokale Ansicht heißt
+dort „Live-Ergebnisse im Browser" und verbirgt ID, Typ, Endpoint, Channel und
+Secret des eingebauten Ziels. Intern bleibt sie ein ganz normales Output
+Target mit unveränderter Konfiguration.
 
 ## Module und Prozesse
 

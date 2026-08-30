@@ -30,7 +30,7 @@ Verifiziert:
 
 - TCP
 - Server: WinLaufen
-- Client: Sprecher-PC / WinLaufen Web Bridge
+- Client: Sprecher-PC / WinLaufen Sprecher Web Bridge
 - Standardport: 4444
 - Java Object Serialization
 - aus Sicht der Bridge strikt read-only
@@ -79,7 +79,7 @@ WinLaufen gesendet hat, und behauptet nicht, dass es eine gültige Uhrzeit ist.
 
 Die WinLaufen-Uhr ist autoritativ. Jedes erkannte Uhrentelegramm wird unverändert
 veröffentlicht und zählt als Heartbeat, unabhängig davon, ob sein Wert gleich,
-kleiner oder größer als der vorherige ist. WinLaufen Web validiert, korrigiert
+kleiner oder größer als der vorherige ist. WinLaufen Sprecher Web validiert, korrigiert
 und plausibilisiert den Uhrenverlauf nicht.
 
 Gleiche Werte, rückwärtslaufende Werte, große Sprünge und `Uhr23:59:59` gefolgt

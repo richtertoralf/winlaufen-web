@@ -1,4 +1,4 @@
-# WinLaufen Web — Manuelle Abnahmetests
+# WinLaufen Sprecher Web — Manuelle Abnahmetests
 
 Diese Szenarien lassen sich nicht sinnvoll automatisieren, weil sie echte
 Windows-Rechner, mehrere Maschinen und eine reale WinLaufen-Installation
@@ -8,11 +8,15 @@ Was bereits automatisiert geprüft ist, steht in
 [INSTALLATION.md](INSTALLATION.md) und wird durch
 `installer/tests/run-installer-tests.sh` sowie `./mvnw test` abgedeckt.
 
+Ein Szenario mit WinLaufen setzt voraus, dass die Sprecher-PC-Schnittstelle in
+WinLaufen unter **Abwicklung → Sprecher-PC… → Verbinden** aktiviert wurde. Vorher
+ist `Nicht verbunden` der erwartete Zustand und kein Fehler.
+
 Erwartete Endpunkte in allen Szenarien:
 
 ```text
 Bridge Control:  http://<bridge>:44442/
-Web View:        http://<live-server>:44440/
+Live-Ergebnisse: http://<live-server>:44440/
 Browser-Live:    ws://<live-server>:44441/live/v1
 Bridge-Ingest:   ws://<live-server>:44441/bridge/v1/channels/local
 WinLaufen:       <winlaufen-host>:4444   (read-only)
@@ -57,7 +61,48 @@ auf demselben Windows-11-PC
 9. PC neu starten. Nach dem Boot und **ohne Anmeldung an einer Konsole** müssen
    beide Aufgaben wieder laufen:
    `Get-ScheduledTaskInfo -TaskName 'WinLaufen Web Bridge'`.
-10. Web View erneut öffnen: Daten laufen wieder.
+10. Live-Ergebnisse erneut öffnen: Daten laufen wieder.
+
+### Protokoll: realer Windows-E2E-Nachweis vom 30.08.2026
+
+Dies ist ein realer **Developer-/Source-E2E-Test**, **keine** abschließende
+Endanwender-Fresh-Install-Abnahme.
+
+Umgebung:
+
+```text
+Windows 11 x64
+WinLaufen
+WinLaufen Sprecher Web 0.2.0-SNAPSHOT
+Profil AllInOne
+System-Java 25 (Developer-/Source-Test, keine gebündelte Runtime)
+```
+
+Real bestätigt:
+
+| # | Nachweis |
+|---|---|
+| 1 | Installer läuft erfolgreich durch |
+| 2 | geplante Aufgabe `WinLaufen Web Bridge` läuft |
+| 3 | geplante Aufgabe `WinLaufen Web Live Server` läuft |
+| 4 | TCP 44440 lauscht |
+| 5 | TCP 44441 lauscht |
+| 6 | TCP 44442 lauscht |
+| 7 | HTTP auf 44440 liefert 200 |
+| 8 | HTTP auf 44442 liefert 200 |
+| 9 | das lokale interne Target ist verbunden |
+| 10 | WinLaufen ohne aktivierte Sprecher-PC-Verbindung wird nur als Warnung behandelt, nicht als Installationsfehler |
+| 11 | nach **Abwicklung → Sprecher-PC… → Verbinden** verbindet sich die Bridge |
+| 12 | reale Ergebnisdaten aus WinLaufen erscheinen in den Live-Ergebnissen |
+| 13 | Zugriff von einem zweiten Linux-Rechner im LAN erfolgreich |
+| 14 | TCP 44440 und 44442 waren vom zweiten Rechner erreichbar |
+| 15 | Live-Ergebnisse waren im Browser über die LAN-IP sichtbar |
+
+Die in jenem Netz verwendete Adresse `http://192.168.95.198:44440/` ist ein
+Beispiel aus dieser Umgebung und kein Vorgabewert.
+
+Damit ist der Windows-AllInOne-Pfad von WinLaufen bis in den Browser eines
+anderen Geräts im LAN praktisch bestätigt.
 
 ### Windows-Reinstall, Legacy-Migration und Fehlerfall (manuell offen)
 
@@ -107,7 +152,7 @@ Linux Bridge + Live Server
 5. **Nur** den WinLaufen-Host in Bridge Control auf die Adresse des
    WinLaufen-PCs ändern und speichern.
 6. Source-Health wechselt auf `CONNECTED`, ohne Neustart eines Dienstes.
-7. Web View auf `http://<linux-host>:44440/` prüfen, auch von einem zweiten
+7. Live-Ergebnisse auf `http://<linux-host>:44440/` prüfen, auch von einem zweiten
    Gerät im LAN.
 8. Bridge Control auf `http://<linux-host>:44442/` von einem vorgesehenen
    Administrationsgerät im LAN prüfen.
@@ -143,7 +188,7 @@ separater Presentation Node
      `ws://<rechner-2>:44441/bridge/v1/channels/local`, Channel `local`,
      Secret wie in `/etc/winlaufen-web/live-server.env` auf Rechner 2.
 5. Target wechselt auf `CONNECTED`, ACK-Revision steigt.
-6. Web View auf `http://<rechner-2>:44440/` zeigt die Daten.
+6. Live-Ergebnisse auf `http://<rechner-2>:44440/` zeigen die Daten.
 
 ---
 

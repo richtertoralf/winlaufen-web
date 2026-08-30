@@ -1,12 +1,17 @@
-# WinLaufen Web — Produktspezifikation
+# WinLaufen Sprecher Web — Produktspezifikation
 
 ## 1. Zweck
 
-WinLaufen Web ist eine kleine, quelloffene Bridge für WinLaufen.
+WinLaufen Sprecher Web ist eine kleine, quelloffene Bridge für WinLaufen.
 
-Sie verbindet sich read-only mit der bestehenden LAN-Schnittstelle des
-WinLaufen-Sprecher-PCs und stellt eine moderne, responsive Browseroberfläche für
-Wettkampfergebnisse bereit.
+Es ist **keine Web-Version der Wettkampfsoftware WinLaufen**. Die Anwendung
+verbindet sich read-only mit der bestehenden Sprecher-PC-Schnittstelle des
+WinLaufen-PCs und stellt die dort gelieferten Live-Ergebnisdaten in einer
+modernen, responsiven Browseroberfläche bereit.
+
+Die beiden sichtbaren Oberflächen heißen **WinLaufen Sprecher Web – Bridge
+Control** und **WinLaufen Sprecher Web – Live-Ergebnisse**. Technische Namen
+wie `winlaufen-web-*` bleiben aus Kompatibilitätsgründen unverändert.
 
 Die Open-Source-Version soll einfach genug sein, dass Sportvereine sie ohne
 zusätzliche Serverinfrastruktur und ohne laufende Kosten einsetzen können.
@@ -15,7 +20,7 @@ zusätzliche Serverinfrastruktur und ohne laufende Kosten einsetzen können.
 
 WinLaufen bleibt das autoritative Wettkampfsystem.
 
-WinLaufen Web:
+WinLaufen Sprecher Web:
 
 - liest Daten aus WinLaufen,
 - normalisiert den empfangenen State,
@@ -42,14 +47,14 @@ Bevorzugter Betriebsaufbau:
 
 WinLaufen läuft auf dem Zeitnahme-Rechner.
 
-WinLaufen Web läuft auf einem anderen Windows- oder Linux-Rechner im selben LAN
+WinLaufen Sprecher Web läuft auf einem anderen Windows- oder Linux-Rechner im selben LAN
 und verbindet sich über TCP-Port 4444 mit dem WinLaufen-Rechner.
 
-Auf dem Zeitnahme-Rechner muss keine WinLaufen-Web-Software installiert werden.
+Auf dem Zeitnahme-Rechner muss keine Software dieses Projekts installiert werden.
 
 ### 3.2 Gleicher Rechner
 
-Für Vereine mit nur einem Rechner darf WinLaufen Web direkt auf dem
+Für Vereine mit nur einem Rechner darf WinLaufen Sprecher Web direkt auf dem
 Windows-Rechner laufen, auf dem auch WinLaufen läuft.
 
 In diesem Fall ist die Quelle normalerweise `localhost:4444`.
@@ -300,7 +305,7 @@ Die v0.1-Regel lautet:
   erhalten,
 - jedes weitere gültige Uhrentelegramm bestätigt die Verbindung, unabhängig
   davon, ob sein Wert gleich, kleiner oder größer als der vorherige ist,
-- WinLaufen Web validiert, korrigiert und plausibilisiert den Uhrenverlauf
+- WinLaufen Sprecher Web validiert, korrigiert und plausibilisiert den Uhrenverlauf
   nicht,
 - stale, wenn länger als 4 Sekunden kein gültiges Uhrentelegramm eingetroffen
   ist,
@@ -441,7 +446,7 @@ Distribution kann dafür eine per `jlink` reduzierte Runtime bündeln.
 
 Zielerfahrung:
 
-WinLaufen Web installieren und Profil wählen,
+WinLaufen Sprecher Web installieren und Profil wählen,
 gegebenenfalls WinLaufen-Host in Bridge Control anpassen,
-Web View öffnen,
+Live-Ergebnisse öffnen,
 im LAN verwenden.
