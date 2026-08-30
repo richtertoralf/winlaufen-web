@@ -1,5 +1,7 @@
 :root{color-scheme:light;--ink:#14231e;--muted:#65716c;--paper:#f5f7f6;--surface:#fff;--line:#d7dfdb;--green:#086b4b;--amber:#8a5300;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 *{box-sizing:border-box}
+/* Autorenregeln wie label{display:block} wuerden das hidden-Attribut sonst aushebeln. */
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--paper);color:var(--ink)}
 header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
 header strong{display:flex;flex-direction:column;line-height:1.2}

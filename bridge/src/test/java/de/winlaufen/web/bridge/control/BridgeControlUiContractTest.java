@@ -101,6 +101,23 @@ class BridgeControlUiContractTest {
     }
 
     @Test
+    void showsTheWinLaufenComputerFieldOnlyForAnotherComputer() throws Exception {
+        String html = resource("/bridge-control/index.html");
+        String css = resource("/bridge-control/control.css");
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(html.contains("<label id=\"source-host-field\" hidden>"),
+                "the host block starts hidden and is only shown on demand");
+        // Ohne diese Regel wuerde label{display:block} das hidden-Attribut aushebeln.
+        assertTrue(collapse(css).contains("[hidden]{display:none!important}"),
+                "an author rule must not defeat the hidden attribute");
+        assertTrue(script.contains("hostField.hidden = !remote"),
+                "the host block follows the choice");
+        assertTrue(script.contains("hostInput.required = remote"),
+                "a hidden field never blocks the form with an invisible validation error");
+    }
+
+    @Test
     void keepsTheUnchangedSourceHostContract() throws Exception {
         String html = resource("/bridge-control/index.html");
         String script = resource("/bridge-control/control.js");
