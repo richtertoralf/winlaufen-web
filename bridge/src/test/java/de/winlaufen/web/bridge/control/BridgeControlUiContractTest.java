@@ -164,13 +164,14 @@ class BridgeControlUiContractTest {
     @Test
     void detectsTheBuiltInLocalTargetConservatively() throws Exception {
         String script = resource("/bridge-control/control.js");
+        String detection = collapse(between(script, "function isBuiltInLocalTarget", "\n}\n"));
 
-        assertTrue(script.contains("value.type !== 'LOCAL'"), "type LOCAL is required");
-        assertTrue(script.contains("new URL(value.endpoint).hostname"),
+        assertTrue(detection.contains("value.type !== 'LOCAL'"), "type LOCAL is required");
+        assertTrue(detection.contains("new URL(value.endpoint).hostname"),
                 "the endpoint host decides, not the freely chosen id");
-        assertTrue(script.contains("return isLocalSourceHost(host)"),
+        assertTrue(detection.contains("return isLocalSourceHost(host)"),
                 "only a loopback endpoint counts as the built-in target");
-        assertTrue(script.contains("} catch (error) {\n    return false;\n  }"),
+        assertTrue(detection.contains("} catch (error) { return false; }"),
                 "an unparsable endpoint falls back to the technical rendering");
         assertFalse(script.contains("value.id === 'local'"),
                 "the id is not reserved and must not decide this");
@@ -234,10 +235,21 @@ class BridgeControlUiContractTest {
         return builder.toString();
     }
 
+    /** Collapses whitespace runs so an assertion describes structure, not indentation. */
+    private static String collapse(String value) {
+        return value.replaceAll("\\s+", " ");
+    }
+
+    /**
+     * Git checks these resources out with the line endings of the running platform, so the
+     * assertions must never depend on them.
+     */
     private static String resource(String name) throws Exception {
         try (var input = BridgeControlUiContractTest.class.getResourceAsStream(name)) {
             assertNotNull(input, "missing resource " + name);
-            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n")
+                    .replace("\r", "\n");
         }
     }
 }
