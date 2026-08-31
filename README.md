@@ -341,3 +341,17 @@ Befehle, Upgrade-Pfade und Deinstallationen weiter funktionieren:
 | [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) | Produktspezifikation |
 | [docs/WINLAUFEN_PROTOCOL.md](docs/WINLAUFEN_PROTOCOL.md) | WinLaufen-Protokoll und reale Evidenz |
 | [docs/RELEASE.md](docs/RELEASE.md) | tag-basierter Release-Ablauf für Maintainer |
+
+## Lizenz
+
+WinLaufen Sprecher Web steht unter der [GNU Affero General Public License
+v3.0](LICENSE) (AGPL-3.0). Kurz gefasst: Der Quellcode ist frei nutzbar,
+veränderbar und weitergebbar. Wer eine veränderte Version über ein Netzwerk
+zugänglich macht — auch als gehosteten Dienst, ohne den Code selbst
+weiterzugeben — muss den vollständigen, veränderten Quellcode ebenfalls
+unter der AGPL-3.0 verfügbar machen (§13 der Lizenz).
+
+Für Sportvereine, die die Software unverändert oder mit eigenen Anpassungen
+ausschließlich für ihre eigene Veranstaltung betreiben, entstehen daraus
+keine Pflichten — die Offenlegungspflicht greift erst, wenn Dritte über ein
+Netzwerk auf eine veränderte Version zugreifen können.
