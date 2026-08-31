@@ -34,6 +34,26 @@ class BridgeControlUiContractTest {
     }
 
     @Test
+    void showsTheMavenProjectVersionAndTheGitBuildIdInADiscreetFooter() throws Exception {
+        String html = resource("/bridge-control/index.html");
+        String css = resource("/bridge-control/control.css");
+        String version = System.getProperty("product.version");
+        // Without git metadata the plugin publishes nothing and the POM fallback applies.
+        String buildId = System.getProperty("git.commit.id.describe", "unbekannt");
+
+        assertNotNull(version, "the build passes the Maven project version to this test");
+        assertTrue(html.contains("<footer class=\"version\">Sprecher-Web · Version " + version
+                        + " · Build " + buildId + "</footer>"),
+                "the footer shows exactly the built version and commit, never a hand-written copy");
+        assertTrue(buildId.matches("unbekannt|[0-9a-f]{7,40}(-dirty)?"),
+                "the build id stays an abbreviated commit id and never becomes a release tag");
+        assertFalse(html.contains("${"), "no unresolved build placeholder reaches the browser");
+        assertTrue(html.indexOf("<footer") > html.indexOf("</main>"),
+                "the version stays below the content and never takes header space");
+        assertTrue(css.contains("footer.version{"), "the footer keeps its own discreet rule");
+    }
+
+    @Test
     void keepsBackendRuntimeValuesUntouched() {
         assertEquals("DISCONNECTED,CONNECTED,STALE", names(SourceHealth.values()),
                 "source health values are a protocol contract and must not be renamed");

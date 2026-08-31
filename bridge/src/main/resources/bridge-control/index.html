@@ -54,6 +54,9 @@
   <span id="message" role="status"></span>
 </form>
 </main>
+<!-- Version und Build-ID setzt der Build ein: Maven-Projektversion und Git-Commit-ID,
+     siehe pom.xml. Beide sind hier bewusst nicht fest hinterlegt. -->
+<footer class="version">Sprecher-Web · Version ${project.version} · Build ${git.commit.id.describe}</footer>
 <template id="local-target-template">
   <fieldset class="local-target">
     <!-- Unveränderte Werte des bestehenden Targets; sie gehen vollständig mit in den POST. -->

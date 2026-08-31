@@ -7,6 +7,36 @@ Ein Release wird ausschließlich aus einem Git-Tag im Format `vX.Y.Z` gebaut.
 Die Version im Root-POM und die Parent-Versionen aller dort aufgeführten Module
 müssen dabei exakt `X.Y.Z` lauten; eine `-SNAPSHOT`-Version wird abgelehnt.
 
+## Versionsquellen
+
+Es gibt zwei getrennte Versionsangaben, die nicht vermischt werden dürfen:
+
+- Die **Maven-Projektversion** im Root-POM, identisch als Parent-Version in
+  allen Modulen, ist die einzige Quelle der Produktversion.
+- Die **Build-ID** ist die Git-Commit-ID des gebauten Standes, bewusst kein
+  Release-Tag. Sie kommt vom `git-commit-id-maven-plugin`, das die Angabe mit
+  JGit direkt aus `.git` liest; ein Git-Programm auf dem Pfad ist dafür nicht
+  nötig, der Weg ist unter Linux und Windows identisch. Die Konfiguration im
+  Root-POM schließt jeden Tag vom Treffer aus, sodass immer die abgekürzte
+  Commit-ID entsteht, bei nicht committierten Änderungen mit dem Zusatz
+  `-dirty`.
+
+Beide Werte setzt der Build per Maven Resource Filtering in `viewer.html` bzw.
+`index.html` ein; die Fußzeile beider Oberflächen lautet damit
+`Sprecher-Web · Version X.Y.Z · Build <commit>`. Von Hand hinterlegt ist keiner
+der beiden Werte, und die UI-Vertragstests prüfen beide in der ausgelieferten
+Fußzeile.
+
+Ohne Git-Metadaten — etwa beim Build aus einem entpackten Source-Archiv —
+schlägt der Build **nicht** fehl. Das Plugin liefert dann keine Angabe, und es
+bleibt der im Root-POM hinterlegte Rückfallwert `unbekannt` stehen.
+
+`dist/VERSION` ist von alledem unberührt und bleibt unverändert: Es enthält
+weiterhin `git describe --always --dirty` als Kennzeichnung des Build-Standes
+der Distribution und ist **keine** Produktversion. Für die Oberfläche ist diese
+Angabe bewusst nicht geeignet, weil `git describe` auf einem getaggten Commit
+den Tag statt der Commit-ID liefert.
+
 ## Vorbereitung
 
 1. Die Version im gesamten Maven-Reaktor mit der gepinnten Version des Maven

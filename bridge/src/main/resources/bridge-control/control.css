@@ -17,6 +17,8 @@ header strong span{font-size:12px;font-weight:600;color:var(--accent)}
 .warn{color:var(--warn)}
 .muted{color:var(--muted)}
 main{max-width:900px;margin:0 auto;padding:16px var(--pad) 32px}
+/* Die Version steht bewusst nur hier unten und nimmt dem Header keinen Platz weg. */
+footer.version{padding:0 var(--pad) 24px;color:var(--muted);font-size:11px;text-align:center}
 section{margin-bottom:14px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 h1,h2{margin:0 0 10px;font-size:16px}
 label{display:block;margin-bottom:8px;font-size:14px}

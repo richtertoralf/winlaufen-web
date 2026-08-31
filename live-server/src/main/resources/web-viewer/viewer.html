@@ -31,6 +31,9 @@
   <div id="results-table" class="table-wrap"></div>
 </section>
 </main>
+<!-- Version und Build-ID setzt der Build ein: Maven-Projektversion und Git-Commit-ID,
+     siehe pom.xml. Beide sind hier bewusst nicht fest hinterlegt. -->
+<footer class="version">Sprecher-Web · Version ${project.version} · Build ${git.commit.id.describe}</footer>
 <script src="/assets/viewer.js" defer></script>
 </body>
 </html>
