@@ -1,6 +1,6 @@
-# WinLaufen Sprecher Web
+# Sprecher-Web
 
-WinLaufen Sprecher Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
+Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
 Das Projekt nutzt die von WinLaufen bereitgestellte **Sprecher-PC-Schnittstelle**
 und stellt die dort gelieferten Live-Ergebnisdaten **zusätzlich zum "Sprecher-PC" 
 webbasiert** bereit. **WinLaufen (http://www.winlaufen.de/)** selbst ist eine Windows-Anwendung und läuft unabhängig
@@ -22,8 +22,8 @@ Browser
 
 Die beiden sichtbaren Oberflächen heißen:
 
-- **WinLaufen Sprecher Web – Bridge Control** — die Veranstalter-Oberfläche
-- **WinLaufen Sprecher Web – Live-Ergebnisse** — die Ansicht für alle Zuschauer
+- **Sprecher-Web – Bridge Control** — die Veranstalter-Oberfläche
+- **Sprecher-Web – Live-Ergebnisse** — die Ansicht für alle Zuschauer
 
 > **Status: Prototype Baseline, Entwicklungsversion**,
 > kein Release, keine Freigabe. Für ausgewählte Vereine in **kontrollierten
@@ -34,13 +34,13 @@ Die beiden sichtbaren Oberflächen heißen:
 ## Hauptanwendungsfall
 
 Ein Windows-PC mit WinLaufen im Veranstaltungsnetz (LAN/WLAN) trägt alles; weitere Geräte
-lesen nur mit. winlaufen-web ergänzt die Sprecher-PC im LAN um weitere Geräte
+lesen nur mit. Sprecher-Web ergänzt die Sprecher-PC im LAN um weitere Geräte
 wie Smartphones oder "nicht-Windows Tablets".
 
 ```text
 Windows-PC
 ├─ WinLaufen
-├─ WinLaufen Sprecher Web Bridge
+├─ Sprecher-Web Bridge
 ├─ Live Server
 └─ Bridge Control
 
@@ -76,7 +76,7 @@ WinLaufen-Protokollcode. Auch die lokale Ansicht im All-in-One-Betrieb läuft
 | TCP 44442 | eingehend | Bridge Control |
 
 **TCP 4444 ist keine eingehende Freigabe dieses Projekts.** winlaufen-web-bridge lauscht auf
-4444, die Bridge verbindet sich dorthin ausgehend; WinLaufen Sprecher Web öffnet
+4444, die Bridge verbindet sich dorthin ausgehend; Sprecher-Web öffnet
 dafür keinen eigenen Listener. 4444 gehört deshalb nicht in die eingehenden
 Firewallregeln.
 
@@ -317,9 +317,15 @@ Broker bleiben ausdrücklich außerhalb von v0.1.
 
 ## Technische Namen
 
-Sichtbar heißt das Produkt **WinLaufen Sprecher Web**. Technische Bezeichner
-bleiben aus Kompatibilitätsgründen zunächst unverändert, damit bestehende
-Befehle, Upgrade-Pfade und Deinstallationen weiter funktionieren:
+Sichtbar heißt das Produkt **Sprecher-Web**. Der Name lehnt sich bewusst an
+den etablierten WinLaufen-„Sprecher-PC" an. Die öffentliche Oberfläche trägt den
+Untertitel **Live-Ergebnisse aus WinLaufen** — das beschreibt die Herkunft der
+angezeigten Daten. Die Browsertitel lauten **Live-Ergebnisse · Sprecher-Web**
+und **Bridge Control · Sprecher-Web**.
+
+Technische Bezeichner bleiben aus Kompatibilitätsgründen zunächst unverändert,
+damit bestehende Befehle, Upgrade-Pfade und Deinstallationen weiter
+funktionieren:
 
 - Maven-Artefakte und JARs `winlaufen-web-*`
 - Java-Packages `de.winlaufen.web.*`
@@ -344,7 +350,7 @@ Befehle, Upgrade-Pfade und Deinstallationen weiter funktionieren:
 
 ## Lizenz
 
-WinLaufen Sprecher Web steht unter der [GNU Affero General Public License
+Sprecher-Web steht unter der [GNU Affero General Public License
 v3.0](LICENSE) (AGPL-3.0). Kurz gefasst: Der Quellcode ist frei nutzbar,
 veränderbar und weitergebbar. Wer eine veränderte Version über ein Netzwerk
 zugänglich macht — auch als gehosteten Dienst, ohne den Code selbst

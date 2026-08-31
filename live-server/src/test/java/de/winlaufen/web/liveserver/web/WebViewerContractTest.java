@@ -150,12 +150,15 @@ class WebViewerContractTest {
     void showsTheSpeakerWebProductNameAndTheSurfaceName() throws Exception {
         String html = resource("/web-viewer/viewer.html");
 
-        assertTrue(html.contains("<title>Live-Ergebnisse · WinLaufen Sprecher Web</title>"),
-                "the browser tab names the product and the surface");
+        assertTrue(html.contains("<title>Live-Ergebnisse · Sprecher-Web</title>"),
+                "the browser tab names the surface and the product");
         assertTrue(html.contains(
-                        "<span class=\"brand\">WinLaufen Sprecher Web<span>Live-Ergebnisse</span></span>"),
-                "the header names the product and the surface");
+                        "<span class=\"brand\">Sprecher-Web<span>Live-Ergebnisse aus WinLaufen</span></span>"),
+                "the header names the product and where the shown data comes from");
+        assertFalse(html.contains("WinLaufen Sprecher Web"), "the former product name is gone");
         assertFalse(html.contains("WinLaufen Web"), "the former ambiguous product name is gone");
+        assertFalse(html.contains("Live-Ergebnisse für WinLaufen"),
+                "the subtitle names the data source, it does not claim to be a product for WinLaufen");
     }
 
     @Test

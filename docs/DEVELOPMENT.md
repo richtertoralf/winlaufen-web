@@ -1,4 +1,4 @@
-# WinLaufen Sprecher Web — Entwicklung und Betrieb
+# Sprecher-Web — Entwicklung und Betrieb
 
 Details, die für die Einrichtung nicht nötig sind, aber beim Entwickeln,
 Diagnostizieren und beim Betrieb einzelner Runtimes gebraucht werden. Der

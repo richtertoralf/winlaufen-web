@@ -1,4 +1,4 @@
-# WinLaufen Sprecher Web — Manuelle Abnahmetests
+# Sprecher-Web — Manuelle Abnahmetests
 
 Diese Szenarien lassen sich nicht sinnvoll automatisieren, weil sie echte
 Windows-Rechner, mehrere Maschinen und eine reale WinLaufen-Installation
@@ -73,7 +73,7 @@ Umgebung:
 ```text
 Windows 11 x64
 WinLaufen
-WinLaufen Sprecher Web 0.2.0-SNAPSHOT
+Sprecher-Web 0.2.0-SNAPSHOT
 Profil AllInOne
 System-Java 25 (Developer-/Source-Test, keine gebündelte Runtime)
 ```

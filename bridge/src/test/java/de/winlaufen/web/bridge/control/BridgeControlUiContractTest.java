@@ -25,10 +25,11 @@ class BridgeControlUiContractTest {
     void showsTheSpeakerWebProductNameAndTheSurfaceName() throws Exception {
         String html = resource("/bridge-control/index.html");
 
-        assertTrue(html.contains("<title>Bridge Control · WinLaufen Sprecher Web</title>"),
-                "the browser tab names the product and the surface");
-        assertTrue(html.contains("<strong>WinLaufen Sprecher Web<span>Bridge Control</span></strong>"),
+        assertTrue(html.contains("<title>Bridge Control · Sprecher-Web</title>"),
+                "the browser tab names the surface and the product");
+        assertTrue(html.contains("<strong>Sprecher-Web<span>Bridge Control</span></strong>"),
                 "the header names the product and the surface");
+        assertFalse(html.contains("WinLaufen Sprecher Web"), "the former product name is gone");
         assertFalse(html.contains("WinLaufen Web"), "the former ambiguous product name is gone");
     }
 

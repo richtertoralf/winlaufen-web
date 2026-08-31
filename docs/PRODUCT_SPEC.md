@@ -1,17 +1,30 @@
-# WinLaufen Sprecher Web — Produktspezifikation
+# Sprecher-Web — Produktspezifikation
 
 ## 1. Zweck
 
-WinLaufen Sprecher Web ist eine kleine, quelloffene Bridge für WinLaufen.
+Sprecher-Web ist eine kleine, quelloffene Bridge für WinLaufen.
 
 Es ist **keine Web-Version der Wettkampfsoftware WinLaufen**. Die Anwendung
 verbindet sich read-only mit der bestehenden Sprecher-PC-Schnittstelle des
 WinLaufen-PCs und stellt die dort gelieferten Live-Ergebnisdaten in einer
 modernen, responsiven Browseroberfläche bereit.
 
-Die beiden sichtbaren Oberflächen heißen **WinLaufen Sprecher Web – Bridge
-Control** und **WinLaufen Sprecher Web – Live-Ergebnisse**. Technische Namen
-wie `winlaufen-web-*` bleiben aus Kompatibilitätsgründen unverändert.
+Der sichtbare Produktname ist **Sprecher-Web**, angelehnt an den etablierten
+WinLaufen-„Sprecher-PC". Die beiden sichtbaren Oberflächen heißen
+**Sprecher-Web – Bridge Control** und **Sprecher-Web – Live-Ergebnisse**.
+
+Verbindliche sichtbare Benennung:
+
+| Ort | Text |
+|---|---|
+| Produktname | Sprecher-Web |
+| Untertitel der öffentlichen Live-Oberfläche | Live-Ergebnisse aus WinLaufen |
+| Browsertitel der öffentlichen Oberfläche | Live-Ergebnisse · Sprecher-Web |
+| Browsertitel der Veranstalteroberfläche | Bridge Control · Sprecher-Web |
+
+„Sprecher-PC" bleibt die Bezeichnung der originalen WinLaufen-Anwendung bzw.
+ihrer Schnittstelle und wird nicht umbenannt. Technische Namen wie
+`winlaufen-web-*` bleiben aus Kompatibilitätsgründen unverändert.
 
 Die Open-Source-Version soll einfach genug sein, dass Sportvereine sie ohne
 zusätzliche Serverinfrastruktur und ohne laufende Kosten einsetzen können.
@@ -20,7 +33,7 @@ zusätzliche Serverinfrastruktur und ohne laufende Kosten einsetzen können.
 
 WinLaufen bleibt das autoritative Wettkampfsystem.
 
-WinLaufen Sprecher Web:
+Sprecher-Web:
 
 - liest Daten aus WinLaufen,
 - normalisiert den empfangenen State,
@@ -47,14 +60,14 @@ Bevorzugter Betriebsaufbau:
 
 WinLaufen läuft auf dem Zeitnahme-Rechner.
 
-WinLaufen Sprecher Web läuft auf einem anderen Windows- oder Linux-Rechner im selben LAN
+Sprecher-Web läuft auf einem anderen Windows- oder Linux-Rechner im selben LAN
 und verbindet sich über TCP-Port 4444 mit dem WinLaufen-Rechner.
 
 Auf dem Zeitnahme-Rechner muss keine Software dieses Projekts installiert werden.
 
 ### 3.2 Gleicher Rechner
 
-Für Vereine mit nur einem Rechner darf WinLaufen Sprecher Web direkt auf dem
+Für Vereine mit nur einem Rechner darf Sprecher-Web direkt auf dem
 Windows-Rechner laufen, auf dem auch WinLaufen läuft.
 
 In diesem Fall ist die Quelle normalerweise `localhost:4444`.
@@ -305,7 +318,7 @@ Die v0.1-Regel lautet:
   erhalten,
 - jedes weitere gültige Uhrentelegramm bestätigt die Verbindung, unabhängig
   davon, ob sein Wert gleich, kleiner oder größer als der vorherige ist,
-- WinLaufen Sprecher Web validiert, korrigiert und plausibilisiert den Uhrenverlauf
+- Sprecher-Web validiert, korrigiert und plausibilisiert den Uhrenverlauf
   nicht,
 - stale, wenn länger als 4 Sekunden kein gültiges Uhrentelegramm eingetroffen
   ist,
@@ -446,7 +459,7 @@ Distribution kann dafür eine per `jlink` reduzierte Runtime bündeln.
 
 Zielerfahrung:
 
-WinLaufen Sprecher Web installieren und Profil wählen,
+Sprecher-Web installieren und Profil wählen,
 gegebenenfalls WinLaufen-Host in Bridge Control anpassen,
 Live-Ergebnisse öffnen,
 im LAN verwenden.

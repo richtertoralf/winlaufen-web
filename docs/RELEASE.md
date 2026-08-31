@@ -1,4 +1,4 @@
-# WinLaufen Sprecher Web — Release-Prozess
+# Sprecher-Web — Release-Prozess
 
 Aktuelle Entwicklungsversion: `0.2.0-SNAPSHOT`. Es gibt noch keinen Tag, kein
 Release und keine Releasefreigabe.

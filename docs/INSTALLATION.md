@@ -1,9 +1,9 @@
-# WinLaufen Sprecher Web — Installation
+# Sprecher-Web — Installation
 
 Dieses Dokument beschreibt die rollenbasierte Installation für Linux und
 Windows 11.
 
-WinLaufen Sprecher Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
+Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
 Es nutzt deren Sprecher-PC-Schnittstelle auf TCP 4444 und stellt die gelieferten
 Live-Ergebnisdaten webbasiert bereit.
 

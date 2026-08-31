@@ -1,4 +1,4 @@
-# WinLaufen Sprecher Web — Architecture
+# Sprecher-Web — Architecture
 
 Kurzer IST-Stand der in [MODULAR_ARCHITECTURE.md](MODULAR_ARCHITECTURE.md)
 festgelegten Zielarchitektur. Vollständige Entscheidungen, Contract-Felder
@@ -6,7 +6,8 @@ und Sicherheitsregeln stehen ausschließlich dort — hier keine Duplikate.
 
 ## Produktname
 
-- Sichtbar: **WinLaufen Sprecher Web**
+- Sichtbar: **Sprecher-Web**, öffentliche Oberfläche mit dem Untertitel
+  „Live-Ergebnisse aus WinLaufen"
 - Technisch (Kompatibilität): `winlaufen-web-*`, Java-Packages,
   Installationspfade bleiben unverändert
 - Keine Web-Version von WinLaufen — nutzt nur dessen Sprecher-PC-Schnittstelle

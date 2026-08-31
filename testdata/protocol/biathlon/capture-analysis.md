@@ -179,7 +179,7 @@ Soll der spätere Webrenderer Schießstände bereits vor dem Zieleinlauf anzeige
 separat geprüft werden, ob WinLaufen bei anderen Abwicklungszuständen, Runden oder
 Zwischenzeiten entsprechende Sprecher-PC-Blöcke sendet.
 
-## 6. Konsequenzen für WinLaufen Web
+## 6. Konsequenzen für Sprecher-Web
 
 ### LIVE
 
