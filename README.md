@@ -89,28 +89,45 @@ Ausführliche Anleitung: [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 ### Installieren
 
-Sobald Release-Pakete veröffentlicht sind: Archiv herunterladen, entpacken,
-Installer starten, Profil wählen. Git, Maven und ein eigener Build sind dafür
-nicht nötig; ein Paket mit gebündelter `jlink`-Runtime braucht auch kein
-separat installiertes JDK.
+Voraussetzungen sind Git und JDK 25.
+Maven wird über den Maven Wrapper mitgeliefert.
+Fertige Releases zum Download gibt es noch nicht.
 
-Aus dem Source Checkout — Voraussetzungen sind Git und JDK 25, Maven liefert der
-Wrapper mit:
-
-#### Linux Ubuntu
+#### Linux Ubuntu - Terminal
 ```sh
+sudo apt install git openjdk-25-jdk
 git clone https://github.com/richtertoralf/winlaufen-web.git
 cd winlaufen-web
 ./mvnw clean package
 sudo ./installer/linux/install.sh
 ```
 
-#### Windows 11
+#### Windows 11 - Powershell
+Zuerst Git und JDK 25 installieren per Powershell.
+```powershell
+winget install --id Git.Git --exact --source winget
+winget install --id Microsoft.OpenJDK.25 --exact --source winget
+```
+Danach PowerShell schließen und neu öffnen, damit die aktualisierten
+Umgebungsvariablen übernommen werden. Installation kurz prüfen:
+```powershell
+git --version
+java -version
+javac -version
+```
+Repository klonen und Anwendung bauen:
 ```powershell
 git clone https://github.com/richtertoralf/winlaufen-web.git
 Set-Location winlaufen-web
 .\mvnw.cmd clean package
-# Danach PowerShell als Administrator:
+```
+Nach erfolgreichem Build das aktuelle PowerShell-Fenster schließen.
+
+Anschließend PowerShell über das Startmenü mit
+**„Als Administrator ausführen“** neu starten, wieder in das Repository
+wechseln und den Installer ausführen:
+```powershell
+Set-Location winlaufen-web
 .\installer\windows\Install-WinLaufenWeb.ps1
 ```
 
