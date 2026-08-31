@@ -13,6 +13,10 @@ framework-heavy application.
 Development happens on Linux, but production code must stay portable between
 Windows and Linux. Do not introduce Linux-only assumptions.
 
+Licensed under AGPL-3.0 (see LICENSE). Any new runtime dependency must be
+license-compatible with AGPL-3.0 (permissive licenses like MIT/Apache-2.0/ BSD are fine; 
+GPL-3.0 is compatible; verify anything else before adding it).
+
 ## Mandatory documentation
 
 AGENTS.md holds the binding consequences. These documents hold the full
