@@ -1,11 +1,11 @@
 # WinLaufen Sprecher Web
 
-**WinLaufen Sprecher Web ist keine Web-Version der Wettkampfsoftware WinLaufen.**
-
+WinLaufen Sprecher Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
 Das Projekt nutzt die von WinLaufen bereitgestellte **Sprecher-PC-Schnittstelle**
-und stellt die dort gelieferten Live-Ergebnisdaten webbasiert bereit. WinLaufen
-selbst läuft weiterhin als Windows-Anwendung; im Browser erscheinen nur die
-Ergebnisse, die WinLaufen über diese Schnittstelle veröffentlicht.
+und stellt die dort gelieferten Live-Ergebnisdaten **zusätzlich zum "Sprecher-PC" 
+webbasiert** bereit. **WinLaufen (http://www.winlaufen.de/)** selbst ist eine Windows-Anwendung und läuft unabhängig
+von dieser Anwendung; im Browser erscheinen nur die Ergebnisse, die WinLaufen über
+diese Schnittstelle veröffentlicht.
 
 ```text
 WinLaufen
@@ -25,7 +25,7 @@ Die beiden sichtbaren Oberflächen heißen:
 - **WinLaufen Sprecher Web – Bridge Control** — die Veranstalter-Oberfläche
 - **WinLaufen Sprecher Web – Live-Ergebnisse** — die Ansicht für alle Zuschauer
 
-> **Status: Prototype Baseline, Entwicklungsversion `0.2.0-SNAPSHOT`.** Kein Tag,
+> **Status: Prototype Baseline, Entwicklungsversion**,
 > kein Release, keine Freigabe. Für ausgewählte Vereine in **kontrollierten
 > Netzen** gedacht, nicht für offenen Internetbetrieb. Vor dem Einsatz den
 > Abschnitt [Known prototype security limitation](#known-prototype-security-limitation)
@@ -33,8 +33,9 @@ Die beiden sichtbaren Oberflächen heißen:
 
 ## Hauptanwendungsfall
 
-Ein Windows-PC im Vereinsnetz trägt alles, weitere Geräte lesen nur mit. Genau
-dieser Fall ist real getestet.
+Ein Windows-PC mit WinLaufen im Veranstaltungsnetz (LAN/WLAN) trägt alles; weitere Geräte
+lesen nur mit. winlaufen-web ergänzt die Sprecher-PC im LAN um weitere Geräte
+wie Smartphones oder "nicht-Windows Tablets".
 
 ```text
 Windows-PC
@@ -57,8 +58,8 @@ http://<Windows-PC>:44440/
 
 | Baustein | Aufgabe |
 |---|---|
-| `winlaufen-web-bridge` | liest WinLaufen strikt read-only, hält den kanonischen Live-State, verteilt ihn an 0..n Ziele, stellt Bridge Control bereit |
-| `winlaufen-web-live-server` | nimmt den Bridge-Ingest authentifiziert an, hält den veröffentlichten State, liefert die Live-Ergebnisse an Browser |
+| **`winlaufen-web-bridge`** | liest WinLaufen strikt read-only, hält den kanonischen Live-State, verteilt ihn an 0..n Ziele, stellt Bridge Control bereit |
+| **`winlaufen-web-live-server`** | nimmt den Bridge-Ingest authentifiziert an, hält den veröffentlichten State, liefert die Live-Ergebnisse an Browser |
 | `winlaufen-web-contract` | kleiner versionierter Snapshot-/ACK-Vertrag zwischen beiden |
 
 Beide Runtimes sind getrennte Prozesse. Der Live Server enthält keinen
@@ -74,7 +75,7 @@ WinLaufen-Protokollcode. Auch die lokale Ansicht im All-in-One-Betrieb läuft
 | TCP 44441 | eingehend | Live WebSocket und Bridge-Ingest auf einem Listener |
 | TCP 44442 | eingehend | Bridge Control |
 
-**TCP 4444 ist keine eingehende Freigabe dieses Projekts.** WinLaufen lauscht auf
+**TCP 4444 ist keine eingehende Freigabe dieses Projekts.** winlaufen-web-bridge lauscht auf
 4444, die Bridge verbindet sich dorthin ausgehend; WinLaufen Sprecher Web öffnet
 dafür keinen eigenen Listener. 4444 gehört deshalb nicht in die eingehenden
 Firewallregeln.
@@ -96,6 +97,7 @@ separat installiertes JDK.
 Aus dem Source Checkout — Voraussetzungen sind Git und JDK 25, Maven liefert der
 Wrapper mit:
 
+#### Linux Ubuntu
 ```sh
 git clone https://github.com/richtertoralf/winlaufen-web.git
 cd winlaufen-web
@@ -103,6 +105,7 @@ cd winlaufen-web
 sudo ./installer/linux/install.sh
 ```
 
+#### Windows 11
 ```powershell
 git clone https://github.com/richtertoralf/winlaufen-web.git
 Set-Location winlaufen-web
