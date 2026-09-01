@@ -106,7 +106,7 @@ die eingehenden Firewallregeln.
 Voraussetzungen sind Git und JDK 25; Maven liefert der Maven Wrapper mit.
 Fertige Releases zum Download gibt es noch nicht.
 
-**Linux**
+**Linux (Terminal)**
 
 ```sh
 sudo apt install git openjdk-25-jdk
@@ -116,7 +116,7 @@ cd winlaufen-web
 sudo ./installer/linux/install.sh
 ```
 
-**Windows 11**
+**Windows 11 (Powershell)**
 
 ```powershell
 winget install --id Git.Git --exact --source winget
