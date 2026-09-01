@@ -38,6 +38,12 @@ changing the corresponding area.
 - `docs/DEVELOPMENT.md` — full build, dev-run and diagnostic workflows.
 - `docs/SMOKE_TESTS.md` — manual acceptance tests that need real hardware
   and a real WinLaufen installation.
+- `docs/BEDIENERHANDBUCH.md` — the operator manual and the single place for
+  the organiser-facing narrative: installation walkthrough, Bridge Control,
+  status displays, competition time, behaviour during outages, event-day
+  checklist. `docs/QUICKSTART_CLOUD.md` covers the temporary cloud node.
+  Keep user-facing changes here instead of duplicating them into README.md
+  or `docs/INSTALLATION.md`, which stay overview and technical reference.
 
 ## Repository map
 

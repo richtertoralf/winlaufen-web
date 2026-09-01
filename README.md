@@ -31,28 +31,41 @@ Die beiden sichtbaren Oberflächen heißen:
 > Abschnitt [Known prototype security limitation](#known-prototype-security-limitation)
 > lesen.
 
-## Hauptanwendungsfall
+> 📖 **Sie wollen Sprecher-Web einsetzen?**
+> Die vollständige Anleitung von der Installation bis zum Wettkampftag steht im
+> **[Bedienerhandbuch](docs/BEDIENERHANDBUCH.md)**.
 
-Ein Windows-PC mit WinLaufen im Veranstaltungsnetz (LAN/WLAN) trägt alles; weitere Geräte
-lesen nur mit. Sprecher-Web ergänzt die Sprecher-PC im LAN um weitere Geräte
-wie Smartphones oder "nicht-Windows Tablets".
+## Was Sprecher-Web kann
 
-```text
-Windows-PC
-├─ WinLaufen
-├─ Sprecher-Web Bridge
-├─ Live Server
-└─ Bridge Control
+* Live-Ergebnisse, LIVE-Ansicht und Startlisten-Platzhalter in jedem Browser —
+  Notebook, Tablet, Smartphone, ohne App und ohne Anmeldung.
+* Verifiziert für **Lauf und Biathlon**. Tabellen, Uhr, Current Finish,
+  Schießen und WinLaufen-Nachrichten werden ohne fachliche Korrektur
+  transportiert.
+* Der Veranstalter entscheidet in Bridge Control, welche Spalten öffentlich
+  sichtbar sind (Verein, Verband, Nation, Schießen, Nachrichten).
+* Ein Ausfall von Netzwerk, Live Server oder Bridge führt nie zu still
+  veralteten Daten: Der Browser erkennt ihn, kennzeichnet die Anzeige und
+  verbindet ohne Reload automatisch neu.
+* Beliebig viele zusätzliche Live Server parallel — im LAN oder als temporärer
+  Server im Internet.
 
-LAN
-├─ Notebook
-├─ Tablet
-├─ Smartphone
-└─ weitere Browser
-       |
-       v
-http://<Windows-PC>:44440/
-```
+WinSpringen, ein erfundenes Startlistenprotokoll, Datenbank und Broker bleiben
+ausdrücklich außerhalb dieser Version.
+
+## Empfohlene Betriebsweise
+
+| Variante | Aufbau | Wann |
+|---|---|---|
+| **A — All-in-One** | alles auf einem Rechner, am einfachsten direkt auf dem WinLaufen-PC | der Normalfall |
+| **B — anderer Rechner im LAN** | All-in-One oder Bridge only auf einem zweiten Rechner, Adresse des WinLaufen-PCs in Bridge Control | wenn der WinLaufen-PC frei bleiben soll |
+| **C — zusätzlicher Server im Internet** | zusätzlich ein Presentation Node auf einem gemieteten Ubuntu-Server | wenn Zuschauer außerhalb des Veranstaltungsnetzes mitlesen sollen |
+
+Variante C benötigt **keine Domain und kein TLS**: Für den bewusst einfachen,
+temporären Selfhost-Betrieb genügt die öffentliche IPv4-Adresse, und in Bridge
+Control wird im Normalfall nur diese eine Adresse eingetragen. Die verbindlichen
+Grenzen dieses Betriebs stehen unten unter
+[Known prototype security limitation](#known-prototype-security-limitation).
 
 ## Architektur in Kürze
 
@@ -75,25 +88,24 @@ WinLaufen-Protokollcode. Auch die lokale Ansicht im All-in-One-Betrieb läuft
 | TCP 44441 | eingehend | Live WebSocket und Bridge-Ingest auf einem Listener |
 | TCP 44442 | eingehend | Bridge Control |
 
-**TCP 4444 ist keine eingehende Freigabe dieses Projekts.** winlaufen-web-bridge lauscht auf
-4444, die Bridge verbindet sich dorthin ausgehend; Sprecher-Web öffnet
-dafür keinen eigenen Listener. 4444 gehört deshalb nicht in die eingehenden
-Firewallregeln.
+**TCP 4444 ist keine eingehende Freigabe dieses Projekts.** Diesen Port stellt
+WinLaufen selbst bereit, sobald dort die Sprecher-PC-Verbindung aktiviert wurde;
+die Bridge verbindet sich nur ausgehend dorthin. 4444 gehört deshalb nicht in
+die eingehenden Firewallregeln.
 
 44440 und 44441 müssen für die vorgesehenen Zuschauergeräte erreichbar sein,
-44442 für die vorgesehenen Administrationsgeräte.
+44442 nur für die vorgesehenen Administrationsgeräte.
 
 ## Schnellstart
 
-Ausführliche Anleitung: [docs/INSTALLATION.md](docs/INSTALLATION.md).
+> Vollständige Anleitung für Veranstalter:
+> **[docs/BEDIENERHANDBUCH.md](docs/BEDIENERHANDBUCH.md)**
 
-### Installieren
-
-Voraussetzungen sind Git und JDK 25.
-Maven wird über den Maven Wrapper mitgeliefert.
+Voraussetzungen sind Git und JDK 25; Maven liefert der Maven Wrapper mit.
 Fertige Releases zum Download gibt es noch nicht.
 
-#### Linux Ubuntu - Terminal
+**Linux**
+
 ```sh
 sudo apt install git openjdk-25-jdk
 git clone https://github.com/richtertoralf/winlaufen-web.git
@@ -102,166 +114,38 @@ cd winlaufen-web
 sudo ./installer/linux/install.sh
 ```
 
-#### Windows 11 - Powershell
-Zuerst Git und JDK 25 installieren per Powershell.
+**Windows 11**
+
 ```powershell
 winget install --id Git.Git --exact --source winget
 winget install --id Microsoft.OpenJDK.25 --exact --source winget
-```
-Danach PowerShell schließen und neu öffnen, damit die aktualisierten
-Umgebungsvariablen übernommen werden. Installation kurz prüfen:
-```powershell
-git --version
-java -version
-javac -version
-```
-Repository klonen und Anwendung bauen:
-```powershell
+# PowerShell neu öffnen, dann:
 git clone https://github.com/richtertoralf/winlaufen-web.git
 Set-Location winlaufen-web
 .\mvnw.cmd clean package
 ```
-Nach erfolgreichem Build das aktuelle PowerShell-Fenster schließen.
 
-Anschließend PowerShell über das Startmenü mit
-**„Als Administrator ausführen“** neu starten, wieder in das Repository
-wechseln und den Installer ausführen:
+Den Installer anschließend in einer **PowerShell mit Administratorrechten**
+starten. Windows blockiert Skripte standardmäßig; für dieses eine Fenster:
+
 ```powershell
-Set-Location winlaufen-web
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\installer\windows\Install-WinLaufenWeb.ps1
 ```
 
-Unter Linux laufen die Dienste über `systemd`, unter Windows als geplante
-Aufgaben mit dem Trigger „Beim Systemstart". Beide starten ohne offenes
-Konsolenfenster nach einem Neustart automatisch.
+> **Vor Installation und Upgrade** eines Profils mit Bridge (All-in-One,
+> Bridge only) in WinLaufen **Abwicklung → Sprecher-PC… → Trennen** wählen und
+> danach wieder **Verbinden**. WinLaufen selbst muss nicht beendet werden.
+> Details im [Bedienerhandbuch](docs/BEDIENERHANDBUCH.md#4-windows-all-in-one-installieren).
 
-### WinLaufen verbinden
-
-Die Bridge kann die Sprecher-PC-Schnittstelle **nicht selbst aktivieren**. Sie
-muss in WinLaufen freigegeben werden:
-
-1. WinLaufen starten
-2. Wettkampf öffnen
-3. in WinLaufen: **Abwicklung → Sprecher-PC… → Verbinden**
-4. erst jetzt stellt WinLaufen die Schnittstelle auf TCP 4444 bereit
-5. die Bridge verbindet sich automatisch dorthin
-6. Bridge Control wechselt auf **Verbunden**
-7. die Ergebnisse werden an den Live Server übertragen
-8. Browser zeigen die Live-Ergebnisse
-
-Solange Schritt 3 nicht erfolgt ist, zeigt Bridge Control **Nicht verbunden**.
-Das ist ein erwarteter Betriebszustand und kein Installationsfehler.
-
-## Browseradressen
-
-Bridge Control:
-
-```text
-http://localhost:44442/                 auf dem Bridge-PC
-http://<IP-des-Bridge-PCs>:44442/       aus dem LAN
-```
-
-Live-Ergebnisse:
-
-```text
-http://localhost:44440/                 auf dem Bridge-PC
-http://<IP-des-Bridge-PCs>:44440/       aus dem LAN
-```
-
-Notebooks, Tablets und Smartphones im selben Netz rufen die Live-Ergebnisse
-über die LAN-Adresse auf; Voraussetzung ist allein die Netzwerkerreichbarkeit.
-Der Windows-Installer richtet die eingehenden Defender-Firewallregeln für die
-Netzwerkprofile **Private** und **Domain** ein und bewusst **nicht** für
-**Public**. Unter Linux verändert der Installer keine Firewall, sondern nennt
-nur die je Profil benötigten Regeln.
-
-In der realen Abnahme vom 30.08.2026 war das zum Beispiel
-`http://192.168.95.198:44440/` — diese Adresse ist ein Beispiel aus jener
-Umgebung und kein Vorgabewert.
-
-Eine geöffnete Seite überwacht ihre Verbindung selbst. Fällt der Live Server
-aus oder wird er neu gestartet, verschwindet `CONNECTED`, die Seite weist
-sichtbar darauf hin, dass die angezeigten Ergebnisse nicht mehr aktuell sind,
-und verbindet sich anschließend selbständig wieder. Ein manueller
-Browser-Refresh ist dafür nicht nötig.
-
-### Die angezeigte Wettkampfzeit
-
-Die oben rechts angezeigte Zeit ist die **Wettkampfzeit aus WinLaufen**. Sie ist
-nicht die Uhrzeit des WinLaufen-PCs, der Bridge, des Live Servers oder des
-Browsers. Sprecher-Web reicht diesen Wert unverändert weiter und erzeugt keine
-eigene laufende Uhr.
-
-Kommen keine WinLaufen-Zeittelegramme mehr an, bleibt die zuletzt gelieferte
-Wettkampfzeit sichtbar stehen. Das ist gewollt: Für den Sprecher ist die
-laufende Wettkampfzeit damit ein verlässliches Lebenszeichen der gesamten Kette
-vom WinLaufen-PC bis zu seiner Anzeige. Eine stehende Zeit bedeutet, dass gerade
-keine frischen Daten ankommen — und niemals, dass Sprecher-Web die Zeit
-„nachrechnet".
-
-Die Statusanzeige daneben unterscheidet zwei Ebenen:
-
-| Anzeige | Bedeutung |
-|---|---|
-| roter Hinweis „Keine Verbindung zum Live-Server" | Dieser Browser erreicht den Live Server nicht. Die Daten sind abgeblendet, die Seite verbindet automatisch neu. |
-| `CONNECTED` / `STALE` / `DISCONNECTED` ohne roten Hinweis | Der Live Server ist erreichbar; der Wert beschreibt die Verbindung von der Bridge zu WinLaufen. |
-
-## Bridge Control
-
-Bridge Control ist die einzige Veranstalter-Oberfläche. Sie fragt nur nach dem,
-was wirklich entschieden werden muss.
-
-### WinLaufen
-
-```text
-Wo läuft WinLaufen?
-  ( ) Auf diesem Computer
-  ( ) Auf einem anderen Computer
-```
-
-„Auf diesem Computer" verwendet intern `127.0.0.1`; das Eingabefeld für den Host
-bleibt verborgen. „Auf einem anderen Computer" blendet ein Feld für **IPv4-Adresse
-oder Hostname** ein, zum Beispiel `192.168.95.20` oder `WINLAUFEN-PC` — keine URL
-mit `http://`. TCP 4444 ist fest und nicht konfigurierbar.
-
-### Live-Ergebnisse im Browser
-
-Im All-in-One-Betrieb erscheint die lokale Ansicht nicht mehr als technisches
-Ausgabeziel, sondern unter diesem Namen samt Verbindungszustand und den
-Browseradressen. Die internen Werte des eingebauten lokalen Ziels — Target-ID,
-Typ `LOCAL`, Endpoint, Channel und Secret — sind dort verborgen und nicht
-bearbeitbar, damit die lokale Ansicht nicht versehentlich abgeschaltet wird.
-
-Intern bleibt diese Ansicht ein ganz normales Output Target; die technische
-Sicht steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-### Weitere Übertragung
-
-Zusätzliche externe Live Server werden unter **Weitere Übertragung** über
-**Weiteren Live-Server verbinden** angelegt. Im Normalfall genügt dort die
-**IP-Adresse** des Live Servers. Daraus werden Endpoint
-(`ws://<IP>:44441/bridge/v1/channels/local`), Channel (`local`) und eine
-deterministische Target-ID (`selfhost-<adresse>-<channel>`) gebildet; ein noch
-nicht gesetzter Verbindungsschlüssel fällt auf den dokumentierten
-Prototyp-Standardwert zurück, den auch der Installer schreibt. Ein Hostname
-statt einer IP-Adresse wird verschlüsselt über `wss://` verbunden.
-
-Alle technischen Werte — ID, Typ, Endpoint, Channel, Verbindungsschlüssel —
-bleiben unter **Erweiterte Einstellungen** sichtbar und bearbeitbar. Wer sie von
-Hand ändert, behält sie: die Ableitung überschreibt eine manuell gepflegte
-Konfiguration nicht.
-
-Unverschlüsselte Ziele und der bekannte Standard-Verbindungsschlüssel werden am
-Target dauerhaft als Warnung angezeigt und zusätzlich ins Bridge-Log
-geschrieben. Ein komfortables Pairing über einen kurzen Verbindungscode ist für
-`RICHTER_PROJECTS` weiterhin **nicht implementiert**.
+Danach Bridge Control unter `http://localhost:44442/` öffnen und die
+Live-Ergebnisse unter `http://localhost:44440/`.
 
 ## Installationsprofile
 
 Bei der Installation wird genau eine Sache ausgewählt: die Rolle des Rechners.
-Adressen, Ziele und TLS gehören ausschließlich in die spätere Konfiguration über
-Bridge Control. Ein Rechner kann deshalb Tage vor der Veranstaltung vollständig
-installiert werden.
+Adressen, Ziele und TLS gehören ausschließlich in die spätere Konfiguration
+über Bridge Control.
 
 | Profil | Installiert | Linux | Windows 11 |
 |---|---|---|---|
@@ -269,31 +153,63 @@ installiert werden.
 | Bridge only | nur Bridge | `--profile bridge-only` | `-Profile BridgeOnly` |
 | Presentation Node | nur Live Server | `--profile presentation-node` | nicht unterstützt |
 
-Presentation Node auf Windows ist bewusst nicht implementiert; dafür Linux
-verwenden. Unterstützt sind Debian, Ubuntu 24.04/26.04 und Raspberry Pi OS für
-alle drei Profile sowie Windows 11 für All-in-One und Bridge only.
+Unterstützt sind Debian, Ubuntu 24.04/26.04 und Raspberry Pi OS für alle drei
+Profile sowie Windows 11 für All-in-One und Bridge only.
 
-Nicht erreichbare Quellen und Output Targets verhindern die Installation nicht.
-Der Installer prüft die lokale Installation — eigene Dienste, eigene Listener,
-lokale HTTP-Endpunkte — und meldet erst danach den Verbindungszustand als
-Betriebsdiagnose. Fehler der lokalen Installation bleiben harte
-Installationsfehler.
+## Die angezeigte Wettkampfzeit
+
+Die im Browser angezeigte Zeit ist die **Wettkampfzeit aus WinLaufen** — nicht
+die Uhrzeit des WinLaufen-PCs, der Bridge, des Live Servers oder des Browsers.
+Sprecher-Web reicht diesen Wert unverändert weiter und erzeugt keine eigene
+laufende Uhr. Bleiben WinLaufen-Zeittelegramme aus, bleibt der zuletzt
+gelieferte Wert stehen; er wird nie künstlich weitergezählt.
+
+Damit ist die laufende Wettkampfzeit für den Sprecher ein sichtbares
+Lebenszeichen der gesamten Kette vom WinLaufen-PC bis zur Anzeige. Erklärung
+für Bediener: [Bedienerhandbuch, Kapitel 9](docs/BEDIENERHANDBUCH.md#9-die-angezeigte-wettkampfzeit).
+
+## Dokumentation
+
+**Für Veranstalter und Bediener**
+
+| Dokument | Inhalt |
+|---|---|
+| [docs/BEDIENERHANDBUCH.md](docs/BEDIENERHANDBUCH.md) | **Start hier.** Installation, Einrichtung, Betrieb am Wettkampftag, Statusanzeigen, Störungshilfe |
+| [docs/QUICKSTART_CLOUD.md](docs/QUICKSTART_CLOUD.md) | temporärer Live-Server auf einer Cloud-VM, Schritt für Schritt |
+
+**Technische Dokumentation**
+
+| Dokument | Inhalt |
+|---|---|
+| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Installationsreferenz: Profile, Plattformen, Pfade, Dienste, Firewall, Deinstallation |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Build, Entwicklungsbetrieb, Konfigurationsorte, Transportregel |
+| [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) | manuelle Abnahmetests und protokollierte reale Nachweise |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | technischer IST-Stand der modularen Architektur |
+| [docs/MODULAR_ARCHITECTURE.md](docs/MODULAR_ARCHITECTURE.md) | vollständige verbindliche Architekturentscheidungen |
+| [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) | Produktspezifikation |
+| [docs/WINLAUFEN_PROTOCOL.md](docs/WINLAUFEN_PROTOCOL.md) | WinLaufen-Protokoll und reale Evidenz |
+| [docs/RELEASE.md](docs/RELEASE.md) | tag-basierter Release-Ablauf für Maintainer |
 
 ## Projektstatus
 
-Entwicklungsversion `0.2.0-SNAPSHOT`. Kein Tag, kein Release, keine
+Entwicklungsversion `0.3.0-SNAPSHOT`. Kein Tag, kein Release, keine
 Releasefreigabe.
 
 ### Real bestätigt
 
-- Windows-11-All-in-One-Installation aus dem Source Checkout
-- reale WinLaufen-Kopplung über die Sprecher-PC-Schnittstelle
-- Bridge und Live Server laufen dauerhaft als geplante Aufgaben
-- Live-Ergebnisse lokal und aus dem LAN im Browser
-- Bridge Control lokal und aus dem LAN
-- lokale WebSocket-Übertragung Bridge → Live Server
-- automatischer Reconnect zur WinLaufen-Quelle
-- Windows-Firewallregeln für Private und Domain, keine Public-Freigabe
+- Windows-11-All-in-One-Installation und -Upgrade aus dem Source Checkout
+- reale WinLaufen-Kopplung; Verbinden und Trennen der Sprecher-PC-Schnittstelle
+  wird korrekt erkannt
+- Bridge und Live Server laufen dauerhaft als Dienst bzw. geplante Aufgabe
+- Live-Ergebnisse und Bridge Control lokal und aus dem LAN
+- Presentation Node auf einem Cloud-Server mit öffentlicher IPv4
+- Live Server stop/start sowie kompletter Reboot des Presentation Node
+- automatischer Browser-Reconnect ohne manuellen Reload
+- Browser-Verbindung und WinLaufen-Quellenlage werden getrennt angezeigt
+- Wettkampfzeit bleibt bei Ausfällen stehen und zeigt nach dem Reconnect exakt
+  den neu gelieferten WinLaufen-Wert
+- Bridge stop/start; der letzte Ergebnisstand bleibt auf dem Presentation Node
+  erhalten, bis WinLaufen einen neuen Klassensnapshot liefert
 
 Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
 
@@ -301,11 +217,18 @@ Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
 
 - endgültiges Windows-x64-Releasepaket mit gebündelter Runtime
 - echte Fresh Installation ohne Git, Maven und JDK
-- reale Linux-Endabnahme
 - Linux-Releasepakete für AMD64 und ARM64
 - vollständige Reboot-, Reinstall- und Profilwechsel-Abnahmen
 - Richter-Projects-Pairing
 - bekannte P2-/P3-Punkte aus den Reviews
+
+### Bekannte technische Punkte für den nächsten Arbeitsblock
+
+| Punkt | Auswirkung heute |
+|---|---|
+| Der `WinLaufenClient`-Test belegt lokal TCP 4444. | `./mvnw clean package` kann auf einem Rechner scheitern, auf dem WinLaufen mit aktiver Sprecher-PC-Verbindung läuft. Vor dem Bauen dort **Trennen** wählen. |
+| Windows PowerShell 5.1 stellt Umlaute in Installerausgaben teils falsch dar (`FÃ¼r`, `lÃ¤uft`). | Nur die Anzeige ist betroffen; Installation und Konfiguration sind korrekt. |
+| Ob Installation und Upgrade auch bei laufender und verbundener Sprecher-PC-Schnittstelle zuverlässig funktionieren, ist noch nicht geprüft. | Bis dahin gilt verbindlich: vorher **Trennen**, danach **Verbinden**. |
 
 ## Known prototype security limitation
 
@@ -370,12 +293,15 @@ Grenzen:
   Portweiterleitung zur Bridge im Vereinsnetz.
 - Die Bridge im Vereinsnetz bleibt unverändert unerreichbar von außen; sie
   verbindet ausgehend.
-- Die Übertragung ist **unverschlüsselt**. Ergebnisse sind öffentlich, das
-  Mitlesen ist deshalb hinnehmbar — mitgelesen wird aber auch der
-  Verbindungsschlüssel.
-- Das reale Risiko ist **Fälschung**: wer 44441 erreicht und den Schlüssel
-  kennt, kann den kompletten veröffentlichten Stand ersetzen (siehe oben). Mit
-  dem bekannten Standardschlüssel genügt dafür die Kenntnis der IP-Adresse.
+- Die Übertragung ist **unverschlüsselt**. Mitgelesen werden können deshalb
+  sowohl die übertragenen Daten als auch der **Verbindungsschlüssel**.
+- Wer den Verbindungsschlüssel kennt oder mitliest und 44441 erreicht, kann
+  unerwünschte Daten einspeisen und damit den kompletten veröffentlichten Stand
+  ersetzen (siehe oben). Solange der bekannte Standardschlüssel aktiv ist,
+  genügt dafür die Kenntnis der IP-Adresse.
+- Für einen temporären Selfhost-/Testserver ist dieser bewusst einfache Betrieb
+  vertretbar. Für einen dauerhaften oder zentral betriebenen Dienst ist
+  verschlüsselte Übertragung vorgesehen (siehe Punkt 3).
 - Deshalb: nur für die Dauer der Veranstaltung betreiben, danach die VM
   **abschalten oder löschen**, und wo möglich `winlaufen.live.secret` auf dem
   Node und den Verbindungsschlüssel des Targets in Bridge Control auf einen
@@ -391,14 +317,6 @@ Target** erforderlich. Das ist bewusst nicht Teil dieser Prototype Baseline und
 bleibt ein offenes Production-Hardening-Thema.
 
 Der Live Server weist beim Start ausdrücklich auf das aktive Default-Secret hin.
-
-## Unterstützte Funktion
-
-Verifiziert sind Lauf und Biathlon. Tabellenheader, Zeilen, Indizes, Clock,
-Current Finish, Schießen und Nachrichten werden ohne fachliche Korrektur
-transportiert. Die Live-Ergebnisse bieten Startlisten-Platzhalter, LIVE und
-Ergebnisse. WinSpringen, ein erfundenes Startlistenprotokoll, Datenbank und
-Broker bleiben ausdrücklich außerhalb von v0.1.
 
 ## Technische Namen
 
@@ -419,20 +337,6 @@ funktionieren:
 - systemd-Units `winlaufen-bridge.service`, `winlaufen-live-server.service`
 - geplante Aufgaben `WinLaufen Web Bridge`, `WinLaufen Web Live Server`
 - Firewall-Regel-IDs `WinLaufenWeb-*`
-
-## Dokumentation
-
-| Dokument | Inhalt |
-|---|---|
-| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Installationsprofile, Linux, Windows, Dienste, Deinstallation |
-| [docs/QUICKSTART_CLOUD.md](docs/QUICKSTART_CLOUD.md) | Kurzanleitung: temporärer Live-Server auf einer Cloud-VM |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Build, Entwicklungsbetrieb, Konfigurationsorte, Transportregel |
-| [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) | manuelle Abnahmetests und protokollierte reale Nachweise |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | technischer IST-Stand der modularen Architektur |
-| [docs/MODULAR_ARCHITECTURE.md](docs/MODULAR_ARCHITECTURE.md) | vollständige verbindliche Architekturentscheidungen |
-| [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) | Produktspezifikation |
-| [docs/WINLAUFEN_PROTOCOL.md](docs/WINLAUFEN_PROTOCOL.md) | WinLaufen-Protokoll und reale Evidenz |
-| [docs/RELEASE.md](docs/RELEASE.md) | tag-basierter Release-Ablauf für Maintainer |
 
 ## Lizenz
 

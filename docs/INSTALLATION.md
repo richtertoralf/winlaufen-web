@@ -1,7 +1,11 @@
 # Sprecher-Web — Installation
 
-Dieses Dokument beschreibt die rollenbasierte Installation für Linux und
-Windows 11.
+Dieses Dokument ist die **technische Installationsreferenz** für Linux und
+Windows 11: Profile, Plattformen, Pfade, Dienste, Firewall und Deinstallation.
+
+> Wer Sprecher-Web als Veranstalter installieren und betreiben möchte, findet
+> die durchgehende Schritt-für-Schritt-Anleitung im
+> **[Bedienerhandbuch](BEDIENERHANDBUCH.md)**.
 
 Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
 Es nutzt deren Sprecher-PC-Schnittstelle auf TCP 4444 und stellt die gelieferten
@@ -211,6 +215,11 @@ bewusst nicht versucht.
 sudo ./installer/linux/install.sh
 ```
 
+Läuft auf dem Zielrechner bereits WinLaufen mit aktiver
+Sprecher-PC-Verbindung, diese vor Installation und Upgrade eines Profils mit
+Bridge trennen (**Abwicklung → Sprecher-PC… → Trennen**) und danach wieder
+verbinden. Für einen Presentation Node entfällt das.
+
 Der Installer fragt das Profil ab und installiert dann ohne weitere Rückfragen.
 Nicht-interaktiv:
 
@@ -336,6 +345,29 @@ Ohne diese Rechte bricht der Installer vor Änderungen mit einem entsprechenden
 Hinweis ab. Er prüft die profilabhängigen Listenerports und wählt bei Konflikten
 keinen Ersatzport.
 
+**Skriptausführung.** Windows blockiert PowerShell-Skripte standardmäßig; der
+Installer scheitert dann mit `PSSecurityException` („Die Ausführung von Skripts
+ist auf diesem System deaktiviert"). Für das aktuelle Fenster freigeben:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\installer\windows\Install-WinLaufenWeb.ps1
+```
+
+`-Scope Process` gilt nur für dieses PowerShell-Fenster und ändert keine
+systemweite Richtlinie. Alternativ als einmaliger Aufruf:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\installer\windows\Install-WinLaufenWeb.ps1"
+```
+
+**Vor Installation und Upgrade eines Profils mit Bridge** (All-in-One, Bridge
+only) muss in WinLaufen die Sprecher-PC-Verbindung getrennt werden:
+**Abwicklung → Sprecher-PC… → Trennen**. WinLaufen selbst muss nicht beendet
+werden. Nach der Installation wieder **Verbinden**. Für einen Presentation Node
+entfällt dieser Schritt. Ob ein Upgrade auch bei aktiver Verbindung zuverlässig
+funktioniert, ist noch nicht geprüft; bis dahin gilt dieser Ablauf verbindlich.
+
 Nach erfolgreicher lokaler Validierung synchronisiert der Installer die
 Windows-Firewallregeln und gibt anschließend die nicht blockierende
 Betriebsdiagnose für WinLaufen und Output Targets aus. Deren Verbindungszustand
@@ -454,58 +486,25 @@ Gäste-WLAN, hinter eine unkontrollierte Portweiterleitung oder direkt ins
 öffentliche Internet. Die Control-API gibt Target-Secrets nicht aus; das ersetzt
 keine Netzgrenze für den Administrationszugriff.
 
-## 9. WinLaufen verbinden
+## 9. Nach der Installation
 
-Die Bridge kann die Sprecher-PC-Schnittstelle **nicht selbst aktivieren**. Sie
-muss in WinLaufen freigegeben werden:
+Der vollständige Bedienablauf — WinLaufen verbinden, Bridge Control einrichten,
+Browseradressen, Statusanzeigen, Verhalten bei Ausfällen — steht im
+[Bedienerhandbuch](BEDIENERHANDBUCH.md). Kurz zusammengefasst:
 
-1. WinLaufen starten
-2. Wettkampf öffnen
-3. in WinLaufen: **Abwicklung → Sprecher-PC… → Verbinden**
-4. erst jetzt stellt WinLaufen die Schnittstelle auf TCP 4444 bereit
-5. die Bridge verbindet sich automatisch dorthin
-6. Bridge Control wechselt auf **Verbunden**
-7. die Ergebnisse werden an den Live Server übertragen
-8. Browser zeigen die Live-Ergebnisse
+1. In WinLaufen **Abwicklung → Sprecher-PC… → Verbinden** wählen. Erst dann
+   stellt WinLaufen die Schnittstelle auf TCP 4444 bereit; die Bridge verbindet
+   sich von selbst dorthin. Solange das fehlt, meldet Bridge Control **Nicht
+   verbunden** — ein erwarteter Betriebszustand, kein Installationsfehler.
+2. Bridge Control unter `http://<bridge-ip>:44442/` öffnen und, falls WinLaufen
+   auf einem anderen Rechner läuft, dessen Adresse eintragen.
+3. Live-Ergebnisse unter `http://<live-server-ip>:44440/` prüfen.
 
-Solange Schritt 3 nicht erfolgt ist, meldet Bridge Control **Nicht verbunden**.
-Das ist ein erwarteter Betriebszustand und kein Installationsfehler; die
-Installation gilt trotzdem als erfolgreich.
+Für einen zusätzlichen Live-Server im Internet siehe
+[QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md).
 
-## 10. Bridge Control nach der Installation
+## 10. Installationsstatus
 
-Bridge Control fragt nur nach dem, was wirklich entschieden werden muss.
-
-**WinLaufen.** Die Auswahl lautet „Auf diesem Computer" oder „Auf einem anderen
-Computer". Die erste Variante verwendet intern `127.0.0.1` und blendet das
-Host-Feld aus. Die zweite blendet ein Feld für IPv4-Adresse oder Hostname ein,
-zum Beispiel `192.168.95.20` oder `WINLAUFEN-PC` — keine URL mit `http://`.
-TCP 4444 ist fest und nicht konfigurierbar.
-
-**Live-Ergebnisse im Browser.** Im All-in-One-Betrieb erscheint die lokale
-Ansicht unter diesem Namen mit ihrem Verbindungszustand und den Browseradressen.
-Target-ID, Typ, Endpoint, Channel und Secret des eingebauten lokalen Ziels sind
-dort verborgen und nicht bearbeitbar, damit die Ansicht nicht versehentlich
-abgeschaltet wird. Intern bleibt sie ein normales Output Target; siehe
-[ARCHITECTURE.md](ARCHITECTURE.md).
-
-**Weitere Übertragung.** Zusätzliche externe Live Server werden über „Weiteren
-Live-Server verbinden" angelegt. Die Typen `SELFHOST` und `RICHTER_PROJECTS`
-existieren technisch; ihre Konfiguration ist noch technisch, Endpoint, Channel
-und Secret werden von Hand eingetragen. Ein Pairing über einen kurzen
-Verbindungscode ist **nicht implementiert**.
-
-## 11. Installationsstatus
-
-Real bestätigt ist die Windows-11-All-in-One-Installation aus dem Source
-Checkout mit realer WinLaufen-Kopplung, dauerhaft laufenden geplanten Aufgaben,
-Live-Ergebnissen und Bridge Control lokal wie aus dem LAN sowie Firewallregeln
-für Private und Domain ohne Public-Freigabe. Der Nachweis ist in
-[SMOKE_TESTS.md](SMOKE_TESTS.md) protokolliert.
-
-Noch nicht abgenommen sind das endgültige Windows-x64-Releasepaket mit
-gebündelter Runtime, eine echte Fresh Installation ohne Git, Maven und JDK, die
-reale Linux-Endabnahme, die Linux-Releasepakete für AMD64 und ARM64 sowie die
-vollständigen Reboot-, Reinstall- und Profilwechsel-Abnahmen.
-
-Die manuellen Abnahmetests stehen in [SMOKE_TESTS.md](SMOKE_TESTS.md).
+Der aktuelle Abnahmestand steht in der [README](../README.md#projektstatus);
+die manuellen Abnahmetests und ihre protokollierten Nachweise in
+[SMOKE_TESTS.md](SMOKE_TESTS.md).

@@ -8,9 +8,11 @@ Ergebnisse von überall auf.
 Eine eigene Domain ist dafür **nicht** nötig. Es genügt die öffentliche
 IPv4-Adresse des gemieteten Servers.
 
-Vorher lesen: der Abschnitt „Verbindliche Einsatzgrenzen dieser
-Prototypversion" in [../README.md](../README.md). Die Übertragung ist in diesem
-einfachen Betrieb unverschlüsselt.
+Vorher lesen: [Verbindliche Einsatzgrenzen dieser Prototypversion](../README.md#known-prototype-security-limitation).
+Die Übertragung ist in diesem einfachen Betrieb unverschlüsselt.
+
+Diese Anleitung ergänzt das [Bedienerhandbuch](BEDIENERHANDBUCH.md); die
+Installation im Vereinsnetz und die Bedienung von Bridge Control stehen dort.
 
 ## Was wo läuft
 
@@ -62,6 +64,7 @@ In der Firewall Ihres Cloud-Anbieters eingehend freigeben:
 |---|---|
 | TCP 44440 | Live-Ergebnisse im Browser |
 | TCP 44441 | Verbindung Ihrer Bridge zum Server |
+| TCP 22 | nur, soweit Sie SSH zur Administration brauchen |
 
 **TCP 44442 wird nicht freigegeben.** Das ist Bridge Control; es hat keine
 Anmeldung und läuft ohnehin nur auf Ihrem eigenen Rechner im Vereinsnetz.
@@ -100,14 +103,20 @@ gebraucht wurde. Das beendet die Kosten und den offenen Zugang zugleich.
 
 Die Verbindung zwischen Ihrer Bridge und dem Cloud-Server ist in diesem
 einfachen Betrieb **unverschlüsselt**, und der Verbindungsschlüssel ist ein
-öffentlich bekannter Standardwert. Die angezeigten Ergebnisse sind ohnehin
-öffentlich; das Mitlesen ist deshalb unkritisch.
+öffentlich bekannter Standardwert.
 
-Wichtiger ist: Wer die IP-Adresse Ihres Servers kennt, kann Port 44441
-erreichen und dort **gefälschte Ergebnisse einspielen**. Sie sähen dann für alle
-Zuschauer echt aus. Für einen temporären Server an einem Wettkampftag ist dieses
-Risiko überschaubar — für Dauerbetrieb ist dieser einfache Weg nicht gedacht.
-Dafür sind eine Domain, `wss://` mit Zertifikat und ein eigener
+Daraus folgt zweierlei:
+
+* Auf dem Weg können sowohl die **übertragenen Daten** als auch der
+  **Verbindungsschlüssel** mitgelesen werden.
+* Wer den Verbindungsschlüssel kennt oder mitliest und Port 44441 erreicht, kann
+  unter Umständen **unerwünschte Daten einspeisen** — eingespielte Ergebnisse
+  sähen für alle Zuschauer echt aus.
+
+Für einen temporären Selfhost- oder Testserver, der nur für die Dauer einer
+Veranstaltung läuft, ist dieser bewusst einfache Betrieb vertretbar. Für einen
+dauerhaften oder zentral betriebenen Dienst ist verschlüsselte Übertragung
+vorgesehen; dafür sind eine Domain, `wss://` mit Zertifikat und ein eigener
 Verbindungsschlüssel erforderlich.
 
 Wenn Sie das Risiko verringern möchten, setzen Sie auf dem Cloud-Server in
@@ -122,7 +131,7 @@ Bridge Control unter **Erweiterte Einstellungen** als Verbindungsschlüssel ein.
 | Web View nicht erreichbar | TCP 44440 in der Firewall des Anbieters nicht freigegeben |
 | Ziel bleibt „Nicht erreichbar" | TCP 44441 in der Firewall des Anbieters nicht freigegeben |
 | Ziel lässt sich nicht speichern | Adresse mit `http://` oder Port eingetragen — nur die IP-Adresse eintragen |
-| Seite bleibt leer | Die Bridge hat noch keine Verbindung zu WinLaufen; siehe README.md, „WinLaufen verbinden" |
+| Seite bleibt leer | Die Bridge hat noch keine Verbindung zu WinLaufen; siehe [Bedienerhandbuch, Kapitel 6](BEDIENERHANDBUCH.md#6-winlaufen-verbinden) |
 
-Weitere Hilfe: [INSTALLATION.md](INSTALLATION.md) und
-[DEVELOPMENT.md](DEVELOPMENT.md).
+Weitere Hilfe: [BEDIENERHANDBUCH.md](BEDIENERHANDBUCH.md),
+[INSTALLATION.md](INSTALLATION.md) und [DEVELOPMENT.md](DEVELOPMENT.md).

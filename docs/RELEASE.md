@@ -1,6 +1,6 @@
 # Sprecher-Web — Release-Prozess
 
-Aktuelle Entwicklungsversion: `0.2.0-SNAPSHOT`. Es gibt noch keinen Tag, kein
+Aktuelle Entwicklungsversion: `0.3.0-SNAPSHOT`. Es gibt noch keinen Tag, kein
 Release und keine Releasefreigabe.
 
 Ein Release wird ausschließlich aus einem Git-Tag im Format `vX.Y.Z` gebaut.

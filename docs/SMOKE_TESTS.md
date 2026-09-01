@@ -104,6 +104,45 @@ Beispiel aus dieser Umgebung und kein Vorgabewert.
 Damit ist der Windows-AllInOne-Pfad von WinLaufen bis in den Browser eines
 anderen Geräts im LAN praktisch bestätigt.
 
+### Protokoll: Public-IPv4-Presentation-Node und Ausfallverhalten, 01.09.2026
+
+Realer Test des Meilensteins `a3ba398` auf Branch `feat/public-ip-selfhost`.
+Ebenfalls ein Developer-/Source-Test, keine Endanwender-Fresh-Install-Abnahme.
+
+Umgebung:
+
+```text
+<winlaufen-pc>            Windows 11, WinLaufen mit Sprecher-PC-Schnittstelle
+<bridge-host>             Linux, Profil All-in-One, im selben LAN
+<presentation-node>       Ubuntu 24.04 Cloud-VM, oeffentliche IPv4, Profil [3]
+<browser>                 Zuschauergeraet ausserhalb des Veranstaltungsnetzes
+```
+
+Die tatsächlich verwendeten Adressen sind bewusst nicht protokolliert: Die
+gemietete öffentliche IPv4 gehört nach der Rückgabe einem anderen Server und
+wäre als dauerhafte Angabe in der Projektdokumentation irreführend.
+
+Real bestätigt:
+
+| # | Nachweis |
+|---|---|
+| 1 | Windows-All-in-One-Installation und -Upgrade aus dem Source Checkout |
+| 2 | Verbinden und Trennen der Sprecher-PC-Schnittstelle wird korrekt erkannt |
+| 3 | Presentation Node mit öffentlicher IPv4 installiert; Web View und Ingest erreichbar |
+| 4 | SELFHOST-Target in Bridge Control allein über die IP-Adresse angelegt |
+| 5 | Live Server stop/start: Browser meldet den Ausfall und verbindet ohne Reload neu |
+| 6 | kompletter Reboot des Presentation Node: gleiches Verhalten, Erkennung über das ausbleibende Lebenszeichen |
+| 7 | Browser-Verbindung und WinLaufen-Quellenlage werden getrennt angezeigt |
+| 8 | Wettkampfzeit bleibt bei jedem Ausfall stehen und wird nie lokal weitergezählt |
+| 9 | nach dem Reconnect erscheint exakt der neu von WinLaufen gelieferte Zeitwert |
+| 10 | Bridge stop/start: Quelle wird `DISCONNECTED`, der letzte Ergebnisstand bleibt sichtbar |
+| 11 | nach dem Bridge-Neustart bleiben die bisherigen Ergebnisse sichtbar, bis WinLaufen einen neuen Klassensnapshot liefert |
+
+Offen aus diesem Testlauf, siehe README, Abschnitt „Bekannte technische Punkte
+für den nächsten Arbeitsblock": belegter TCP-Port 4444 im `WinLaufenClient`-Test,
+Umlautdarstellung des Installers unter Windows PowerShell 5.1 und die Frage, ob
+ein Upgrade bei aktiver Sprecher-PC-Verbindung zuverlässig funktioniert.
+
 ### Windows-Reinstall, Legacy-Migration und Fehlerfall (manuell offen)
 
 Diese Prüfung muss auf einem echten Windows-11-System mit Windows PowerShell
