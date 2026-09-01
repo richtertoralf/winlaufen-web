@@ -127,13 +127,15 @@ Set-Location winlaufen-web
 .\mvnw.cmd clean package
 ```
 
-Den Installer anschließend in einer **PowerShell mit Administratorrechten**
-starten. Windows blockiert Skripte standardmäßig; für dieses eine Fenster:
+Den **Installer** anschließend in einer **PowerShell mit Administratorrechten**
+starten. Windows blockiert Skripte standardmäßig; deswegen das Folgende mit ausführen:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\installer\windows\Install-WinLaufenWeb.ps1
 ```
+***Zweck: Der Befehl `Set-ExecutionPolicy...` erlaubt das Ausführen von PowerShell-Skripten, die normalerweise durch Sicherheitsbeschränkungen blockiert würden.Temporär: Die Änderung gilt nur für das aktuelle PowerShell-Fenster. Sobald das Fenster geschlossen wird, ist die Sperre wieder aktiv.***
+
 
 > **Vor Installation und Upgrade** eines Profils mit Bridge (All-in-One,
 > Bridge only) in WinLaufen **Abwicklung → Sprecher-PC… → Trennen** wählen und
