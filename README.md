@@ -1,11 +1,10 @@
 # Sprecher-Web
 
 Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
-Das Projekt nutzt die von WinLaufen bereitgestellte **Sprecher-PC-Schnittstelle**
+Das Projekt "Sprecher-Web" nutzt die von WinLaufen bereitgestellte **Sprecher-PC-Schnittstelle**
 und stellt die dort gelieferten Live-Ergebnisdaten **zusätzlich zum "Sprecher-PC" 
-webbasiert** bereit. **WinLaufen (http://www.winlaufen.de/)** selbst ist eine Windows-Anwendung und läuft unabhängig
-von dieser Anwendung; im Browser erscheinen nur die Ergebnisse, die WinLaufen über
-diese Schnittstelle veröffentlicht.
+webbasiert** bereit. **WinLaufen (http://www.winlaufen.de/)** ist eine Windows-Anwendung und läuft unabhängig
+von dieser Anwendung.
 
 ```text
 WinLaufen
@@ -19,6 +18,8 @@ Live Server
    v
 Browser
 ```
+
+
 
 Die beiden sichtbaren Oberflächen heißen:
 
