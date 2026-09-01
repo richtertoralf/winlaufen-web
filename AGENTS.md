@@ -71,6 +71,13 @@ Before changing protocol handling, read `docs/WINLAUFEN_PROTOCOL.md`.
 - Class snapshots are complete and authoritative for that class, not
   incremental single-athlete events; existing rows may change in later
   snapshots.
+- `CanonicalState.competition == null` means "not yet received from the
+  source", never "the source reports nothing"; an authoritative empty
+  standing is a real `Competition` whose classes carry no rows. A component
+  holding a last known copy (the live server) keeps its competition while a
+  snapshot carries none, so a restarted bridge — which knows clock and
+  health long before WinLaufen resends a class snapshot — never clears a
+  presentation node. Do not replace this with an `isEmpty()` rule.
 - The WinLaufen clock is the competition time, it is authoritative, and its
   arrival is also the connection heartbeat. Never replace it with local
   system time, and never validate, correct or plausibilize its progression.

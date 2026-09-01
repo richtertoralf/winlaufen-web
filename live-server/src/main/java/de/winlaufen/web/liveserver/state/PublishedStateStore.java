@@ -64,6 +64,29 @@ public final class PublishedStateStore {
         listeners.forEach(listener -> listener.accept(next));
     }
 
+    /**
+     * Keeps the last known competition while the source has not supplied one yet.
+     *
+     * <p>A restarted bridge starts with an empty canonical state and reports source health and
+     * competition time again long before WinLaufen resends a class snapshot — WinLaufen sends
+     * those only when something changes. Adopting that snapshot wholesale would erase the results
+     * a speaker is currently reading, for as long as the next athlete takes to finish.
+     *
+     * <p>The distinction is the one the bridge model already makes and is not a guess about empty
+     * lists: {@code competition == null} means "never received from WinLaufen" — no bridge code
+     * path ever sets it back to null once a class snapshot has arrived. An authoritative empty
+     * standing is a real {@code Competition} whose classes carry no rows, and that one replaces
+     * the stored copy like any other. The current-finish marker travels with the competition it
+     * points into, so the retained pair stays consistent.
+     */
+    private static CanonicalState merged(CanonicalState old, CanonicalState value) {
+        if (value.competition() != null || old.competition() == null) {
+            return value;
+        }
+        return new CanonicalState(value.sourceHealth(), value.clock(), old.competition(),
+                old.currentFinish(), value.message());
+    }
+
     /** @return {@code false} when the snapshot was rejected because its revision went backwards. */
     public synchronized boolean accept(SnapshotEnvelope value) {
         if (!channelId.equals(value.channelId())) {
@@ -78,7 +101,7 @@ public final class PublishedStateStore {
             return true;
         }
         PublishedState next = new PublishedState(old.publicationRevision() + 1, value.streamId(),
-                value.sourceRevision(), value.state(), value.presentation());
+                value.sourceRevision(), merged(old.state(), value.state()), value.presentation());
         state.set(next);
         listeners.forEach(listener -> listener.accept(next));
         return true;

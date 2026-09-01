@@ -150,6 +150,15 @@ Pfade:
 - Die WinLaufen-Wettkampfzeit ist ein reiner Durchreichewert. Keine Stufe
   dieser Kette erzeugt, korrigiert, zählt oder interpoliert sie; siehe
   `docs/WINLAUFEN_PROTOCOL.md`.
+- `competition == null` bedeutet **„von der Quelle noch nicht empfangen"**,
+  nicht „die Quelle meldet nichts". Ein autoritativ leerer Stand ist eine
+  echte `Competition` mit Klassen ohne Zeilen. Kein Bridge-Codepfad setzt
+  `competition` je wieder auf `null`, sobald ein Klassensnapshot vorlag.
+  Wer eine letzte bekannte Kopie hält — der Live Server — behält seinen
+  Wettkampfstand deshalb, solange ein eintreffender Snapshot keine
+  `competition` mitbringt, und ersetzt ihn bei jedem autoritativen Stand.
+  Die Current-Finish-Markierung wandert mit der Competition, in die sie
+  zeigt.
 - Live Server vergibt zusätzlich `publicationRevision` (monoton innerhalb
   der Prozesslaufzeit) — Fortführung der Browser-Revisionsgarantie.
 - Target-ACK referenziert `streamId`/`sourceRevision`; Browser sehen
@@ -448,7 +457,7 @@ Vier unabhängige Zustandsmaschinen sind verbindlich:
 | Cloud Live Server verschwindet | nur dieses Target retryt ausgehend; kein Portforwarding, kein lokaler globaler Stau |
 | Browser verschwindet | nur dessen WS-Verbindung endet; Live Server und Bridge bleiben unverändert |
 | Output kommt zurück | Authentifizierung, dann aktueller Vollsnapshot, ACK, danach neueste Revisionen |
-| Bridge kommt zurück | neue `streamId`; jedes Ziel erhält vollständigen State, sobald verfügbar |
+| Bridge kommt zurück | neue `streamId`; jedes Ziel erhält vollständigen State, sobald verfügbar. Die frisch gestartete Bridge kennt Uhr und Health vor den Klassendaten; der Live Server behält deshalb seinen letzten bekannten Wettkampfstand, bis WinLaufen wieder einen Klassensnapshot liefert |
 | Live Server startet neu | Published State zunächst leer; die weiter retryende Bridge liefert Vollsnapshot |
 
 ## 11. Security Boundary

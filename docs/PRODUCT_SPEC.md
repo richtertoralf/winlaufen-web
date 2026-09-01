@@ -501,6 +501,27 @@ aktuell zu sein. Die Streambindung wird dabei gelöst, damit der zurückkehrende
 Bridge-Resync auch dann wieder angenommen wird, wenn er dieselbe
 `sourceRevision` erneut sendet.
 
+### Letzter bekannter Wettkampfstand
+
+Eine neu gestartete Bridge kennt Quellenlage und Wettkampfzeit wieder, lange
+bevor WinLaufen den nächsten Klassensnapshot sendet — WinLaufen sendet ihn nur
+bei Änderungen, also erst beim nächsten Zieleinlauf. Der Live Server behält
+deshalb seinen letzten bekannten Wettkampfstand, solange ein eintreffender
+Snapshot keine `competition` mitbringt.
+
+Die Unterscheidung ist keine Vermutung über leere Listen, sondern der bereits
+im Modell vorhandene Unterschied:
+
+| Wert | Bedeutung |
+|---|---|
+| `competition == null` | von WinLaufen noch nicht empfangen — der letzte bekannte Stand bleibt stehen |
+| `Competition` mit Klassen ohne Zeilen | autoritativ leerer Stand — ersetzt den gespeicherten Stand wie jeder andere |
+
+Damit gilt für einen Bridge-Neustart: `DISCONNECTED` mit stehender Zeit und
+sichtbaren Ergebnissen, danach wieder `CONNECTED` mit neuer Wettkampfzeit und
+weiterhin sichtbaren Ergebnissen, und erst der nächste autoritative Stand aus
+WinLaufen ersetzt die Tabelle.
+
 ### Wettkampfzeit
 
 Die angezeigte Zeit ist die **Wettkampfzeit aus WinLaufen**, kein Uhrzeitwert

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.net.ServerSocket;
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -239,6 +240,46 @@ class LiveWebSocketServerTest {
         browser.closeBlocking();
     }
 
+    /** The whole restart sequence as a browser sees it, over real WebSocket connections. */
+    @Test
+    void anOpenBrowserKeepsItsResultsWhileTheBridgeRestarts() throws Exception {
+        Collector browser = connectBrowser();
+        assertNotNull(browser.next());
+
+        Collector ingest = connectIngest();
+        ingest.send(ContractJson.snapshot(PublishedStateStoreTest.results(
+                "stream-1", 7, "10:07:41", "Lauf", List.of("Meier", "Schulz"))));
+        assertTrue(ingest.next().contains("\"type\":\"ack\""));
+        assertEquals(2, rowCount(nextSnapshot(browser)));
+
+        ingest.closeBlocking();
+        JsonNode gone = nextSnapshot(browser);
+        assertEquals("DISCONNECTED", gone.get("state").get("health").asText());
+        assertEquals(2, rowCount(gone), "a vanished bridge never clears the table");
+        assertEquals("10:07:41", gone.get("state").get("clock").asText());
+
+        // Neu gestartete Bridge: neuer Stream, Uhr und Health, aber noch keine Klassendaten.
+        Collector restarted = connectIngest();
+        restarted.send(ContractJson.snapshot(
+                PublishedStateStoreTest.snapshot("stream-2", 0, "10:09:12")));
+        assertTrue(restarted.next().contains("\"type\":\"ack\""));
+
+        JsonNode back = nextSnapshot(browser);
+        assertEquals("CONNECTED", back.get("state").get("health").asText());
+        assertEquals("10:09:12", back.get("state").get("clock").asText(),
+                "the competition time is exactly the newly delivered one");
+        assertEquals(2, rowCount(back), "the results a speaker is reading stay on screen");
+
+        restarted.send(ContractJson.snapshot(PublishedStateStoreTest.results(
+                "stream-2", 1, "10:09:13", "Lauf", List.of("Meier", "Schulz", "Weber"))));
+        assertTrue(restarted.next().contains("\"type\":\"ack\""));
+        assertEquals(3, rowCount(nextSnapshot(browser)),
+                "the next authoritative standing replaces the table as usual");
+
+        browser.closeBlocking();
+        restarted.closeBlocking();
+    }
+
     @Test
     void cleanShutdownAllowsImmediateRebindOnTheSamePort() throws Exception {
         assertTrue(server.isReuseAddr());
@@ -254,6 +295,13 @@ class LiveWebSocketServerTest {
         Collector browser = connectBrowser();
         assertTrue(browser.next().contains("\"publicationRevision\":0"));
         browser.closeBlocking();
+    }
+
+    private static int rowCount(JsonNode message) {
+        JsonNode competition = message.get("state").get("competition");
+        assertFalse(competition.isNull(), "a competition is expected in this message");
+        JsonNode snapshot = competition.get("classes").get(0).get("snapshot");
+        return snapshot.isNull() ? 0 : snapshot.get("rows").size();
     }
 
     /** Skips the technical sign of life, which never carries competition state. */
