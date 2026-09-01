@@ -18,9 +18,9 @@ Live Server
 Browser
 ```
 
-<img src="WinLaufenSprecherWEB.png" alt="Sreenshot WinLaufen, Sprecher-PC, Srecher-Web, Bridge Control" width="100%">
+<img src="WinLaufenSprecherWEB.png" alt="Screenshot WinLaufen, Sprecher-PC, Srecher-Web, Bridge Control" width="100%">
 
-**Sreenshot: WinLaufen, Sprecher-PC, Sprecher-Web, Bridge Control**
+**Screenshot: WinLaufen, Sprecher-PC, Sprecher-Web, Bridge Control**
 
 Die beiden sichtbaren Oberflächen heißen:
 
