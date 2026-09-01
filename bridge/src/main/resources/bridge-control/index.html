@@ -39,8 +39,9 @@
     <p class="hint">Zusätzliche Live Server, an die dieselben Ergebnisse übertragen werden.</p>
     <div id="targets"></div>
     <button type="button" id="add">Weiteren Live-Server verbinden</button>
-    <p class="hint">Unverschlüsseltes <code>ws://</code> ist nur für <code>localhost</code> und
-    LAN-IP-Adressen zulässig. Andere Ziele benötigen <code>wss://</code>.</p>
+    <p class="hint">Im Normalfall genügt die IP-Adresse des Live-Servers. Bei einer IP-Adresse wird
+    unverschlüsselt übertragen; ein Hostname wird verschlüsselt über <code>wss://</code> verbunden.
+    Alle technischen Werte stehen unter Erweiterte Einstellungen.</p>
   </section>
   <section>
     <h2>Öffentliche Darstellung</h2>
@@ -71,17 +72,29 @@
 </template>
 <template id="target-template">
   <fieldset>
-    <label>ID<input data-name="id" required></label>
-    <label>Typ<select data-name="type">
-      <option>LOCAL</option>
-      <option>SELFHOST</option>
-      <option>RICHTER_PROJECTS</option>
-    </select></label>
+    <!-- Adresse ist reine Bedienhilfe: sie trägt kein data-name und geht deshalb nie in den POST.
+         Aus ihr werden Endpoint und ID abgeleitet, die weiterhin allein den Vertrag bilden. -->
+    <label>IP-Adresse des Live-Servers<input data-role="address" autocomplete="off" required>
+      <span class="hint">Zum Beispiel 2.28.36.128 oder 192.168.95.30 — ohne http:// und ohne Port.
+      Ein Hostname wird verschlüsselt über wss:// verbunden.</span></label>
     <label><input type="checkbox" data-name="enabled"> aktiviert</label>
-    <label>Endpoint<input data-name="endpoint" required></label>
-    <label>Channel<input data-name="channelId" required></label>
-    <label>Neues Secret (leer = beibehalten)<input type="password" data-name="secret" autocomplete="new-password"></label>
+    <p class="target-warning warn" data-role="transportWarning" hidden></p>
+    <p class="target-warning warn" data-role="secretWarning" hidden></p>
+    <p class="hint" data-role="manual-hint" hidden>Endpoint und ID werden von Hand gepflegt und
+    nicht mehr aus der Adresse abgeleitet.</p>
     <output></output>
+    <details data-role="advanced">
+      <summary>Erweiterte Einstellungen</summary>
+      <label>ID<input data-name="id" required></label>
+      <label>Typ<select data-name="type">
+        <option>LOCAL</option>
+        <option>SELFHOST</option>
+        <option>RICHTER_PROJECTS</option>
+      </select></label>
+      <label>Endpoint<input data-name="endpoint" required></label>
+      <label>Channel<input data-name="channelId" required></label>
+      <label>Neuer Verbindungsschlüssel (leer = beibehalten)<input type="password" data-name="secret" autocomplete="new-password"></label>
+    </details>
     <button type="button" class="remove">Entfernen</button>
   </fieldset>
 </template>

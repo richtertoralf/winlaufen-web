@@ -123,10 +123,28 @@ public final class BridgeControlServer implements AutoCloseable {
                         on(form, "showPublicMessages")));
         store.save(next);
         changed.accept(next);
+        logWarnings(next);
         json(exchange, 200, BridgeControlJson.config(next));
     }
 
-    private static List<OutputTargetConfig> targets(Map<String, String> form, BridgeConfig old) {
+    /**
+     * The operator does not have to keep Bridge Control open to see an accepted risk. The texts
+     * come from the same views the API returns, so log and surface can never disagree.
+     */
+    private static void logWarnings(BridgeConfig config) {
+        for (BridgeControlJson.TargetView view : BridgeControlJson.views(config)) {
+            if (view.transportWarning() != null) {
+                System.out.println("WARNUNG: Output Target \"" + view.id() + "\": "
+                        + view.transportWarning());
+            }
+            if (view.secretWarning() != null) {
+                System.out.println("WARNUNG: Output Target \"" + view.id() + "\": "
+                        + view.secretWarning());
+            }
+        }
+    }
+
+    static List<OutputTargetConfig> targets(Map<String, String> form, BridgeConfig old) {
         int count = Integer.parseInt(required(form, "targetCount"));
         if (count < 0 || count > MAX_TARGETS) {
             throw new IllegalArgumentException("Zu viele Targets");
@@ -135,22 +153,36 @@ public final class BridgeControlServer implements AutoCloseable {
         for (int index = 0; index < count; index++) {
             String prefix = "target." + index + ".";
             String id = required(form, prefix + "id");
+            OutputTargetType type = OutputTargetType.valueOf(required(form, prefix + "type"));
             String secret = form.getOrDefault(prefix + "secret", "");
             if (secret.isBlank()) {
                 secret = old.targets().stream()
                         .filter(target -> target.id().equals(id))
                         .map(OutputTargetConfig::secret)
                         .findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException("Secret fehlt für " + id));
+                        .orElseGet(() -> secretForNewTarget(type, id));
             }
-            targets.add(new OutputTargetConfig(id,
-                    OutputTargetType.valueOf(required(form, prefix + "type")),
+            targets.add(new OutputTargetConfig(id, type,
                     "on".equals(form.get(prefix + "enabled")),
                     URI.create(required(form, prefix + "endpoint")),
                     required(form, prefix + "channelId"),
                     secret));
         }
         return targets;
+    }
+
+    /**
+     * Convenience of the simple self-hosted case: a brand new SELFHOST target may be created with
+     * the address alone and then falls back to the documented prototype ingest secret, which is
+     * exactly what the installer writes on a presentation node. The fallback is deliberately
+     * narrow — it never applies to an existing target, never to the local target, and never to
+     * RICHTER_PROJECTS — and the resulting target carries a permanent warning.
+     */
+    private static String secretForNewTarget(OutputTargetType type, String id) {
+        if (type != OutputTargetType.SELFHOST) {
+            throw new IllegalArgumentException("Secret fehlt für " + id);
+        }
+        return BridgeConfigStore.DEFAULT_LOCAL_SECRET;
     }
 
     /** Same-origin check for the configuration form; a missing or foreign Origin is rejected. */

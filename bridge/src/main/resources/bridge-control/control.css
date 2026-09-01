@@ -36,6 +36,13 @@ button:disabled{opacity:.6;cursor:default}
 .remove{color:var(--bad)}
 output{display:block;margin:6px 0;font-size:13px;color:var(--muted)}
 output:before{content:"\25CF  "}
+/* Dauerhafte Sicherheitshinweise eines Ziels, getrennt von seinem Laufzeitzustand. */
+.target-warning{margin:6px 0;font-size:13px;font-weight:700}
+/* Die technischen Werte bleiben erreichbar, stehen aber nicht im Weg. */
+details[data-role=advanced]{margin:10px 0;padding-top:10px;border-top:1px solid var(--line)}
+details[data-role=advanced] summary{margin-bottom:2px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
+details[data-role=advanced][open] summary{margin-bottom:10px}
+input:disabled{background:var(--paper);color:var(--muted)}
 .addresses{margin:10px 0 0;font-size:14px}
 .addresses dt{color:var(--muted);font-size:13px}
 .addresses dd{margin:2px 0 8px}

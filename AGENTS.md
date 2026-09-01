@@ -97,9 +97,13 @@ Before changing module communication, read `docs/MODULAR_ARCHITECTURE.md`.
   `SELFHOST` / `RICHTER_PROJECTS`), not an exclusive `OutputMode`. Every
   target has its own worker/retry/ACK state; a broken target must never
   block another target or the source.
-- Transport policy: `wss` is always allowed; plain `ws` only for
-  localhost/loopback/private IP literals. `RICHTER_PROJECTS` always
-  requires `wss`.
+- Transport policy: `wss` is always allowed; plain `ws` for
+  localhost/loopback/private IP literals, and for a `SELFHOST` target also
+  for a public IP literal (the temporary self-hosted presentation node on a
+  cloud VM without a domain) — permitted but permanently warned about, never
+  silently. Every DNS name, and every public address for `LOCAL`, requires
+  `wss`. `RICHTER_PROJECTS` always requires `wss`. The policy never resolves
+  names.
 - Frontend stays plain HTML/CSS/JavaScript. No frontend framework.
 
 ### Security

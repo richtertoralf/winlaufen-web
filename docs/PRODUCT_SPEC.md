@@ -418,9 +418,13 @@ Fremde Origins und Anfragen ohne Origin werden abgelehnt. Der Bridge-Ingest
 verwendet den eigenen Pfad `/bridge/v1/channels/<channel>` und
 Bearer-Authentifizierung statt eines Browser-Origins.
 
-Klartext-`ws` wird nur für `localhost` und für Loopback-, Link-Local- und
-private IP-Adressliterale akzeptiert. Jeder andere Host, insbesondere jeder
-DNS-Name, erfordert `wss`; `RICHTER_PROJECTS` erfordert immer `wss`.
+Klartext-`ws` wird für `localhost` und für Loopback-, Link-Local- und private
+IP-Adressliterale akzeptiert. Ein `SELFHOST`-Target darf zusätzlich per `ws` auf
+ein öffentliches IP-Adressliteral zeigen; das ist der temporäre selbst
+betriebene Presentation Node auf einer Cloud-VM ohne Domain. Er wird nicht
+blockiert, sondern dauerhaft gewarnt. Jeder andere Host, insbesondere jeder
+DNS-Name, und jede öffentliche Adresse für `LOCAL` erfordern `wss`;
+`RICHTER_PROJECTS` erfordert immer `wss`.
 
 Eingehende WebSocket-Nachrichten werden begrenzt, bevor sie im Speicher
 zusammengesetzt werden: Ingest auf höchstens einen Vertragssnapshot,

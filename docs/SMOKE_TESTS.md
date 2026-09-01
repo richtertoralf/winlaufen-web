@@ -184,9 +184,12 @@ separater Presentation Node
    eine gleichwertige Aussage.
 4. In Bridge Control auf Rechner 1:
    * WinLaufen-Host auf den WinLaufen-PC setzen,
-   * ein Output Target anlegen:
-     `ws://<rechner-2>:44441/bridge/v1/channels/local`, Channel `local`,
-     Secret wie in `/etc/winlaufen-web/live-server.env` auf Rechner 2.
+   * über **Weiteren Live-Server verbinden** die IP-Adresse von Rechner 2
+     eintragen. Daraus müssen
+     `ws://<rechner-2>:44441/bridge/v1/channels/local`, Channel `local` und
+     eine deterministische ID entstehen; der Verbindungsschlüssel entspricht
+     dem Standardwert aus `/etc/winlaufen-web/live-server.env` auf Rechner 2.
+     Ein abweichender Schlüssel wird unter Erweiterte Einstellungen eingetragen.
 5. Target wechselt auf `CONNECTED`, ACK-Revision steigt.
 6. Live-Ergebnisse auf `http://<rechner-2>:44440/` zeigen die Daten.
 

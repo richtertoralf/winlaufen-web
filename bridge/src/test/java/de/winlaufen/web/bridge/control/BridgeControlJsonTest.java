@@ -3,6 +3,8 @@ package de.winlaufen.web.bridge.control;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.winlaufen.web.bridge.config.BridgeConfig;
+import de.winlaufen.web.bridge.config.BridgeConfigStore;
+import de.winlaufen.web.bridge.config.EndpointPolicy;
 import de.winlaufen.web.bridge.config.OutputTargetConfig;
 import de.winlaufen.web.bridge.config.OutputTargetType;
 import de.winlaufen.web.bridge.output.OutputConnectionState;
@@ -32,13 +34,34 @@ class BridgeControlJsonTest {
         assertEquals("WINLAUFEN", parsed.get("sourceType").asText());
         assertEquals("timing-pc", parsed.get("sourceHost").asText());
         assertEquals(4444, parsed.get("sourcePort").asInt());
-        assertEquals(2, parsed.get("targets").size());
+        assertEquals(3, parsed.get("targets").size());
         assertTrue(parsed.get("targets").get(0).get("secretConfigured").asBoolean());
         assertFalse(json.contains("super-secret-value"));
         assertFalse(json.contains("another-secret-value"));
+        assertFalse(json.contains(BridgeConfigStore.DEFAULT_LOCAL_SECRET));
         assertFalse(parsed.get("targets").get(0).has("secret"));
         assertTrue(parsed.get("presentation").get("showShooting").asBoolean());
         assertFalse(parsed.get("presentation").get("showNation").asBoolean());
+    }
+
+    @Test
+    void aPlaintextInternetTargetCarriesBothWarningsAndALanTargetCarriesNone() throws Exception {
+        JsonNode targets = MAPPER.readTree(BridgeControlJson.config(config())).get("targets");
+
+        JsonNode local = targets.get(0);
+        assertTrue(local.get("transportWarning").isNull(), "the loopback target is not warned about");
+        assertTrue(local.get("secretWarning").isNull(),
+                "the local target keeps its plain row; the live server warns about the known key");
+
+        JsonNode encrypted = targets.get(1);
+        assertTrue(encrypted.get("transportWarning").isNull(), "wss needs no transport warning");
+        assertTrue(encrypted.get("secretWarning").isNull(), "an own key needs no warning");
+
+        JsonNode cloud = targets.get(2);
+        assertEquals(EndpointPolicy.PLAINTEXT_INTERNET_WARNING,
+                cloud.get("transportWarning").asText());
+        assertEquals(BridgeControlJson.DEFAULT_SECRET_WARNING, cloud.get("secretWarning").asText());
+        assertTrue(cloud.get("secretConfigured").asBoolean(), "a key is configured, just a known one");
     }
 
     @Test
@@ -88,7 +111,11 @@ class BridgeControlJsonTest {
                                 "local", "super-secret-value"),
                         new OutputTargetConfig("club", OutputTargetType.SELFHOST, false,
                                 URI.create("wss://club.example/bridge/v1/channels/race"),
-                                "race", "another-secret-value")),
+                                "race", "another-secret-value"),
+                        new OutputTargetConfig("selfhost-203-0-113-7-local",
+                                OutputTargetType.SELFHOST, true,
+                                URI.create("ws://203.0.113.7:44441/bridge/v1/channels/local"),
+                                "local", BridgeConfigStore.DEFAULT_LOCAL_SECRET)),
                 PresentationConfig.defaults());
     }
 }

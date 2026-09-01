@@ -279,7 +279,8 @@ Verhalten:
 
 - Bridge → Live Server: persistenter, von der Bridge ausgehender WebSocket
   pro aktiviertem Output Target.
-- `ws` lokal/vertrauenswürdiges LAN; `wss` verpflichtend für Internetziele.
+- `ws` lokal/vertrauenswürdiges LAN sowie für ein `SELFHOST`-Ziel an einem
+  öffentlichen IP-Adressliteral; `wss` sonst verpflichtend für Internetziele.
   Transport trägt ausschließlich V1-JSON-Envelopes aus dem Contract-Modul.
 - Adapter hält pro Target höchstens den neuesten unbestätigten Vollsnapshot
   plus aktuellen kanonischen Snapshot — keine globale Output-Queue, kein
@@ -454,10 +455,14 @@ Vier unabhängige Zustandsmaschinen sind verbindlich:
 - Secrets liegen nur in Bridge-Target- und technischer
   Live-Server-Konfiguration; sie sind weder Contract-State noch Public API.
 - Internetziele erfordern `wss` mit normaler Zertifikatsprüfung. `ws` ist
-  nur für Loopback bzw. bewusst vertrauenswürdiges LAN zulässig — konkret:
-  `localhost` und Loopback-/Link-Local-/private IP-Adressliterale; jeder
-  andere Host, insbesondere jeder DNS-Name, erfordert `wss`.
-  `RICHTER_PROJECTS` erfordert immer `wss`.
+  für Loopback bzw. bewusst vertrauenswürdiges LAN zulässig — konkret:
+  `localhost` und Loopback-/Link-Local-/private IP-Adressliterale. Ein
+  `SELFHOST`-Target darf `ws` zusätzlich auf ein öffentliches
+  IP-Adressliteral richten: der temporäre selbst betriebene Presentation
+  Node ohne Domain. Er wird zugelassen, aber dauerhaft gewarnt statt
+  blockiert. Jeder andere Host, insbesondere jeder DNS-Name, und jede
+  öffentliche Adresse für `LOCAL` erfordern `wss`. `RICHTER_PROJECTS`
+  erfordert immer `wss`.
 - Eingehende WebSocket-Nachrichten sind hart begrenzt, bevor sie im Heap
   zusammengesetzt werden: Ingest höchstens ein Vertragssnapshot, Browser-
   Pfad nur eine sehr kleine Nutzlast.

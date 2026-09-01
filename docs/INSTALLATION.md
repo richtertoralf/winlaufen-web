@@ -104,6 +104,13 @@ Web View
 Benötigt während der Installation keine Bridge-Adresse. Nach der Installation
 wird dieser Node auf der zuständigen Bridge als Output Target eingetragen.
 
+Der Node darf im LAN stehen oder eine für einige Stunden gemietete Cloud-VM mit
+öffentlicher IPv4-Adresse sein. Für den Cloud-Fall gibt es eine eigene
+Kurzanleitung: [QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md). Dort werden nur
+TCP 44440 und TCP 44441 freigegeben; TCP 44442 gehört nicht dazu. Die
+verbindlichen Grenzen dieses Betriebs stehen in README.md, Abschnitt
+„Known prototype security limitation".
+
 Der Installer zeigt am Ende die aktuell erkannten lokalen IP-Adressen als
 Hinweis an. Diese Adressen werden **nicht** dauerhaft als Konfiguration
 gespeichert.
@@ -289,6 +296,11 @@ zulassen:
 Ein lokal laufender Listener beweist nicht, dass eine lokale, externe,
 Router-, VLAN- oder Cloud-Firewall die Verbindung aus dem LAN zulässt.
 
+Läuft ein Presentation Node auf einer Cloud-VM, werden dieselben zwei Ports in
+der Firewall des Anbieters freigegeben: TCP 44440 für die Web View und TCP 44441
+für den Bridge-Ingest. **TCP 44442 wird dort nicht freigegeben**; Bridge Control
+besitzt keine Anmeldung und läuft ohnehin auf der Bridge, nicht auf dem Node.
+
 ### Deinstallation
 
 ```sh
@@ -405,7 +417,7 @@ die von diesem Projekt selbst benannten Regeln.
 |---|---|
 | All-in-One | Nichts, wenn WinLaufen lokal läuft. Sonst WinLaufen-Adresse in Bridge Control ändern. |
 | Bridge only | WinLaufen-Adresse prüfen und mindestens ein Output Target eintragen. |
-| Presentation Node | Diesen Node auf der gewünschten Bridge als Output Target eintragen. |
+| Presentation Node | Diesen Node auf der gewünschten Bridge als Output Target eintragen: Bridge Control → Weiteren Live-Server verbinden → IP-Adresse eintragen. |
 
 | Quelle | Ziel | Protokoll/Port | Zweck |
 |---|---|---|---|

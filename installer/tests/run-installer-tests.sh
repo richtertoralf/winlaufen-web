@@ -372,6 +372,9 @@ external_target='[{"id":"presentation-1","type":"SELFHOST","enabled":true,"endpo
 external_disconnected='[{"targetId":"presentation-1","state":"RETRY_WAIT"}]'
 disabled_target='[{"id":"backup","type":"SELFHOST","enabled":false,"endpoint":"ws://192.168.95.31:44441/bridge/v1/channels/backup","channelId":"backup","secretConfigured":true}]'
 disabled_runtime='[{"targetId":"backup","state":"DISABLED"}]'
+# Temporärer Selfhost-Presentation-Node auf einer Cloud-VM mit öffentlicher IPv4.
+cloud_target='[{"id":"selfhost-203-0-113-7-local","type":"SELFHOST","enabled":true,"endpoint":"ws://203.0.113.7:44441/bridge/v1/channels/local","channelId":"local","secretConfigured":true}]'
+cloud_connected='[{"targetId":"selfhost-203-0-113-7-local","state":"CONNECTED"}]'
 
 run_simulated_operational_report all-in-one DISCONNECTED "$local_target" "$local_connected" \
     "All-in-One: Source DISCONNECTED, local CONNECTED"
@@ -419,6 +422,13 @@ assert_contains "$diagnostic_log" "Status: deaktiviert" \
     "Ein deaktiviertes Target wird neutral gemeldet"
 assert_absent "$diagnostic_log" "WARNUNG: DISABLED" \
     "Ein deaktiviertes Target erzeugt keine Warnung"
+
+run_simulated_operational_report bridge-only CONNECTED "$cloud_target" "$cloud_connected" \
+    "Bridge only: temporärer Selfhost-Node an öffentlicher IPv4"
+assert_contains "$diagnostic_log" "ID: selfhost-203-0-113-7-local" \
+    "Die aus Adresse und Channel abgeleitete Target-ID erscheint unverändert im Bericht"
+assert_contains "$diagnostic_log" "Ziel: 203.0.113.7:44441" \
+    "Ein Selfhost-Target an öffentlicher IPv4 wird als gültiges Ziel gemeldet"
 
 run_simulated_operational_report presentation-node DISCONNECTED '[]' '[]' \
     "Presentation Node ohne verbundene Bridge"

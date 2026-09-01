@@ -123,13 +123,21 @@ Snapshot geprüft.
 
 ## Transportregel für Output Targets
 
-`wss://` ist immer zulässig. Unverschlüsseltes `ws://` ist nur erlaubt für
+`wss://` ist immer zulässig. Unverschlüsseltes `ws://` ist erlaubt für
 `localhost` und für **IP-Adressliterale** aus dem Loopback-, Link-Local- oder
-privaten LAN-Bereich, zum Beispiel `ws://192.168.1.20:44441/...`. Jeder andere
-Host — insbesondere jeder DNS-Name — erfordert `wss://`. Das Projekt führt
-bewusst keine DNS- oder Geo-Auflösung durch, um „LAN" von „Internet" zu
-unterscheiden; diese rein syntaktische Regel ist der konservative Ersatz. Ein
-LAN-Ziel muss für Klartext also über seine IP-Adresse konfiguriert werden.
+privaten LAN-Bereich, zum Beispiel `ws://192.168.1.20:44441/...`. Ein Target vom
+Typ `SELFHOST` darf zusätzlich per `ws://` auf ein **öffentliches
+IP-Adressliteral** zeigen, zum Beispiel `ws://203.0.113.7:44441/...`; das ist der
+temporäre selbst betriebene Presentation Node auf einer gemieteten Cloud-VM ohne
+Domain. Dieser Fall wird nicht blockiert, aber dauerhaft gewarnt
+(`EndpointPolicy.transportWarning`), in Bridge Control sichtbar und im
+Bridge-Log.
+
+Jeder andere Host — insbesondere jeder DNS-Name, und jede öffentliche Adresse
+für `LOCAL` — erfordert `wss://`. Das Projekt führt bewusst keine DNS- oder
+Geo-Auflösung durch; diese rein syntaktische Regel ist der konservative Ersatz.
+Ein Klartextziel muss also immer über seine IP-Adresse konfiguriert werden.
+Wildcard- und Multicast-Adressen sind kein Ziel und bleiben abgelehnt.
 `RICHTER_PROJECTS` erfordert unabhängig davon immer `wss://`.
 
 ## Upgrade einer v0.1-Konfiguration

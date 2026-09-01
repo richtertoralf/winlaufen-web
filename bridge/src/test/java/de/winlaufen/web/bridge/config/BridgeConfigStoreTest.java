@@ -147,6 +147,26 @@ class BridgeConfigStoreTest {
         assertEquals(config, store.load());
     }
 
+    /** A temporary presentation node on a rented cloud VM survives a full save/load round trip. */
+    @Test
+    void persistsASelfHostedTargetAtAPublicIpAddress() throws Exception {
+        var targets = List.of(
+                new OutputTargetConfig("local", OutputTargetType.LOCAL, true,
+                        URI.create("ws://127.0.0.1:44441/bridge/v1/channels/local"), "local", "12345678"),
+                new OutputTargetConfig("selfhost-203-0-113-7-local", OutputTargetType.SELFHOST, true,
+                        URI.create("ws://203.0.113.7:44441/bridge/v1/channels/local"), "local",
+                        BridgeConfigStore.DEFAULT_LOCAL_SECRET));
+        var config = new BridgeConfig("WINLAUFEN", "host", "0.0.0.0", 44442, targets,
+                PresentationConfig.defaults());
+        var store = new BridgeConfigStore(temp.resolve("cloud/config.properties"));
+
+        store.save(config);
+        var loaded = store.loadWithNotices();
+
+        assertEquals(config, loaded.config());
+        assertTrue(loaded.notices().isEmpty(), "an accepted endpoint is not a migration case");
+    }
+
     @Test
     void atomicallyReplacesConfigurationInGroupWritableDirectory() throws Exception {
         Path directory = Files.createDirectory(temp.resolve("protected"));

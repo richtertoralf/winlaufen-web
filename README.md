@@ -211,11 +211,23 @@ Sicht steht in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ### Weitere Übertragung
 
 Zusätzliche externe Live Server werden unter **Weitere Übertragung** über
-**Weiteren Live-Server verbinden** angelegt. Die Target-Typen `SELFHOST` und
-`RICHTER_PROJECTS` existieren technisch, ihre Konfiguration ist aber noch
-technisch: Endpoint, Channel und Secret werden von Hand eingetragen. Ein
-komfortables Pairing über einen kurzen Verbindungscode ist **nicht
-implementiert**.
+**Weiteren Live-Server verbinden** angelegt. Im Normalfall genügt dort die
+**IP-Adresse** des Live Servers. Daraus werden Endpoint
+(`ws://<IP>:44441/bridge/v1/channels/local`), Channel (`local`) und eine
+deterministische Target-ID (`selfhost-<adresse>-<channel>`) gebildet; ein noch
+nicht gesetzter Verbindungsschlüssel fällt auf den dokumentierten
+Prototyp-Standardwert zurück, den auch der Installer schreibt. Ein Hostname
+statt einer IP-Adresse wird verschlüsselt über `wss://` verbunden.
+
+Alle technischen Werte — ID, Typ, Endpoint, Channel, Verbindungsschlüssel —
+bleiben unter **Erweiterte Einstellungen** sichtbar und bearbeitbar. Wer sie von
+Hand ändert, behält sie: die Ableitung überschreibt eine manuell gepflegte
+Konfiguration nicht.
+
+Unverschlüsselte Ziele und der bekannte Standard-Verbindungsschlüssel werden am
+Target dauerhaft als Warnung angezeigt und zusätzlich ins Bridge-Log
+geschrieben. Ein komfortables Pairing über einen kurzen Verbindungscode ist für
+`RICHTER_PROJECTS` weiterhin **nicht implementiert**.
 
 ## Installationsprofile
 
@@ -265,7 +277,6 @@ Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
 - reale Linux-Endabnahme
 - Linux-Releasepakete für AMD64 und ARM64
 - vollständige Reboot-, Reinstall- und Profilwechsel-Abnahmen
-- Vereinfachung der Self-hosted-Konfiguration
 - Richter-Projects-Pairing
 - bekannte P2-/P3-Punkte aus den Reviews
 
@@ -307,20 +318,50 @@ Browser ausgeliefert. Die echte Bridge bemerkt das nicht.
 
 ### Verbindliche Einsatzgrenzen dieser Prototypversion
 
-- Einsatz **nur** in kontrollierten Vereins- bzw. Veranstaltungsnetzen.
-- Die Ports 44441 und 44442 dürfen **nicht** unkontrolliert aus nicht
-  vertrauenswürdigen Netzen erreichbar sein.
-- **Keine Portweiterleitung** ins öffentliche Internet.
-- Kein Betrieb in offenen Gäste-WLANs oder gemeinsam genutzten Netzen.
-- Die Windows-Firewallregeln bleiben bewusst auf Private und Domain beschränkt.
-- Wo möglich, `winlaufen.live.secret` und das zugehörige Target-Secret in Bridge
-  Control auf einen eigenen Wert setzen; das reduziert das Risiko, ersetzt aber
-  keine echte Provisionierung.
+Es werden drei Betriebsarten unterschieden. Sie haben unterschiedliche Grenzen.
 
-Für produktiven Betrieb über WAN oder eine Anbindung an Richter-Projects sind
-**WSS sowie individuell provisionierte Secrets pro Target** erforderlich. Das
-ist bewusst nicht Teil dieser Prototype Baseline und bleibt ein offenes
-Production-Hardening-Thema.
+**1. Kontrolliertes LAN — der Normalfall**
+
+- Einsatz in kontrollierten Vereins- bzw. Veranstaltungsnetzen.
+- Bridge und Live Server sind nur im vertrauenswürdigen Netz erreichbar.
+- Kein Betrieb in offenen Gäste-WLANs oder gemeinsam genutzten Netzen.
+- **Keine Portweiterleitung** der LAN-Installation ins öffentliche Internet.
+- Die Windows-Firewallregeln bleiben bewusst auf Private und Domain beschränkt.
+
+**2. Temporärer Selfhost-Presentation-Node mit öffentlicher IPv4**
+
+Ein Verein mietet für einige Stunden eine Cloud-VM, installiert dort das Profil
+Presentation Node und verbindet die eigene Bridge über die öffentliche
+IP-Adresse. Das ist ausdrücklich vorgesehen — siehe
+[docs/QUICKSTART_CLOUD.md](docs/QUICKSTART_CLOUD.md) — und unterliegt diesen
+Grenzen:
+
+- Öffentlich freigegeben werden **nur** TCP 44440 (Web View) und TCP 44441
+  (Bridge-Ingest) **des gemieteten Nodes**.
+- **TCP 44442 gehört dort nicht hin.** Bridge Control hat keine Anmeldung und
+  darf niemals öffentlich erreichbar sein — weder auf dem Node noch über eine
+  Portweiterleitung zur Bridge im Vereinsnetz.
+- Die Bridge im Vereinsnetz bleibt unverändert unerreichbar von außen; sie
+  verbindet ausgehend.
+- Die Übertragung ist **unverschlüsselt**. Ergebnisse sind öffentlich, das
+  Mitlesen ist deshalb hinnehmbar — mitgelesen wird aber auch der
+  Verbindungsschlüssel.
+- Das reale Risiko ist **Fälschung**: wer 44441 erreicht und den Schlüssel
+  kennt, kann den kompletten veröffentlichten Stand ersetzen (siehe oben). Mit
+  dem bekannten Standardschlüssel genügt dafür die Kenntnis der IP-Adresse.
+- Deshalb: nur für die Dauer der Veranstaltung betreiben, danach die VM
+  **abschalten oder löschen**, und wo möglich `winlaufen.live.secret` auf dem
+  Node und den Verbindungsschlüssel des Targets in Bridge Control auf einen
+  eigenen Wert setzen.
+- Keine Eignung für Anmeldungen, personenbezogene Daten oder alles, was über
+  die ohnehin öffentlich angezeigten Wettkampfdaten hinausgeht.
+
+**3. Dauerhafter abgesicherter WAN-Betrieb**
+
+Für produktiven Dauerbetrieb über WAN oder eine Anbindung an Richter-Projects
+sind **WSS mit gültigem Zertifikat sowie individuell provisionierte Secrets pro
+Target** erforderlich. Das ist bewusst nicht Teil dieser Prototype Baseline und
+bleibt ein offenes Production-Hardening-Thema.
 
 Der Live Server weist beim Start ausdrücklich auf das aktive Default-Secret hin.
 
@@ -357,6 +398,7 @@ funktionieren:
 | Dokument | Inhalt |
 |---|---|
 | [docs/INSTALLATION.md](docs/INSTALLATION.md) | Installationsprofile, Linux, Windows, Dienste, Deinstallation |
+| [docs/QUICKSTART_CLOUD.md](docs/QUICKSTART_CLOUD.md) | Kurzanleitung: temporärer Live-Server auf einer Cloud-VM |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Build, Entwicklungsbetrieb, Konfigurationsorte, Transportregel |
 | [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) | manuelle Abnahmetests und protokollierte reale Nachweise |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | technischer IST-Stand der modularen Architektur |
