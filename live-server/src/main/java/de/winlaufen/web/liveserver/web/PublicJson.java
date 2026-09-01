@@ -28,6 +28,18 @@ public final class PublicJson {
                 + "}";
     }
 
+    /**
+     * Sign of life for the browser link, deliberately without any state.
+     *
+     * <p>A browser cannot tell a silent live server from a quiet competition: a dead TCP
+     * connection never reports itself, and WebSocket ping/pong is invisible to page scripts. The
+     * published state is no substitute either — while the WinLaufen source is down the bridge
+     * publishes nothing at all. This message is the only thing the viewer can time out on.
+     */
+    public static String heartbeat() {
+        return "{\"type\":\"heartbeat\"}";
+    }
+
     public static String runtime(int webSocketPort) {
         return "{\"webSocketPort\":" + webSocketPort
                 + ",\"webSocketPath\":" + quote(LiveWebSocketServer.BROWSER_PATH) + "}";

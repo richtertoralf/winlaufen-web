@@ -8,6 +8,23 @@ const health = document.querySelector('#health');
 const clock = document.querySelector('#clock');
 const select = document.querySelector('#class-select');
 const publicMessage = document.querySelector('#public-message');
+const linkNotice = document.querySelector('#link-notice');
+
+// Zustand der Verbindung dieses Browsers zum Live Server. Er ist nicht der Zustand der
+// WinLaufen-Quelle (state.health) und nicht der Zustand Bridge -> Live Server. CONNECTED darf
+// nur erscheinen, solange diese Seite tatsaechlich Live-Daten empfaengt.
+let linkLive = false;
+let socket = null;
+let linkTimer = null;
+let reconnectAttempt = 0;
+let reconnectTimer = null;
+
+// Der Live Server sendet Browsern alle 2 s ein Lebenszeichen; drei ausgefallene davon gelten
+// als Verbindungsverlust. Der Wert liegt bewusst ueber dem 4-s-Stale-Fenster der Quelle, damit
+// eine ruhende Veranstaltung nicht faelschlich als Verbindungsverlust erscheint.
+const LINK_TIMEOUT_MILLIS = 6000;
+// Wartezeiten wie beim Output-Reconnect der Bridge: sofort, 2 s, 5 s, danach 10 s.
+const RECONNECT_DELAYS_MILLIS = [0, 2000, 5000, 10000];
 
 document.querySelectorAll('.tabs button').forEach(button => button.addEventListener('click', () => {
   document.querySelectorAll('.tabs button').forEach(item => {
@@ -20,6 +37,9 @@ document.querySelectorAll('.tabs button').forEach(button => button.addEventListe
 select.addEventListener('change', () => { resultsClassIndex = Number(select.value); renderResults(); });
 
 function receive(message) {
+  noteTraffic();
+  // Ein Lebenszeichen traegt bewusst keinen Zustand und darf keine Tabelle anfassen.
+  if (message.type === 'heartbeat') return;
   if (message.publicationRevision < publicationRevision) return;
   publicationRevision = message.publicationRevision;
   const hadState = state !== null;
@@ -33,12 +53,40 @@ function receive(message) {
 }
 function render() { renderChrome(); renderTables(); }
 function renderChrome() {
-  health.textContent = state.health;
-  health.className = `pill ${state.health.toLowerCase()}`;
-  clock.textContent = state.clock || '--:--:--';
-  const visible = display.showPublicMessages && Boolean(state.message);
+  // Ohne funktionierende Verbindung ist die zuletzt gemeldete Quellenlage keine Aussage mehr
+  // ueber das Jetzt; dann gilt allein der Zustand dieser Verbindung.
+  const shown = linkLive && state ? state.health : 'DISCONNECTED';
+  health.textContent = shown;
+  health.className = `pill ${shown.toLowerCase()}`;
+  clock.textContent = state?.clock || '--:--:--';
+  // Die letzten Ergebnisse bleiben lesbar, werden aber sichtbar als nicht aktuell markiert.
+  document.body.classList.toggle('link-lost', !linkLive);
+  linkNotice.hidden = linkLive;
+  const visible = Boolean(display?.showPublicMessages) && Boolean(state?.message);
   publicMessage.hidden = !visible;
   publicMessage.textContent = visible ? `Hinweis: ${state.message}` : '';
+}
+
+function setLink(live) {
+  linkLive = live;
+  renderChrome();
+}
+
+/** Jede empfangene Nachricht ist der Beweis, dass die Verbindung noch traegt. */
+function noteTraffic() {
+  clearTimeout(linkTimer);
+  linkTimer = setTimeout(linkTimedOut, LINK_TIMEOUT_MILLIS);
+  if (!linkLive) setLink(true);
+}
+
+/**
+ * Eine tote TCP-Verbindung meldet sich nie von selbst: nach einem Reboot des Live-Server-Rechners
+ * bleibt der Socket im Browser offen, ohne dass je wieder Daten kommen. Deshalb entscheidet das
+ * ausbleibende Lebenszeichen, nicht onclose allein.
+ */
+function linkTimedOut() {
+  setLink(false);
+  if (socket) socket.close();
 }
 function displayRoundOrHeat(rawRoundOrHeat) { return rawRoundOrHeat + 1; }
 function renderTables() {
@@ -92,9 +140,43 @@ function table(target, snapshot, highlighted, emptyText) {
 }
 function connect(runtime) {
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-  const socket = new WebSocket(`${scheme}://${location.hostname}:${runtime.webSocketPort}${runtime.webSocketPath}`);
+  socket = new WebSocket(`${scheme}://${location.hostname}:${runtime.webSocketPort}${runtime.webSocketPath}`);
+  socket.onopen = () => {
+    // Der Revisionszaehler gehoert zu genau einer Live-Server-Laufzeit. Ein neu gestarteter Live
+    // Server beginnt wieder bei 0; ohne diesen Reset wuerde der Browser jeden neuen Snapshot als
+    // veraltet verwerfen und trotz bestehender Verbindung nie wieder Daten anzeigen. Die erste
+    // Nachricht jeder Verbindung ist ein vollstaendiger, autoritativer Snapshot.
+    publicationRevision = -1;
+    reconnectAttempt = 0;
+    noteTraffic();
+  };
   socket.onmessage = event => receive(JSON.parse(event.data));
-  socket.onclose = () => setTimeout(() => connect(runtime), 1500);
+  // onerror wird laut Spezifikation stets von onclose gefolgt; der Reconnect steht nur dort.
+  socket.onerror = () => socket.close();
+  socket.onclose = () => {
+    clearTimeout(linkTimer);
+    setLink(false);
+    retryLater(() => connect(runtime));
+  };
 }
-Promise.all([fetch('/api/v1/state').then(response => response.json()), fetch('/api/v1/runtime').then(response => response.json())])
-  .then(([value, runtime]) => { receive(value); connect(runtime); });
+
+/** Begrenzte, ansteigende Wartezeit statt schneller Endlosschleife; nach Erfolg zurueckgesetzt. */
+function retryLater(action) {
+  clearTimeout(reconnectTimer);
+  const index = Math.min(reconnectAttempt, RECONNECT_DELAYS_MILLIS.length - 1);
+  reconnectAttempt += 1;
+  reconnectTimer = setTimeout(action, RECONNECT_DELAYS_MILLIS[index]);
+}
+
+/**
+ * Auch der erste Aufruf kann in einen Ausfall laufen. Ohne eigenen Wiederholungsversuch bliebe
+ * eine waehrend des Ausfalls geladene Seite dauerhaft leer und nur ein Reload wuerde helfen.
+ */
+function start() {
+  Promise.all([
+    fetch('/api/v1/state').then(response => response.json()),
+    fetch('/api/v1/runtime').then(response => response.json())
+  ]).then(([value, runtime]) => { receive(value); connect(runtime); })
+    .catch(() => { setLink(false); retryLater(start); });
+}
+start();

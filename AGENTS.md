@@ -71,9 +71,18 @@ Before changing protocol handling, read `docs/WINLAUFEN_PROTOCOL.md`.
 - Class snapshots are complete and authoritative for that class, not
   incremental single-athlete events; existing rows may change in later
   snapshots.
-- The WinLaufen clock is authoritative and its arrival is also the
-  connection heartbeat. Never replace it with local system time, and never
-  validate, correct or plausibilize its progression.
+- The WinLaufen clock is the competition time, it is authoritative, and its
+  arrival is also the connection heartbeat. Never replace it with local
+  system time, and never validate, correct or plausibilize its progression.
+- The competition time is carried through unchanged by bridge, contract,
+  live server and viewer. No stage may produce, advance, interpolate or
+  reconstruct it — no `Date.now()`, `new Date()`, `Instant.now()`,
+  `System.currentTimeMillis()` or `setInterval` counter feeding the shown
+  value. Time functions stay allowed for timeouts, backoff and heartbeat
+  supervision. When telegrams stop, the last delivered value stays on
+  screen: a standing competition time is the honest end-to-end sign that no
+  fresh data is arriving, and it is what made the frozen-viewer bug
+  visible.
 - Stale/reconnect timing (no clock for >4s, backoff immediate/2s/5s/10s) is
   defined in `docs/WINLAUFEN_PROTOCOL.md`. Do not change it in only one
   place.
@@ -104,6 +113,13 @@ Before changing module communication, read `docs/MODULAR_ARCHITECTURE.md`.
   silently. Every DNS name, and every public address for `LOCAL`, requires
   `wss`. `RICHTER_PROJECTS` always requires `wss`. The policy never resolves
   names.
+- The browser link and the source health are two different things. The
+  live server sends browsers a stateless sign of life; the viewer shows
+  `CONNECTED` only while that link works, and otherwise shows the source
+  health unchanged. The sign of life must never touch the competition time,
+  `SourceHealth`, `publicationRevision` or results. `publicationRevision`
+  is valid per live-server run, so the viewer resets its guard on every new
+  connection.
 - Frontend stays plain HTML/CSS/JavaScript. No frontend framework.
 
 ### Security

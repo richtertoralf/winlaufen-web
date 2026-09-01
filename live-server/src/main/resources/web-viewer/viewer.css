@@ -29,6 +29,10 @@ footer.version{padding:4px var(--pad) 16px;color:var(--muted);font-size:11px;tex
 .class-picker select{max-width:52vw;min-height:36px;padding:6px 8px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);color:var(--ink);font:inherit}
 .notice,.compact-empty{margin:8px 0;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);font-size:14px;color:var(--muted)}
 .notice[hidden]{display:none}
+/* Verbindungsverlust: der Hinweis bleibt deutlich, die letzten Daten bleiben lesbar, sind aber
+   sichtbar als nicht aktuell gekennzeichnet. */
+#link-notice{border-color:var(--bad);color:var(--bad);font-weight:700}
+body.link-lost #clock,body.link-lost .view{opacity:.5}
 .compact-empty strong{display:block;margin-bottom:2px;color:var(--ink)}
 .table-wrap{width:100%;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
 table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}

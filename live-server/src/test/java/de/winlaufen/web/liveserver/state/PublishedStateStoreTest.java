@@ -53,6 +53,68 @@ public class PublishedStateStoreTest {
         assertEquals("one", store.get().state().clock());
     }
 
+    /**
+     * The competition time is a WinLaufen value. The store carries it through byte for byte and
+     * never produces one of its own, so a speaker can read a standing clock as "no fresh data".
+     */
+    @Test
+    void carriesTheWinLaufenCompetitionTimeThroughUnchanged() {
+        var store = new PublishedStateStore("local");
+
+        store.accept(snapshot("a", 1, "10:07:41"));
+        assertEquals("10:07:41", store.get().state().clock());
+
+        store.accept(snapshot("a", 2, "10:07:42"));
+        assertEquals("10:07:42", store.get().state().clock(),
+                "exactly the delivered value, never a computed one");
+
+        // Auch ein Wert, den keine lokale Uhr erzeugen wuerde, bleibt unveraendert.
+        store.accept(snapshot("a", 3, "27:00:03"));
+        assertEquals("27:00:03", store.get().state().clock());
+    }
+
+    @Test
+    void aVanishedBridgeStopsThePublishedCopyFromClaimingAConnectedSource() {
+        var store = new PublishedStateStore("local");
+        List<Long> seen = new ArrayList<>();
+        store.accept(snapshot("a", 5, "10:07:41"));
+        store.addListener(state -> seen.add(state.publicationRevision()));
+
+        store.ingestDisconnected();
+
+        assertEquals(SourceHealth.DISCONNECTED, store.get().state().sourceHealth());
+        assertEquals("10:07:41", store.get().state().clock(),
+                "the last competition time stays visible and is never advanced");
+        assertEquals(2, store.get().publicationRevision(), "browsers learn about it");
+        assertEquals(List.of(2L), seen);
+    }
+
+    @Test
+    void aReturningBridgeIsAcceptedAgainEvenWhenItResendsTheSameRevision() {
+        var store = new PublishedStateStore("local");
+        store.accept(snapshot("a", 5, "10:07:41"));
+        store.ingestDisconnected();
+
+        assertTrue(store.accept(snapshot("a", 5, "10:07:41")),
+                "the resync after a reconnect must not be swallowed as a duplicate");
+        assertEquals(SourceHealth.CONNECTED, store.get().state().sourceHealth());
+        assertEquals(3, store.get().publicationRevision());
+    }
+
+    @Test
+    void markingAVanishedBridgeTwiceChangesNothing() {
+        var store = new PublishedStateStore("local");
+        store.accept(snapshot("a", 5, "10:07:41"));
+        store.ingestDisconnected();
+        long revision = store.get().publicationRevision();
+
+        store.ingestDisconnected();
+
+        assertEquals(revision, store.get().publicationRevision());
+        assertEquals(0, new PublishedStateStore("local").get().publicationRevision(),
+                "a live server that never had a bridge publishes nothing either");
+    }
+
     @Test
     void foreignChannelIsRejected() {
         var store = new PublishedStateStore("local");

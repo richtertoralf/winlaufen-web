@@ -451,8 +451,63 @@ Ein allgemeiner Event-Bus oder ein zusätzliches Delta-Protokoll ist nicht
 erforderlich.
 
 Jeder WebSocket-`snapshot`, auch nach einem Reconnect, ist autoritativ und
-synchronisiert die Browsertabellen vollständig. An einen einzelnen Client
-ausgelieferte Revisionen dürfen niemals sinken.
+synchronisiert die Browsertabellen vollständig. Innerhalb **einer** Verbindung
+dürfen ausgelieferte Revisionen niemals sinken. Die `publicationRevision` gilt
+nur für die Laufzeit eines Live-Server-Prozesses; ein neu gestarteter Live
+Server beginnt wieder bei 0. Der Browser setzt seinen Revisionsschutz deshalb
+bei jeder neuen Verbindung zurück — sonst verwürfe er nach einem Neustart des
+Live Servers jeden neuen Snapshot als veraltet.
+
+Der Live Server sendet Browsern zusätzlich alle 2 s ein zustandsloses
+Lebenszeichen `{"type":"heartbeat"}`. Es ist das einzige Signal, an dem ein
+Browser einen verschwundenen Live Server erkennen kann: eine tote
+TCP-Verbindung meldet sich nicht, WebSocket-Ping/Pong ist für Seitenskripte
+unsichtbar, und der veröffentlichte State taugt nicht als Ersatz, weil die
+Bridge bei ruhender Quelle gar nichts publiziert. Bleibt das Lebenszeichen
+länger als 6 s aus, gilt die Verbindung als verloren.
+
+Der Web Viewer zeigt `CONNECTED` nur, solange diese Verbindung trägt. Bei
+Verbindungsverlust bleiben die letzten Ergebnisse lesbar, werden aber sichtbar
+als nicht aktuell gekennzeichnet, und der Browser verbindet ohne Reload
+selbständig neu (sofort, 2 s, 5 s, dann 10 s).
+
+### Zwei getrennte Lebenszeichen
+
+| | technisches Lebenszeichen | fachliches Lebenszeichen |
+|---|---|---|
+| Frage | Trägt die Verbindung Browser ↔ Live Server? | Liefert WinLaufen noch aktuelle Daten? |
+| Träger | `{"type":"heartbeat"}` alle 2 s | WinLaufen-Wettkampfzeit im Snapshot |
+| Grenzwert | 6 s ohne Nachricht | `SourceHealth` der Bridge, 4 s ohne Uhrentelegramm |
+| Anzeige | roter Verbindungshinweis, Daten abgeblendet | `CONNECTED` / `STALE` / `DISCONNECTED` |
+
+Das technische Lebenszeichen ist zustandslos. Es darf die Wettkampfzeit nicht
+verändern, `SourceHealth` nicht auf `CONNECTED` setzen, die
+`publicationRevision` nicht bewegen und einen alten fachlichen Stand nicht
+künstlich frisch machen. Umgekehrt gilt: ein funktionierendes technisches
+Lebenszeichen ist **keine** Aussage darüber, ob WinLaufen noch liefert.
+
+Daraus ergeben sich drei unterscheidbare Zustände:
+
+| Lage | Verbindungshinweis | Statusanzeige | Wettkampfzeit |
+|---|---|---|---|
+| Kette vollständig in Ordnung | aus | `CONNECTED` | folgt den WinLaufen-Werten |
+| Browser erreicht Live Server nicht | **an**, Daten abgeblendet | `DISCONNECTED` | bleibt beim letzten empfangenen Wert |
+| Live Server erreichbar, WinLaufen liefert nicht | aus | `STALE` bzw. `DISCONNECTED` | bleibt beim letzten empfangenen Wert |
+
+Verliert der Live Server seine Bridge-Ingest-Verbindung, veröffentlicht er
+seine letzte Kopie mit `SourceHealth` `DISCONNECTED` weiter — Ergebnisse und
+letzte Wettkampfzeit bleiben sichtbar, die Kopie behauptet aber nicht länger,
+aktuell zu sein. Die Streambindung wird dabei gelöst, damit der zurückkehrende
+Bridge-Resync auch dann wieder angenommen wird, wenn er dieselbe
+`sourceRevision` erneut sendet.
+
+### Wettkampfzeit
+
+Die angezeigte Zeit ist die **Wettkampfzeit aus WinLaufen**, kein Uhrzeitwert
+eines beteiligten Rechners. Bridge, Contract, Live Server und Browser reichen
+sie unverändert weiter; keine Stufe erzeugt, zählt oder interpoliert sie. Bleibt
+sie aus, bleibt der letzte gelieferte Wert stehen. Der vollständige Vertrag
+steht in `docs/WINLAUFEN_PROTOCOL.md`, Abschnitt „Uhr".
 
 ## 17. Installationsziel
 

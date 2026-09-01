@@ -1,6 +1,8 @@
 package de.winlaufen.web.liveserver.state;
 
+import de.winlaufen.web.contract.CanonicalState;
 import de.winlaufen.web.contract.SnapshotEnvelope;
+import de.winlaufen.web.contract.SourceHealth;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -13,6 +15,9 @@ import java.util.function.Consumer;
  * <p>A snapshot replaces the whole state atomically. Within one {@code streamId} lower revisions
  * are rejected and equal revisions are confirmed idempotently; a new authenticated stream may
  * restart at revision 0.
+ *
+ * <p>The competition time is a WinLaufen value and is only ever carried through. This store never
+ * produces, advances or interpolates it — not even while marking the copy as no longer current.
  */
 public final class PublishedStateStore {
 
@@ -34,6 +39,29 @@ public final class PublishedStateStore {
 
     public void addListener(Consumer<PublishedState> listener) {
         listeners.add(listener);
+    }
+
+    /**
+     * The bridge of this channel is gone. The last copy stays visible — the competition time and
+     * the results a speaker already sees must not disappear — but the published source health
+     * stops claiming that the data is current. Without this, a live server would keep serving
+     * {@code CONNECTED} with a frozen WinLaufen clock for as long as it runs.
+     *
+     * <p>The stream binding is dropped on purpose: a returning bridge resends the revision it had
+     * already delivered, and only an unbound stream makes that snapshot authoritative again
+     * instead of being swallowed as a duplicate.
+     */
+    public synchronized void ingestDisconnected() {
+        PublishedState old = state.get();
+        if (old.streamId() == null && old.state().sourceHealth() == SourceHealth.DISCONNECTED) {
+            return;
+        }
+        CanonicalState degraded = new CanonicalState(SourceHealth.DISCONNECTED, old.state().clock(),
+                old.state().competition(), old.state().currentFinish(), old.state().message());
+        PublishedState next = new PublishedState(old.publicationRevision() + 1, null,
+                old.sourceRevision(), degraded, old.presentation());
+        state.set(next);
+        listeners.forEach(listener -> listener.accept(next));
     }
 
     /** @return {@code false} when the snapshot was rejected because its revision went backwards. */

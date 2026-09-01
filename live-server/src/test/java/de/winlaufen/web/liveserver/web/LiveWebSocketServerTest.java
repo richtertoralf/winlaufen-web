@@ -3,6 +3,7 @@ package de.winlaufen.web.liveserver.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.winlaufen.web.contract.ContractJson;
+import de.winlaufen.web.contract.ContractLimits;
 import de.winlaufen.web.liveserver.state.PublishedStateStore;
 import de.winlaufen.web.liveserver.state.PublishedStateStoreTest;
 import org.java_websocket.client.WebSocketClient;
@@ -21,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LiveWebSocketServerTest {
@@ -124,7 +126,12 @@ class LiveWebSocketServerTest {
         }
         String message;
         while ((message = browser.messages.poll(1, TimeUnit.SECONDS)) != null) {
-            long current = MAPPER.readTree(message).get("publicationRevision").asLong();
+            JsonNode parsed = MAPPER.readTree(message);
+            if ("heartbeat".equals(parsed.get("type").asText())) {
+                assertFalse(parsed.has("publicationRevision"), "a sign of life carries no state");
+                continue;
+            }
+            long current = parsed.get("publicationRevision").asLong();
             assertTrue(current > previous,
                     "publicationRevision must strictly increase per browser, got "
                             + current + " after " + previous);
@@ -134,6 +141,102 @@ class LiveWebSocketServerTest {
 
         browser.closeBlocking();
         ingest.closeBlocking();
+    }
+
+    /**
+     * The regression behind the frozen viewer: a restarted live server starts its publication
+     * revision at 0 again. A browser that kept the counter of the previous run would discard every
+     * snapshot of the new run, so the viewer must reset the guard for each connection.
+     */
+    @Test
+    void aRestartedLiveServerStartsItsPublicationRevisionAtZeroAgain() throws Exception {
+        Collector ingest = connectIngest();
+        for (int revision = 1; revision <= 3; revision++) {
+            ingest.send(ContractJson.snapshot(
+                    PublishedStateStoreTest.snapshot("stream", revision, "08:00:0" + revision)));
+            assertTrue(ingest.next().contains("\"type\":\"ack\""));
+        }
+        assertEquals(3, store.get().publicationRevision());
+        ingest.closeBlocking();
+
+        int reused = server.getPort();
+        server.shutdown();
+        server = new LiveWebSocketServer("127.0.0.1", reused, new PublishedStateStore("local"),
+                "local", "12345678");
+        server.start();
+        server.awaitStart();
+
+        Collector browser = connectBrowser();
+        JsonNode first = MAPPER.readTree(browser.next());
+        assertEquals("snapshot", first.get("type").asText());
+        assertEquals(0, first.get("publicationRevision").asLong(),
+                "the new run knows nothing of the previous counter");
+        browser.closeBlocking();
+    }
+
+    @Test
+    void browsersGetASignOfLifeAndIngestConnectionsDoNot() throws Exception {
+        int fastPort = freePort();
+        var fastStore = new PublishedStateStore("local");
+        var fast = new LiveWebSocketServer("127.0.0.1", fastPort, fastStore, "local", "12345678",
+                ContractLimits.MAX_INGEST_MESSAGE_BYTES, ContractLimits.MAX_BROWSER_MESSAGE_BYTES,
+                80);
+        fast.start();
+        fast.awaitStart();
+        try {
+            Collector browser = new Collector(new URI("ws://127.0.0.1:" + fastPort + "/live/v1"),
+                    Map.of("Origin", "http://127.0.0.1:44440"));
+            assertTrue(browser.connectBlocking(3, TimeUnit.SECONDS));
+            Collector ingest = new Collector(
+                    new URI("ws://127.0.0.1:" + fastPort + "/bridge/v1/channels/local"),
+                    Map.of("Authorization", "Bearer 12345678"));
+            assertTrue(ingest.connectBlocking(3, TimeUnit.SECONDS));
+
+            assertEquals("snapshot", MAPPER.readTree(browser.next()).get("type").asText(),
+                    "the first message of a connection stays the full snapshot");
+            for (int index = 0; index < 3; index++) {
+                assertEquals("heartbeat", MAPPER.readTree(browser.next()).get("type").asText(),
+                        "the browser link keeps getting a sign of life while nothing changes");
+            }
+            assertNull(ingest.messages.poll(300, TimeUnit.MILLISECONDS),
+                    "the ingest connection has its own ACK round trip and gets no keepalive");
+
+            browser.closeBlocking();
+            ingest.closeBlocking();
+        } finally {
+            fast.shutdown();
+        }
+    }
+
+    /**
+     * Without this the live server would keep serving CONNECTED with a frozen WinLaufen clock for
+     * as long as it runs, and every spectator would believe the data is current.
+     */
+    @Test
+    void aBrowserLearnsThatTheBridgeIsGoneAndKeepsTheLastCompetitionTime() throws Exception {
+        Collector browser = connectBrowser();
+        assertNotNull(browser.next());
+        Collector ingest = connectIngest();
+        ingest.send(ContractJson.snapshot(
+                PublishedStateStoreTest.snapshot("stream", 1, "10:07:41")));
+        assertTrue(ingest.next().contains("\"type\":\"ack\""));
+
+        JsonNode live = nextSnapshot(browser);
+        assertEquals("CONNECTED", live.get("state").get("health").asText());
+        assertEquals("10:07:41", live.get("state").get("clock").asText());
+
+        ingest.closeBlocking();
+
+        JsonNode degraded = nextSnapshot(browser);
+        assertEquals("DISCONNECTED", degraded.get("state").get("health").asText(),
+                "a vanished bridge must not stay published as a connected source");
+        assertEquals("10:07:41", degraded.get("state").get("clock").asText(),
+                "the last competition time stays exactly as WinLaufen delivered it");
+        assertTrue(degraded.get("publicationRevision").asLong()
+                        > live.get("publicationRevision").asLong(),
+                "the browser receives it as a normal published state");
+
+        browser.closeBlocking();
     }
 
     @Test
@@ -151,6 +254,16 @@ class LiveWebSocketServerTest {
         Collector browser = connectBrowser();
         assertTrue(browser.next().contains("\"publicationRevision\":0"));
         browser.closeBlocking();
+    }
+
+    /** Skips the technical sign of life, which never carries competition state. */
+    private JsonNode nextSnapshot(Collector collector) throws Exception {
+        for (;;) {
+            JsonNode parsed = MAPPER.readTree(collector.next());
+            if (!"heartbeat".equals(parsed.get("type").asText())) {
+                return parsed;
+            }
+        }
     }
 
     private String clockOf(String message) throws Exception {

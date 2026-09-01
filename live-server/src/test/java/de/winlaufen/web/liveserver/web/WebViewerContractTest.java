@@ -124,7 +124,11 @@ class WebViewerContractTest {
         assertEquals(1, occurrences(html, "view active"));
         assertTrue(script.contains("message.publicationRevision < publicationRevision"));
         assertTrue(script.contains("index === highlighted"));
-        assertTrue(script.contains("display.showPublicMessages && Boolean(state.message)"));
+        // Die Regel ist unveraendert: nur wenn der Veranstalter Nachrichten zeigt und eine
+        // vorliegt. Die Null-Sicherheit kam dazu, weil die Kopfzeile jetzt auch ohne Daten
+        // gerendert wird, sobald die Verbindung fehlt.
+        assertTrue(script.contains(
+                "Boolean(display?.showPublicMessages) && Boolean(state?.message)"));
         assertTrue(script.contains("publicMessage.hidden = !visible"));
         assertFalse(script.contains("BridgeConfig"));
         assertFalse(script.contains("/bridge/"));
@@ -188,6 +192,182 @@ class WebViewerContractTest {
         assertTrue(css.contains("@keyframes arrival"), "the arrival emphasis must fade out again");
         assertTrue(css.contains("animation:arrival"));
         assertTrue(css.contains("prefers-reduced-motion"), "motion must be avoidable");
+    }
+
+    /**
+     * The shown time is the WinLaufen competition time, not a clock. It is produced by WinLaufen
+     * alone; bridge, live server and browser only carry it. A standing clock is therefore a
+     * truthful end-to-end sign that no fresh data is arriving, and must never be faked away.
+     */
+    @Test
+    void showsExactlyTheCompetitionTimeWinLaufenDelivered() throws Exception {
+        String script = resource("/web-viewer/viewer.js");
+
+        assertTrue(script.contains("clock.textContent = state?.clock || '--:--:--';"),
+                "the shown time comes from the received state and from nothing else");
+        assertEquals(1, occurrences(script, "clock.textContent"),
+                "there is exactly one place that writes the competition time");
+        assertEquals("10:07:41", clockOfPublished("10:07:41"),
+                "the public wire format carries the value through unchanged");
+        assertEquals("27:00:03", clockOfPublished("27:00:03"),
+                "even a value no local clock could produce is carried through unchanged");
+    }
+
+    @Test
+    void neverProducesOrAdvancesACompetitionTimeOfItsOwn() throws Exception {
+        String script = resource("/web-viewer/viewer.js");
+
+        for (String forbidden : new String[]{"Date.now", "new Date", "getTime()", "toLocaleTime",
+                "setInterval"}) {
+            assertFalse(script.contains(forbidden),
+                    "the viewer must not build a running clock of its own: " + forbidden);
+        }
+        // setTimeout bleibt erlaubt und noetig - aber nur fuer Link-Timeout und Reconnect.
+        for (String allowed : new String[]{"setTimeout(linkTimedOut, LINK_TIMEOUT_MILLIS)",
+                "reconnectTimer = setTimeout(action, RECONNECT_DELAYS_MILLIS[index])"}) {
+            assertTrue(script.contains(allowed), "missing technical timer " + allowed);
+        }
+        assertEquals(2, occurrences(script, "setTimeout("),
+                "the only timers are the link timeout and the reconnect delay");
+    }
+
+    /** The technical sign of life proves the link and nothing else. */
+    @Test
+    void aSignOfLifeNeverTouchesCompetitionStateOrTheRevisionGuard() throws Exception {
+        String script = resource("/web-viewer/viewer.js");
+        int guard = script.indexOf("if (message.type === 'heartbeat') return;");
+        int revision = script.indexOf("message.publicationRevision < publicationRevision");
+        int assignment = script.indexOf("state = message.state;");
+
+        assertTrue(guard > 0, "a sign of life is recognised");
+        assertTrue(guard < revision && guard < assignment,
+                "it returns before the revision guard and before any state is adopted, so it can "
+                        + "change neither the competition time nor the source health nor results");
+        assertTrue(script.indexOf("noteTraffic();") < guard,
+                "it still counts as proof that the link is alive");
+        assertEquals("{\"type\":\"heartbeat\"}", PublicJson.heartbeat(),
+                "the sign of life carries no state at all");
+    }
+
+    /**
+     * With a working link the pill keeps showing the WinLaufen source health, so a live server
+     * that is reachable while the source is gone reads as exactly that.
+     */
+    @Test
+    void aWorkingLinkNeverPresentsAStaleSourceAsConnected() throws Exception {
+        String script = resource("/web-viewer/viewer.js");
+
+        assertTrue(script.contains("const shown = linkLive && state ? state.health : 'DISCONNECTED';"),
+                "with a working link the source health decides, unchanged");
+        assertFalse(script.contains("'CONNECTED'"),
+                "the viewer never writes CONNECTED itself; it can only repeat the source health");
+        assertTrue(script.contains("linkNotice.hidden = linkLive;"),
+                "a healthy link shows no live server error, whatever the source health is");
+    }
+
+    /**
+     * The link to the live server, seen from this browser. It is not the health of the WinLaufen
+     * source and not the state of the bridge, so these two must never be rendered as one.
+     */
+    @Test
+    void showsConnectedOnlyWhileThisBrowserActuallyReceivesLiveData() throws Exception {
+        String script = resource("/web-viewer/viewer.js");
+
+        assertTrue(script.contains("const shown = linkLive && state ? state.health : 'DISCONNECTED';"),
+                "without a working link the last reported source health is not shown as current");
+        assertTrue(script.contains("health.textContent = shown;")
+                        && script.contains("health.className = `pill ${shown.toLowerCase()}`;"),
+                "the pill renders the decided value, not the raw source health");
+        assertFalse(script.contains("health.textContent = state.health"),
+                "the old unconditional rendering of the source health is gone");
+    }
+
+    @Test
+    void marksTheLastResultsAsNotCurrentWhileTheLinkIsDown() throws Exception {
+        String html = resource("/web-viewer/viewer.html");
+        String css = resource("/web-viewer/viewer.css");
+        String script = resource("/web-viewer/viewer.js");
+
+        assertTrue(html.contains("<div id=\"link-notice\" class=\"notice\" role=\"status\" hidden>"),
+                "the notice starts hidden and is announced to assistive technology");
+        assertTrue(html.contains("Keine Verbindung zum Live-Server."),
+                "the notice says plainly that there is no connection");
+        assertTrue(html.contains("Die angezeigten Daten sind nicht aktuell."),
+                "the notice says that the visible results are no longer current");
+        assertTrue(html.contains("Es wird automatisch neu verbunden."),
+                "the notice says that no manual action is required");
+        assertTrue(script.contains("document.body.classList.toggle('link-lost', !linkLive);")
+                        && script.contains("linkNotice.hidden = linkLive;"),
+                "both markers follow the link state");
+        assertTrue(css.contains("body.link-lost #clock,body.link-lost .view{opacity:.5}"),
+                "clock and tables stay readable but are visibly marked as not current");
+        // Die letzten Ergebnisse bleiben stehen: der Verbindungsverlust ruehrt keine Tabelle an.
+        int from = script.indexOf("function linkTimedOut");
+        assertTrue(from > 0, "the timeout handler exists");
+        String timeoutBody = script.substring(from, script.indexOf("\n}", from));
+        assertFalse(timeoutBody.contains("renderTables") || timeoutBody.contains("replaceChildren"),
+                "losing the link never discards the last results");
+    }
+
+    @Test
+    void reconnectsAutomaticallyWithABoundedBackoffAndNeverReloadsThePage() throws Exception {
+        String script = resource("/web-viewer/viewer.js");
+
+        assertTrue(script.contains("const RECONNECT_DELAYS_MILLIS = [0, 2000, 5000, 10000];"),
+                "the browser reuses the bridge's output backoff: immediate, 2 s, 5 s, then 10 s");
+        assertTrue(script.contains("retryLater(() => connect(runtime));"),
+                "a closed socket is reconnected without any user action");
+        assertTrue(script.contains("reconnectAttempt = 0;"),
+                "a successful connection resets the backoff");
+        assertTrue(script.contains(
+                        "const index = Math.min(reconnectAttempt, RECONNECT_DELAYS_MILLIS.length - 1);"),
+                "the delay never runs past the last step, so a long outage stays at 10 s");
+        assertTrue(script.contains(".catch(() => { setLink(false); retryLater(start); });"),
+                "a page opened during the outage retries instead of staying dead");
+        assertFalse(script.contains("location.reload"),
+                "a page reload is never the reconnect mechanism");
+    }
+
+    @Test
+    void resetsTheRevisionGuardForEveryConnectionSoARestartedLiveServerIsAccepted() throws Exception {
+        String script = resource("/web-viewer/viewer.js");
+        int open = script.indexOf("socket.onopen");
+        int message = script.indexOf("socket.onmessage");
+
+        assertTrue(open > 0 && message > open, "the open handler is installed before the messages");
+        assertTrue(script.substring(open, message).contains("publicationRevision = -1;"),
+                "each new connection starts the guard over, because the counter belongs to one "
+                        + "live server run");
+        assertTrue(script.contains("message.publicationRevision < publicationRevision"),
+                "within one connection the guard still rejects a lower revision");
+    }
+
+    @Test
+    void treatsAMissingSignOfLifeAsALostLinkInsteadOfTrustingOnCloseAlone() throws Exception {
+        String script = resource("/web-viewer/viewer.js");
+
+        assertTrue(script.contains("const LINK_TIMEOUT_MILLIS = 6000;"),
+                "three missed keepalives end the CONNECTED claim");
+        assertEquals(6000, LiveWebSocketServer.BROWSER_KEEPALIVE_MILLIS * 3,
+                "the viewer timeout stays exactly three server keepalive intervals; if the server "
+                        + "cadence changes, this pair has to be decided again");
+        // Der Wert liegt bewusst ueber dem 4-s-Stale-Fenster der WinLaufen-Quelle: eine ruhende
+        // Veranstaltung sendet keine Zustandsaenderung und darf nicht als Ausfall erscheinen.
+        assertTrue(LiveWebSocketServer.BROWSER_KEEPALIVE_MILLIS * 3 > 4000,
+                "a quiet competition is never mistaken for a lost link");
+        assertTrue(script.contains("linkTimer = setTimeout(linkTimedOut, LINK_TIMEOUT_MILLIS);"),
+                "every received message rearms the timeout");
+        assertTrue(script.contains("if (socket) socket.close();"),
+                "a silently dead socket is closed so the normal reconnect path runs");
+        assertTrue(script.contains("if (message.type === 'heartbeat') return;"),
+                "a sign of life proves the link but never touches the shown state");
+    }
+
+    private static String clockOfPublished(String clock) throws Exception {
+        PublishedState published = new PublishedState(1, "stream", 1,
+                new CanonicalState(SourceHealth.CONNECTED, clock, null, null, null),
+                PresentationConfig.defaults());
+        return MAPPER.readTree(PublicJson.state(published)).get("state").get("clock").asText();
     }
 
     /** Mirrors the viewer's {@code visibleColumn} rule against the real published JSON. */

@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -37,6 +39,16 @@ public final class LiveWebSocketServer extends WebSocketServer {
 
     public static final String BROWSER_PATH = "/live/v1";
 
+    /**
+     * Sign-of-life interval for browser connections.
+     *
+     * <p>Derived from the source heartbeat rule: the WinLaufen clock arrives about once a second
+     * and counts as stale after 4 s. The browser link uses the same order of magnitude, so a
+     * viewer notices a vanished live server within seconds instead of showing a frozen clock as
+     * if it were current.
+     */
+    public static final long BROWSER_KEEPALIVE_MILLIS = 2_000;
+
     private enum Role { BROWSER, INGEST }
 
     private final PublishedStateStore store;
@@ -45,23 +57,36 @@ public final class LiveWebSocketServer extends WebSocketServer {
     private final String ingestPath;
     private final ConcurrentMap<WebSocket, Long> delivered = new ConcurrentHashMap<>();
     private final CountDownLatch started = new CountDownLatch(1);
+    private final long keepaliveMillis;
+    private final ScheduledExecutorService keepalive = Executors.newSingleThreadScheduledExecutor(
+            runnable -> Thread.ofPlatform().name("live-browser-keepalive").daemon().unstarted(runnable));
     private volatile Exception startupError;
 
     public LiveWebSocketServer(String bind, int port, PublishedStateStore store, String channelId,
                                String secret) {
         this(bind, port, store, channelId, secret,
-                ContractLimits.MAX_INGEST_MESSAGE_BYTES, ContractLimits.MAX_BROWSER_MESSAGE_BYTES);
+                ContractLimits.MAX_INGEST_MESSAGE_BYTES, ContractLimits.MAX_BROWSER_MESSAGE_BYTES,
+                BROWSER_KEEPALIVE_MILLIS);
     }
 
     /** Test seam: proves the limits without allocating a production-sized payload. */
     LiveWebSocketServer(String bind, int port, PublishedStateStore store, String channelId,
                         String secret, int ingestLimitBytes, int browserLimitBytes) {
+        this(bind, port, store, channelId, secret, ingestLimitBytes, browserLimitBytes,
+                BROWSER_KEEPALIVE_MILLIS);
+    }
+
+    /** Test seam: proves the keepalive without letting a test wait for the production interval. */
+    LiveWebSocketServer(String bind, int port, PublishedStateStore store, String channelId,
+                        String secret, int ingestLimitBytes, int browserLimitBytes,
+                        long keepaliveMillis) {
         super(new InetSocketAddress(bind, port),
                 drafts(ingestPath(channelId), ingestLimitBytes, browserLimitBytes));
         this.store = store;
         this.channelId = channelId;
         this.secret = secret;
         this.ingestPath = ingestPath(channelId);
+        this.keepaliveMillis = keepaliveMillis;
         setReuseAddr(true);
         store.addListener(this::publish);
     }
@@ -147,6 +172,11 @@ public final class LiveWebSocketServer extends WebSocketServer {
     @Override
     public void onClose(WebSocket connection, int code, String reason, boolean remote) {
         delivered.remove(connection);
+        // A browser leaving changes nothing for anyone else; the bridge leaving means the
+        // published copy is no longer current and must stop claiming a connected source.
+        if (connection.getAttachment() == Role.INGEST) {
+            store.ingestDisconnected();
+        }
     }
 
     @Override
@@ -159,7 +189,26 @@ public final class LiveWebSocketServer extends WebSocketServer {
 
     @Override
     public void onStart() {
+        keepalive.scheduleWithFixedDelay(this::sendKeepalive,
+                keepaliveMillis, keepaliveMillis, TimeUnit.MILLISECONDS);
         started.countDown();
+    }
+
+    /**
+     * Only browsers need this, and only they get it: the ingest connection has its own ACK
+     * round trip. A send may race with a closing connection, which must never end the schedule.
+     */
+    private void sendKeepalive() {
+        for (WebSocket connection : getConnections()) {
+            if (connection.getAttachment() != Role.BROWSER || !connection.isOpen()) {
+                continue;
+            }
+            try {
+                connection.send(PublicJson.heartbeat());
+            } catch (RuntimeException ex) {
+                // The connection went away between the check and the send; onClose cleans up.
+            }
+        }
     }
 
     private void publish(PublishedState value) {
@@ -183,6 +232,7 @@ public final class LiveWebSocketServer extends WebSocketServer {
     }
 
     public void shutdown() throws InterruptedException {
+        keepalive.shutdownNow();
         delivered.clear();
         stop(1_000);
     }

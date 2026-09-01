@@ -141,12 +141,15 @@ Pfade:
 |---|---|---|---|---|
 | A. Source State | WinLaufen bzw. verifizierte Quelle | Wirewerte und Reihenfolge sind allein maßgeblich | Quelle entscheidet | Bridge eröffnet neue Source-Verbindung und neue Deserialisierungskontexte |
 | B. Canonical Bridge State | Bridge | immutable State; `sourceRevision` steigt pro Bridge-Stream | memory-only | startet leer; neue `streamId`; Quelle füllt ihn wieder; letzte Werte werden nie aus lokaler Uhr rekonstruiert |
-| C. Published Live Server State | je Live-Server-Channel der Live Server | Kopie des zuletzt akzeptierten vollständigen Bridge-Snapshots; eigene `publicationRevision` für Browser | memory-only in v0.1 | startet leer; Bridge-Verbindung liefert sofort Vollsnapshot; bleibt bei Ausfall als stale/disconnected markierte letzte Kopie sichtbar |
+| C. Published Live Server State | je Live-Server-Channel der Live Server | Kopie des zuletzt akzeptierten vollständigen Bridge-Snapshots; eigene `publicationRevision` für Browser (nur prozesslaufzeitgültig, startet nach Neustart wieder bei 0) | memory-only in v0.1 | startet leer; Bridge-Verbindung liefert sofort Vollsnapshot; bleibt bei Ausfall als stale/disconnected markierte letzte Kopie sichtbar |
 | D. Browser State | jeweiliger Browser | flüchtige Kopie des letzten Live-Server-Snapshots; Revisionsschutz pro Verbindung | keine Serverpersistenz; optionaler Browser-UI-State out of scope | WebSocket-Reconnect erhält sofort autoritativen Vollsnapshot |
 
 - `sourceRevision` monoton innerhalb einer `streamId`; jeder
   Bridge-Prozessstart erzeugt eine neue zufällige `streamId` (eindeutiger
   Revision-Neustart).
+- Die WinLaufen-Wettkampfzeit ist ein reiner Durchreichewert. Keine Stufe
+  dieser Kette erzeugt, korrigiert, zählt oder interpoliert sie; siehe
+  `docs/WINLAUFEN_PROTOCOL.md`.
 - Live Server vergibt zusätzlich `publicationRevision` (monoton innerhalb
   der Prozesslaufzeit) — Fortführung der Browser-Revisionsgarantie.
 - Target-ACK referenziert `streamId`/`sourceRevision`; Browser sehen
@@ -420,9 +423,21 @@ Vier unabhängige Zustandsmaschinen sind verbindlich:
 
 - Browserdisconnect verändert Published State, Bridge-Ingest und andere
   Browser nicht;
-- Browser verbindet mit eigenem Retry erneut;
+- Browser verbindet mit eigenem Retry erneut (sofort, 2 s, 5 s, dann 10 s);
 - Live Server sendet unmittelbar einen vollständigen Public Snapshot;
-- `publicationRevision` verhindert Rückschritte durch wartende Sends.
+- `publicationRevision` verhindert Rückschritte durch wartende Sends; der
+  Schutz gilt pro Verbindung und wird vom Browser bei jeder neuen Verbindung
+  zurückgesetzt, weil die Revision nur für eine Live-Server-Laufzeit gilt;
+- Live Server sendet Browsern alle 2 s ein zustandsloses Lebenszeichen; ein
+  Browser wertet dessen Ausbleiben über 6 s als Verbindungsverlust und zeigt
+  dann nicht mehr `CONNECTED`;
+- das technische Lebenszeichen verändert weder Wettkampfzeit noch
+  `SourceHealth`, `publicationRevision` oder Ergebnisdaten; es beantwortet
+  ausschließlich die Frage nach der Verbindung Browser ↔ Live Server;
+- verliert der Live Server seinen Bridge-Ingest, veröffentlicht er seine letzte
+  Kopie mit `SourceHealth` `DISCONNECTED` und löst die Streambindung, damit der
+  Resync der zurückkehrenden Bridge auch bei gleicher `sourceRevision` wieder
+  angenommen wird. Ergebnisse und letzte Wettkampfzeit bleiben sichtbar.
 
 ### Konkrete Ausfallszenarien
 

@@ -89,6 +89,37 @@ erneuert die technische Liveness. Mehr als vier Sekunden ohne ein solches
 Telegramm — auch vor der ersten Uhr auf einem frischen Stream — setzt die
 Verbindung auf stale und löst einen Reconnect aus.
 
+### Die Wettkampfzeit auf dem gesamten Weg bis zum Browser
+
+Der angezeigte Wert ist die **Wettkampfzeit aus WinLaufen** und keine Uhrzeit
+irgendeines beteiligten Rechners. Er ist insbesondere nicht die Systemzeit des
+WinLaufen-PCs, der Bridge, des Live Servers oder des Browsers.
+
+Bridge, Contract, Live Server und Browser dürfen diesen Wert ausschließlich
+transportieren, speichern und anzeigen. Er wird auf keiner nachgelagerten Stufe
+erzeugt, hochgezählt, fortgeschrieben oder interpoliert. Verboten sind dafür
+insbesondere `Date.now()`, `new Date()`, `System.currentTimeMillis()`,
+`Instant.now()`, ein `setInterval`-Zähler und jede Rechnung „letzte
+Wettkampfzeit plus vergangene lokale Zeit". Zeitfunktionen für technische
+Zwecke — Timeouts, Reconnect-Backoff, Heartbeat-Überwachung — bleiben davon
+unberührt.
+
+Kommt keine neue Wettkampfzeit an, bleibt im Browser exakt der zuletzt von
+WinLaufen gelieferte Wert stehen. Kommt wieder eine an, wird genau dieser neue
+Wert angezeigt; es wird nichts nachgeholt.
+
+Das ist ausdrücklich gewollt, denn die laufende Wettkampfzeit ist für den
+Sprecher ein **sichtbares End-to-End-Lebenszeichen der fachlichen Kette**
+WinLaufen → Bridge → Live Server → Browser. Eine stehende Wettkampfzeit ist die
+ehrliche Aussage „hier kommen gerade keine frischen Daten an" — genau daran
+wurde der Fehler erkannt, bei dem der Browser trotz verlorener Verbindung
+weiterhin `CONNECTED` anzeigte.
+
+Davon strikt getrennt ist das **technische Lebenszeichen** des Live Servers an
+den Browser (siehe `docs/PRODUCT_SPEC.md`, Abschnitt Browser-Synchronisation).
+Es beantwortet allein „trägt die Verbindung Browser ↔ Live Server?" und darf
+weder die Wettkampfzeit noch `SourceHealth` noch Ergebnisdaten verändern.
+
 ## Wettkampf-/Ergebnisblock
 
 Dokumentierte bzw. beobachtete logische Reihenfolge:

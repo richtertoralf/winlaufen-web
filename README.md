@@ -179,6 +179,33 @@ In der realen Abnahme vom 30.08.2026 war das zum Beispiel
 `http://192.168.95.198:44440/` — diese Adresse ist ein Beispiel aus jener
 Umgebung und kein Vorgabewert.
 
+Eine geöffnete Seite überwacht ihre Verbindung selbst. Fällt der Live Server
+aus oder wird er neu gestartet, verschwindet `CONNECTED`, die Seite weist
+sichtbar darauf hin, dass die angezeigten Ergebnisse nicht mehr aktuell sind,
+und verbindet sich anschließend selbständig wieder. Ein manueller
+Browser-Refresh ist dafür nicht nötig.
+
+### Die angezeigte Wettkampfzeit
+
+Die oben rechts angezeigte Zeit ist die **Wettkampfzeit aus WinLaufen**. Sie ist
+nicht die Uhrzeit des WinLaufen-PCs, der Bridge, des Live Servers oder des
+Browsers. Sprecher-Web reicht diesen Wert unverändert weiter und erzeugt keine
+eigene laufende Uhr.
+
+Kommen keine WinLaufen-Zeittelegramme mehr an, bleibt die zuletzt gelieferte
+Wettkampfzeit sichtbar stehen. Das ist gewollt: Für den Sprecher ist die
+laufende Wettkampfzeit damit ein verlässliches Lebenszeichen der gesamten Kette
+vom WinLaufen-PC bis zu seiner Anzeige. Eine stehende Zeit bedeutet, dass gerade
+keine frischen Daten ankommen — und niemals, dass Sprecher-Web die Zeit
+„nachrechnet".
+
+Die Statusanzeige daneben unterscheidet zwei Ebenen:
+
+| Anzeige | Bedeutung |
+|---|---|
+| roter Hinweis „Keine Verbindung zum Live-Server" | Dieser Browser erreicht den Live Server nicht. Die Daten sind abgeblendet, die Seite verbindet automatisch neu. |
+| `CONNECTED` / `STALE` / `DISCONNECTED` ohne roten Hinweis | Der Live Server ist erreichbar; der Wert beschreibt die Verbindung von der Bridge zu WinLaufen. |
+
 ## Bridge Control
 
 Bridge Control ist die einzige Veranstalter-Oberfläche. Sie fragt nur nach dem,
