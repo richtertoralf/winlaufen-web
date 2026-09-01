@@ -20,7 +20,7 @@ Browser
 
 <img src="WinLaufenSprecherWEB.png" alt="Screenshot WinLaufen, Sprecher-PC, Srecher-Web, Bridge Control" width="100%">
 
-**Screenshot: WinLaufen, Sprecher-PC, Sprecher-Web, Bridge Control**
+**Screenshot (01.09.2026): WinLaufen, Sprecher-PC, Sprecher-Web, Bridge Control**
 
 Die beiden sichtbaren Oberflächen heißen:
 
