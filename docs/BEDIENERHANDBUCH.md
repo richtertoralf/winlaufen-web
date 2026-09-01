@@ -69,7 +69,7 @@ Sie bedienen zwei Oberflächen:
 ### Für den Normalfall (Windows)
 
 * Windows 11
-* WinLaufen mit einem geöffneten Wettkampf
+* WinLaufen (getestet mit Version 16 und 19)
 * **Git** und **JDK 25** (Installation siehe Kapitel 4)
 * ein Netzwerk (LAN oder WLAN), in dem die Zuschauergeräte den Windows-PC
   erreichen
@@ -325,7 +325,7 @@ etwa den gemieteten Server aus Kapitel 12. Im Normalfall tragen Sie dort
 ausschließlich die **IP-Adresse** des Live-Servers ein, zum Beispiel:
 
 ```text
-203.0.113.7
+xxx.xxx.xxx.xxx
 ```
 
 Alles Weitere setzt Sprecher-Web selbst. Unter **Erweiterte Einstellungen**
