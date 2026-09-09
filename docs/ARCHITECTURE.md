@@ -18,13 +18,27 @@ und Sicherheitsregeln stehen ausschließlich dort — hier keine Duplikate.
 ## Module und Prozesse
 
 ```text
-WinLaufen --TCP/4444 read-only--> winlaufen-web-bridge
-                                      | ausgehend WS/WSS, Snapshot + ACK
-                                      v
-                                winlaufen-web-live-server
-                                      | HTTP + Browser-WebSocket
-                                      v
-                                  Web Viewer
+WinLaufen --TCP/4444, read-only------------------->|
+Startlisten-Dateiexport --Bridge Control---------->|
+                                                   v
+                                        winlaufen-web-bridge
+                                          Canonical Competition State   memory-only
+                                          CanonicalStartList            persistent
+                                                   |
+                                                   |  ausgehend WS/WSS
+                                                   |    Snapshot + ACK  je Revision
+                                                   |    StartList       nur bei Import
+                                                   |                    oder Connect
+                                                   v
+                                     winlaufen-web-live-server
+                                          Published Competition State   memory-only
+                                          Published StartList           memory-only
+                                                   |
+                                                   |  HTTP + Browser-WebSocket
+                                                   v
+                                              Web Viewer
+                                          Uhr / LIVE / Ergebnisse
+                                          Startliste nach Klassen
 ```
 
 - Root-POM: reiner Aggregator, keine Runtime-Klassen
@@ -54,8 +68,36 @@ WinLaufen --TCP/4444 read-only--> winlaufen-web-bridge
 - `BridgeConfig`: Source, 0..n Targets, Presentation Config
 - Live Server kennt nur technische Bind-/Channel-/Ingest-Credential-Config
 
-Details: MODULAR_ARCHITECTURE.md §5 (State Ownership), §9
-(Konfigurationsbesitz).
+### Startliste
+
+**CanonicalStartList** — gehört der Bridge, persistent neben ihrer
+Konfiguration, vollständiger Ersatz bei jedem angenommenen Import, eigene
+`generation`. Es gibt **kein Teilnehmer-ID-Konzept**: die Quelle liefert keins,
+also erfindet keine Stufe eins. Kanonisch eindeutig ist `(className, bib)`;
+dieselbe Startnummer in verschiedenen Klassen ist erlaubt. Die `generation`
+versioniert nur diesen Bestand und ist keine Wettkampf-, Lauf- oder
+Teilnehmerkennung.
+
+**StartList Publication** — eigener Nachrichtentyp auf derselben
+Ingest-Verbindung, **nicht** Bestandteil des häufigen Competition-State-
+Snapshots. Voller Snapshot, kein Delta. Gesendet nach einem erfolgreichen
+Import, beim ersten Verbindungsaufbau und bei jedem Reconnect; **nicht** bei
+Uhr-, Ergebnis-, Health- oder Präsentationsänderungen und nicht bei einem
+abgelehnten Import. Jedes aktivierte Output Target erhält seinen eigenen Sync.
+
+**Live Server** — hält die Startliste memory-only und ersetzt sie vollständig.
+Die Bridge bleibt die autoritative Quelle; nach einem Live-Server-Neustart
+liefert sie den Bestand beim Reconnect von selbst erneut, ohne erneuten Import.
+
+**Web Viewer** — eigener Startlistenbereich, klassenweise Darstellung mit
+Vor-/Zurück-Navigation und direkter Klassenauswahl. Reihenfolge der Klassen und
+der Teilnehmer bleibt die des Imports.
+
+Eine generische Read-API für externe Consumer gehört **nicht** zu diesem Stand;
+siehe [README, Geplant](../README.md#geplant-noch-nicht-vorhanden).
+
+Details: MODULAR_ARCHITECTURE.md §5 (State Ownership), §5.1 (Startliste), §6
+(Contract inkl. Startlistennachricht), §9 (Konfigurationsbesitz).
 
 ## Transport und Ausfallgrenzen
 

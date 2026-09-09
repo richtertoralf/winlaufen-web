@@ -16,7 +16,9 @@ Drei fachliche Ebenen, zwei unabhängig installierbare Java-Runtimes:
 Unverändert: TCP/4444 read-only, Java-Serialisierungsreferenzen,
 ObjectInputFilter, Clock-/Heartbeat-Regeln, vollständige Klassensnapshots,
 dynamische Header, Current Finish, Biathlon-Schießen, Nachrichten. Keine
-WinSpringen- oder Startlisten-Protokollannahmen.
+WinSpringen-Annahmen und **kein** angenommenes Startlistenprotokoll auf
+TCP 4444: Startlisten kommen als Dateiexport über Bridge Control und sind
+Veranstalterdaten, nicht Quelldaten (§5.1).
 
 Nicht Teil dieses Scopes: persönliche Browseroptionen, Remote-Output-
 Produkte, Datenbank, Broker, komplexe PKI. SELFHOST und RICHTER_PROJECTS

@@ -343,9 +343,17 @@ Zum Schluss **Speichern**.
 
 ### Abschnitt „Startliste"
 
-Exportieren Sie die Startliste in WinLaufen als **CSV** oder **XLSX** und
-importieren Sie die Datei hier. Das alte Format `.xls` wird nicht
-unterstützt — exportieren Sie in diesem Fall neu als CSV oder XLSX.
+So importieren Sie eine Startliste:
+
+1. **In WinLaufen exportieren.** Unterstützt werden **CSV**, **TXT** und
+   **XLSX**. Das alte binäre Format `.xls` wird abgelehnt — exportieren Sie in
+   diesem Fall neu als CSV oder XLSX.
+2. **Bridge Control öffnen** unter `http://<bridge-ip>:44442/` und zum
+   Abschnitt *Startliste* blättern.
+3. **Datei auswählen.**
+4. **Startliste importieren** anklicken.
+5. **Status prüfen.** Bei Erfolg erscheint eine Bestätigung mit Teilnehmerzahl,
+   Klassenzahl und Generation; darüber steht der neue Bestand.
 
 Nach dem Import steht dort zum Beispiel:
 
