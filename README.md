@@ -1,5 +1,8 @@
 # Sprecher-Web
 
+[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
+[![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
+
 Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
 Das Projekt "Sprecher-Web" nutzt die von WinLaufen bereitgestellte **Sprecher-PC-Schnittstelle**
 und stellt die dort gelieferten Live-Ergebnisdaten **zusätzlich zum "Sprecher-PC" 
@@ -27,10 +30,10 @@ Die beiden sichtbaren Oberflächen heißen:
 - **Sprecher-Web – Bridge Control** — die Veranstalter-Oberfläche
 - **Sprecher-Web – Live-Ergebnisse** — die Ansicht für alle Zuschauer
 
-> **Status: Prototype Baseline, Entwicklungsversion**,
-> kein Release, keine Freigabe. Für ausgewählte Vereine in **kontrollierten
-> Netzen** gedacht, nicht für offenen Internetbetrieb. Vor dem Einsatz den
-> Abschnitt [Known prototype security limitation](#known-prototype-security-limitation)
+> **Status: Version 0.4.0, Prototype Baseline.** Für ausgewählte Vereine in
+> **kontrollierten Netzen** gedacht, nicht für offenen Internetbetrieb. Vor dem
+> Einsatz den Abschnitt
+> [Known prototype security limitation](#known-prototype-security-limitation)
 > lesen.
 
 > 📖 **Sie wollen Sprecher-Web einsetzen?**
@@ -265,8 +268,16 @@ für Bediener: [Bedienerhandbuch, Kapitel 9](docs/BEDIENERHANDBUCH.md#9-die-ange
 
 ## Projektstatus
 
-Entwicklungsversion `0.3.0-SNAPSHOT`. Kein Tag, kein Release, keine
-Releasefreigabe.
+**Version `0.4.0`.** Dieses Release schließt den Startlistenweg ab: Import in
+Bridge Control, persistenter Bestand in der Bridge, eigene Übertragung zum Live
+Server und klassenweise Anzeige im Web Viewer — zusätzlich zu Uhr und
+Ergebnissen wie bisher.
+
+Die Prototyp-Grenzen aus
+[Known prototype security limitation](#known-prototype-security-limitation)
+gelten unverändert: Bridge Control hat keine Anmeldung, und der Bridge-Ingest
+verwendet weiterhin ein bekanntes Default-Secret. Das Release ist deshalb keine
+Freigabe für offenen Internetbetrieb.
 
 ### Real bestätigt
 
