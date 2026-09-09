@@ -168,8 +168,38 @@ Pfade:
   Presentation Config.
 - Output-Runtime-Health ist Bridge-Telemetrie, nicht Teil des kanonischen
   Wettkampf-State.
-- Kein Disk-Persistieren des State in v0.1 — nach Neustart keine
-  vorgetäuscht aktuellen alten Daten aus einer Datei.
+- Kein Disk-Persistieren des **Quell-State** — nach Neustart keine
+  vorgetäuscht aktuellen alten Daten aus einer Datei. Das betrifft alles,
+  was aus WinLaufen kommt: Wettkampfzeit, Klassenstände, Current Finish,
+  Health. Diese Werte sind nur so lange gültig, wie die Quelle sie liefert.
+- **Ausgenommen sind manuell importierte Veranstalterdaten.** Eine in
+  Bridge Control importierte Startliste ist kein Quell-State, sondern eine
+  Eingabe des Veranstalters wie die Konfiguration; sie ist exakt so aktuell
+  wie sein letzter Import und täuscht deshalb nichts vor. Sie wird neben der
+  Organisationskonfiguration abgelegt und überlebt einen Bridge-Neustart —
+  ohne dass der Neustart als neuer Import zählt. Siehe §5.1.
+
+### 5.1 Startliste
+
+Die Startliste ist ein eigener, von A–D getrennter Bestand in der Bridge.
+
+| Eigenschaft | Regel |
+|---|---|
+| Herkunft | manueller Import in Bridge Control; CSV, TXT oder XLSX aus WinLaufen |
+| Autorität | der Veranstalter, nicht WinLaufen. Ein verifiziertes Startlisten-Wireformat existiert nicht und wird nicht erfunden. |
+| Ablage | `startlist.properties` neben der Organisationskonfiguration, geschrieben über Temporärdatei und atomares Ersetzen |
+| Version | eigene `generation`, steigt genau einmal je angenommenem Import |
+| Ersetzung | ein erfolgreicher Import ersetzt den **vollständigen** Bestand; kein Merge, kein Patch. Alte Startnummern-, Klassen- und Startzeitzuordnungen sind danach weg. |
+| Fehlerfall | Parsen, Validieren, Persistieren, Umschalten in dieser Reihenfolge. Jeder Fehler lässt den bisherigen Bestand und die `generation` unverändert. |
+| Unlesbare Datei | die Bridge startet ohne Startliste und meldet es. Liveergebnisse hängen nicht von einer Startliste ab. |
+
+`generation` versioniert ausschließlich den Startlistenbestand. Sie ist keine
+Wettkampf-, Lauf- oder Teilnehmerkennung: Ein neuer Import kann eine
+Korrektur, eine Nachmeldung oder ein anderer Wettkampf sein, und die Bridge
+entscheidet diese fachliche Frage nicht.
+
+Die Übertragung der Startliste an den Live Server ist **nicht** Teil dieses
+Stands; der Bridge-Live-Server-Vertrag in §6 ist davon unberührt.
 
 ## 6. Bridge → Live Server Contract
 

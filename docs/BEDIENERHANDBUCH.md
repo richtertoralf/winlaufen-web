@@ -341,6 +341,45 @@ allen verbundenen Browsern.
 
 Zum Schluss **Speichern**.
 
+### Abschnitt „Startliste"
+
+Exportieren Sie die Startliste in WinLaufen als **CSV** oder **XLSX** und
+importieren Sie die Datei hier. Das alte Format `.xls` wird nicht
+unterstützt — exportieren Sie in diesem Fall neu als CSV oder XLSX.
+
+Nach dem Import steht dort zum Beispiel:
+
+```text
+Datei:       Startliste.xlsx
+Quelle:      IMPORT_XLSX
+Generation:  3
+Teilnehmer:  147
+Klassen:     16
+```
+
+Solange nichts importiert wurde, steht dort **Keine Startliste importiert**.
+
+Drei Dinge sind wichtig:
+
+- **Jeder Import ersetzt die bisherige Startliste vollständig.** Es wird
+  nichts ergänzt und nichts zusammengeführt. Wer in der neuen Datei fehlt,
+  ist danach nicht mehr vorhanden. Das ist beabsichtigt: dieselbe Startnummer
+  kann im Prolog und im Lauf zu verschiedenen Personen gehören.
+- **Die Generation zählt nur Ihre Importe.** Sie erhöht sich bei jedem
+  erfolgreichen Import um genau eins, auch wenn Sie dieselbe Datei erneut
+  importieren. Sie sagt nichts darüber aus, ob ein neuer Wettkampf begonnen
+  hat.
+- **Ein abgelehnter Import ändert nichts.** Meldet Sprecher-Web einen Fehler,
+  gilt weiterhin die zuletzt erfolgreich importierte Startliste.
+
+Die Startliste bleibt gespeichert. Nach einem Neustart der Bridge oder des
+Rechners ist sie mit derselben Generation wieder da; der Neustart selbst zählt
+nicht als Import.
+
+> Die Startliste wird in dieser Version **noch nicht an die Live-Ergebnisse
+> im Browser übertragen**. Die Zuschaueransicht zeigt dort weiterhin den
+> Hinweis, dass Teilnehmerdaten noch nicht verfügbar sind.
+
 ---
 
 ## 8. Live-Ergebnisse im Browser

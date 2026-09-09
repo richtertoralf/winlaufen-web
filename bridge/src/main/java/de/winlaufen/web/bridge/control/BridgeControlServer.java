@@ -7,6 +7,10 @@ import de.winlaufen.web.bridge.config.BridgeConfigStore;
 import de.winlaufen.web.bridge.config.OutputTargetConfig;
 import de.winlaufen.web.bridge.config.OutputTargetType;
 import de.winlaufen.web.bridge.output.OutputTargetRuntime;
+import de.winlaufen.web.bridge.startlist.CanonicalStartList;
+import de.winlaufen.web.bridge.startlist.StartListImport;
+import de.winlaufen.web.bridge.startlist.StartListParser;
+import de.winlaufen.web.bridge.startlist.StartListStore;
 import de.winlaufen.web.bridge.state.CanonicalStateStore;
 import de.winlaufen.web.contract.PresentationConfig;
 
@@ -39,16 +43,19 @@ public final class BridgeControlServer implements AutoCloseable {
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final CanonicalStateStore state;
     private final BridgeConfigStore store;
+    private final StartListStore startLists;
     private final Supplier<BridgeConfig> config;
     private final Supplier<List<OutputTargetRuntime>> runtimes;
     private final Consumer<BridgeConfig> changed;
 
     public BridgeControlServer(String bind, int port, CanonicalStateStore state,
-                               BridgeConfigStore store, Supplier<BridgeConfig> config,
+                               BridgeConfigStore store, StartListStore startLists,
+                               Supplier<BridgeConfig> config,
                                Supplier<List<OutputTargetRuntime>> runtimes,
                                Consumer<BridgeConfig> changed) throws IOException {
         this.state = state;
         this.store = store;
+        this.startLists = startLists;
         this.config = config;
         this.runtimes = runtimes;
         this.changed = changed;
@@ -72,6 +79,9 @@ public final class BridgeControlServer implements AutoCloseable {
                 handleGet(exchange, path);
             } else if ("POST".equals(exchange.getRequestMethod()) && "/api/v1/config".equals(path)) {
                 update(exchange);
+            } else if ("POST".equals(exchange.getRequestMethod())
+                    && "/api/v1/startlist".equals(path)) {
+                importStartList(exchange);
             } else {
                 text(exchange, 405, "Methode nicht erlaubt");
             }
@@ -90,7 +100,8 @@ public final class BridgeControlServer implements AutoCloseable {
             case "/assets/control.css" -> resource(exchange, "/bridge-control/control.css", "text/css; charset=utf-8");
             case "/assets/control.js" -> resource(exchange, "/bridge-control/control.js", "text/javascript; charset=utf-8");
             case "/api/v1/config" -> json(exchange, 200, BridgeControlJson.config(config.get()));
-            case "/api/v1/status" -> json(exchange, 200, BridgeControlJson.status(state.get(), runtimes.get()));
+            case "/api/v1/status" -> json(exchange, 200,
+                    BridgeControlJson.status(state.get(), runtimes.get(), startLists.current()));
             default -> text(exchange, 404, "Nicht gefunden");
         }
     }
@@ -125,6 +136,66 @@ public final class BridgeControlServer implements AutoCloseable {
         changed.accept(next);
         logWarnings(next);
         json(exchange, 200, BridgeControlJson.config(next));
+    }
+
+    /**
+     * Imports a WinLaufen start-list export and replaces the whole stored start list with it.
+     *
+     * <p>The file arrives as the raw request body with its name in the {@code name} query
+     * parameter, which is the smallest shape this server can accept: {@code com.sun.net.httpserver}
+     * brings no multipart parser, and hand-writing one for a single upload would be far more code
+     * than the upload itself. {@code application/octet-stream} is required on purpose — it is not
+     * a CORS-safelisted content type, so together with the Origin check a foreign page cannot post
+     * here without a preflight this server never answers.
+     *
+     * <p>The supplied name is never used as a path. It only selects the format by its extension
+     * and becomes the diagnostic label; the parser reduces it to a bare file name, and nothing is
+     * ever written under it. The upload itself stays in memory, bounded by the parser limit, so no
+     * temporary file has to be cleaned up.
+     *
+     * <p>Parse, validate, persist and swap happen in that order inside the store. Any failure
+     * leaves the previous start list in force, which is why every error path here returns without
+     * having touched it.
+     */
+    private void importStartList(HttpExchange exchange) throws IOException {
+        String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
+        if (contentType == null
+                || !contentType.toLowerCase(Locale.ROOT).startsWith("application/octet-stream")) {
+            text(exchange, 415, "Startlistendatei als application/octet-stream erforderlich");
+            return;
+        }
+        if (!sameOrigin(exchange.getRequestHeaders().getFirst("Origin"),
+                exchange.getRequestHeaders().getFirst("Host"))) {
+            text(exchange, 403, "Origin abgelehnt");
+            return;
+        }
+        String name = form(exchange.getRequestURI().getRawQuery()).get("name");
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Dateiname fehlt");
+        }
+        byte[] data = exchange.getRequestBody().readNBytes(StartListParser.MAX_INPUT_BYTES + 1);
+        if (data.length > StartListParser.MAX_INPUT_BYTES) {
+            text(exchange, 413, "Startlistendatei ist größer als "
+                    + StartListParser.MAX_INPUT_BYTES + " Bytes");
+            return;
+        }
+        // Throws StartListFormatException, an IllegalArgumentException, which the handler turns
+        // into a 400 carrying exactly the parser's own German message.
+        StartListImport parsed = StartListParser.parse(data, name);
+        CanonicalStartList adopted;
+        try {
+            adopted = startLists.replace(parsed);
+        } catch (IOException ex) {
+            // The path belongs in the bridge log, not in a browser response.
+            System.out.println("WARNUNG: Startliste konnte nicht gespeichert werden: "
+                    + ex.getMessage());
+            json(exchange, 500, BridgeControlJson.error(
+                    "Startliste konnte nicht gespeichert werden. Bisherige Startliste bleibt gültig."));
+            return;
+        }
+        System.out.printf("Startliste übernommen: %s, %d Teilnehmer, Generation %d%n",
+                adopted.sourceLabel(), adopted.entries().size(), adopted.generation());
+        json(exchange, 200, BridgeControlJson.startListResult(adopted));
     }
 
     /**
@@ -223,8 +294,12 @@ public final class BridgeControlServer implements AutoCloseable {
         return value;
     }
 
+    /** Decodes a form body or a query string; an absent query yields no values. */
     private static Map<String, String> form(String body) {
         Map<String, String> values = new HashMap<>();
+        if (body == null || body.isEmpty()) {
+            return values;
+        }
         for (String pair : body.split("&")) {
             String[] parts = pair.split("=", 2);
             values.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8),

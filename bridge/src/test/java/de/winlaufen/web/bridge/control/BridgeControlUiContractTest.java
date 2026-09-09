@@ -460,6 +460,70 @@ class BridgeControlUiContractTest {
         return builder.toString();
     }
 
+    @Test
+    void offersTheStartListImportForTheSupportedExportFormats() throws Exception {
+        String html = resource("/bridge-control/index.html");
+
+        assertTrue(html.contains("<h2>Startliste</h2>"), "the surface has a start list section");
+        assertTrue(html.contains("accept=\".csv,.txt,.xlsx\""),
+                "the file dialog offers exactly the supported export formats");
+        assertFalse(html.contains(".xls\""), "the old binary format is never offered");
+        assertTrue(html.contains("Jeder Import ersetzt"),
+                "the surface says that an import replaces the whole start list");
+    }
+
+    /**
+     * The file input must stay outside the configuration form. Inside it, {@code FormData} would
+     * drag the chosen file into the configuration POST, which knows nothing about start lists.
+     */
+    @Test
+    void keepsTheStartListImportOutOfTheConfigurationForm() throws Exception {
+        String html = resource("/bridge-control/index.html");
+
+        assertTrue(html.indexOf("id=\"startlist\"") > html.indexOf("</form>"),
+                "the start list section stands after the configuration form, not inside it");
+        assertFalse(collapse(html).contains("type=\"file\" name="),
+                "the file input carries no form field name");
+    }
+
+    @Test
+    void uploadsTheStartListWithoutOfferingItToAnyForeignPage() throws Exception {
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(script.contains("/api/v1/startlist?name="), "the upload names its endpoint");
+        assertTrue(script.contains("encodeURIComponent(file.name)"),
+                "the file name is encoded before it becomes a query value");
+        assertTrue(script.contains("'Content-Type': 'application/octet-stream'"),
+                "the upload uses a content type a cross-origin post cannot set without a preflight");
+    }
+
+    @Test
+    void showsTheLoadedStartListAndSaysWhenThereIsNone() throws Exception {
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(script.contains("Keine Startliste importiert"),
+                "the empty state is named instead of showing zero participants");
+        assertTrue(script.contains("!startList.generation"),
+                "generation 0 decides the empty state, not the participant count");
+        for (String label : new String[] {"Datei:", "Quelle:", "Generation:", "Teilnehmer:",
+                "Klassen:"}) {
+            assertTrue(script.contains("['" + label + "'"), "missing status row " + label);
+        }
+        assertTrue(script.contains("cell.textContent = value"),
+                "server values are written as text, never as markup");
+        assertFalse(script.contains("innerHTML"), "the surface never assembles markup from data");
+    }
+
+    @Test
+    void reportsTheImportResultAndTheReasonForAFailure() throws Exception {
+        String script = resource("/bridge-control/control.js");
+
+        assertTrue(script.contains("Startliste erfolgreich importiert:"),
+                "a successful import is confirmed");
+        assertTrue(script.contains("Import fehlgeschlagen: ${error.message}"),
+                "a failure shows the reason the bridge gave");
+    }
+
     /** Collapses whitespace runs so an assertion describes structure, not indentation. */
     private static String collapse(String value) {
         return value.replaceAll("\\s+", " ");

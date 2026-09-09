@@ -6,6 +6,8 @@ import de.winlaufen.web.bridge.config.EndpointPolicy;
 import de.winlaufen.web.bridge.config.OutputTargetConfig;
 import de.winlaufen.web.bridge.config.OutputTargetType;
 import de.winlaufen.web.bridge.output.OutputTargetRuntime;
+import de.winlaufen.web.bridge.startlist.CanonicalStartList;
+import de.winlaufen.web.bridge.startlist.StartListEntry;
 import de.winlaufen.web.bridge.state.CanonicalSnapshot;
 import de.winlaufen.web.contract.ContractJson;
 import de.winlaufen.web.contract.PresentationConfig;
@@ -45,8 +47,19 @@ public final class BridgeControlJson {
     public record OutputView(String targetId, String state, long lastAckedSourceRevision,
                              int retryAttempt, String lastError) { }
 
+    /**
+     * The imported start list at a glance. {@code generation == 0} means none was imported yet;
+     * that is the same distinction {@link CanonicalStartList#isPresent()} makes, so the surface
+     * never has to guess from an empty participant count.
+     *
+     * <p>{@code classCount} is derived from the entries on the way out and is deliberately not
+     * part of the stored model.
+     */
+    public record StartListView(long generation, String source, String sourceLabel,
+                                int entryCount, int classCount) { }
+
     public record StatusView(long sourceRevision, String sourceHealth, String clock,
-                             List<OutputView> outputs) { }
+                             List<OutputView> outputs, StartListView startList) { }
 
     public record ErrorView(String error) { }
 
@@ -62,13 +75,32 @@ public final class BridgeControlJson {
                 .toList();
     }
 
-    public static String status(CanonicalSnapshot snapshot, List<OutputTargetRuntime> runtimes) {
+    public static String status(CanonicalSnapshot snapshot, List<OutputTargetRuntime> runtimes,
+                                CanonicalStartList startList) {
         List<OutputView> outputs = runtimes.stream()
                 .map(runtime -> new OutputView(runtime.targetId(), runtime.state().name(),
                         runtime.lastAckedSourceRevision(), runtime.retryAttempt(), runtime.lastError()))
                 .toList();
         return ContractJson.write(new StatusView(snapshot.sourceRevision(),
-                snapshot.state().sourceHealth().name(), snapshot.state().clock(), outputs));
+                snapshot.state().sourceHealth().name(), snapshot.state().clock(), outputs,
+                startList(startList)));
+    }
+
+    /** The result of one accepted import, shown to the operator right after the upload. */
+    public static String startListResult(CanonicalStartList startList) {
+        return ContractJson.write(startList(startList));
+    }
+
+    public static StartListView startList(CanonicalStartList startList) {
+        return new StartListView(startList.generation(), startList.source().name(),
+                startList.sourceLabel(), startList.entries().size(), classCount(startList));
+    }
+
+    private static int classCount(CanonicalStartList startList) {
+        return (int) startList.entries().stream()
+                .map(StartListEntry::className)
+                .distinct()
+                .count();
     }
 
     public static String error(String message) {

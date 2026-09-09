@@ -37,6 +37,10 @@ WinLaufen --TCP/4444 read-only--> winlaufen-web-bridge
 - WinLaufen = Source Authority
 - Bridge: memory-only Canonical State, `streamId`/`sourceRevision`, einzige
   Veranstalter-Konfiguration, unabhängige Output-Worker
+- Bridge zusätzlich: in Bridge Control importierte Startliste mit eigener
+  `generation`, neben der Konfiguration persistiert und über einen Neustart
+  hinweg gültig. Veranstalterdaten, kein Quell-State; noch keine Übertragung
+  an den Live Server
 - Live Server: pro Channel memory-only Published State mit eigener
   `publicationRevision`
 - Browser: nur flüchtige öffentliche Kopie

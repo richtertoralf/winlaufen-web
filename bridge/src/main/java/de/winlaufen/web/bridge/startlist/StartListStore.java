@@ -62,12 +62,29 @@ public final class StartListStore {
     }
 
     /**
+     * A store at {@code path} that starts without a start list, whatever the file there contains.
+     *
+     * <p>Only for a caller that has already reported an unreadable file. The bridge uses it so
+     * that a broken start list cannot stop live results, which do not depend on one. The file is
+     * left as it is until the next successful {@link #replace} overwrites it; the generations it
+     * contained are lost with it, and counting restarts at one.
+     */
+    public static StartListStore emptyAt(Path path) {
+        return new StartListStore(path, CanonicalStartList.empty());
+    }
+
+    /**
      * Opens the store next to the organiser configuration, so both live in the same directory a
      * deployment already provides — {@code /etc/winlaufen-web}, {@code C:\ProgramData\WinLaufen
      * Web} or {@code ${user.home}/.winlaufen-web}.
      */
     public static StartListStore besideConfig(Path configPath) throws IOException {
-        return open(configPath.resolveSibling(FILE_NAME));
+        return open(pathBesideConfig(configPath));
+    }
+
+    /** Where {@link #besideConfig} would put the file, without opening it. */
+    public static Path pathBesideConfig(Path configPath) {
+        return configPath.resolveSibling(FILE_NAME);
     }
 
     /** The location that {@link BridgeConfigStore#fromSystemProperties()} resolves to. */

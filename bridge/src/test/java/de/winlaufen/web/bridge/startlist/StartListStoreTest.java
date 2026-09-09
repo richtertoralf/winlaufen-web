@@ -225,6 +225,24 @@ class StartListStoreTest {
         assertEquals("CZE", entry.nation());
     }
 
+    /**
+     * The label is an operator-supplied file name and may contain anything a file name can. The
+     * properties format must carry it back unchanged instead of losing the rest of the file to a
+     * line break that looks like a new key.
+     */
+    @Test
+    void aFileNameWithLineBreaksSurvivesThePersistedFormat() throws Exception {
+        String nasty = "Start\nliste=x\r\n#kommentar.csv";
+        StartListStore store = store();
+        store.replace(StartListParser.parse(PROLOGUE.getBytes(StandardCharsets.UTF_8), nasty));
+
+        CanonicalStartList reloaded = store().current();
+
+        assertEquals(nasty, reloaded.sourceLabel());
+        assertEquals(1, reloaded.generation());
+        assertEquals(2, reloaded.entries().size());
+    }
+
     @Test
     void aTruncatedFileIsRejectedInsteadOfBeingAcceptedAsAShorterStartList() throws Exception {
         StartListStore store = store();

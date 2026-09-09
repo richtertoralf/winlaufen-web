@@ -54,6 +54,17 @@
   <button type="submit">Speichern</button>
   <span id="message" role="status"></span>
 </form>
+<!-- Bewusst außerhalb von #config: der Import ist eine eigene Aktion und darf nie
+     Teil des Konfigurations-POST werden. -->
+<section id="startlist">
+  <h2>Startliste</h2>
+  <p class="hint">Startliste aus WinLaufen exportieren und hier importieren. Jeder Import ersetzt
+  die bisherige Startliste vollständig.</p>
+  <dl id="startlist-status" class="addresses"></dl>
+  <label>Startlistendatei<input type="file" id="startlist-file" accept=".csv,.txt,.xlsx"></label>
+  <button type="button" id="startlist-import">Startliste importieren</button>
+  <p id="startlist-message" role="status"></p>
+</section>
 </main>
 <!-- Version und Build-ID setzt der Build ein: Maven-Projektversion und Git-Commit-ID,
      siehe pom.xml. Beide sind hier bewusst nicht fest hinterlegt. -->

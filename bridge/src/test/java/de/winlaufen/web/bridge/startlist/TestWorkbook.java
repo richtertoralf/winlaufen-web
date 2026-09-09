@@ -19,7 +19,7 @@ import java.util.zip.ZipOutputStream;
  * cells are {@code t="str"} and the start number is a numeric cell. A workbook written by a
  * simplified example would not exercise any of that.
  */
-final class TestWorkbook {
+public final class TestWorkbook {
 
     private static final String MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private static final String OFFICE_REL_NS =
@@ -28,16 +28,17 @@ final class TestWorkbook {
             "http://schemas.openxmlformats.org/package/2006/relationships";
 
     /** How the worksheet stores its text cells. All three occur in the wild. */
-    enum Cells { STR, SHARED, INLINE }
+    public enum Cells { STR, SHARED, INLINE }
 
     private TestWorkbook() { }
 
     /** A workbook shaped like the observed real export. */
-    static byte[] realShape(List<List<String>> rows) {
+    public static byte[] realShape(List<List<String>> rows) {
         return build(rows, Cells.STR, true, "x:");
     }
 
-    static byte[] build(List<List<String>> rows, Cells cells, boolean absoluteTarget, String prefix) {
+    public static byte[] build(List<List<String>> rows, Cells cells, boolean absoluteTarget,
+                               String prefix) {
         List<String> shared = new ArrayList<>();
         String sheet = sheet(rows, cells, prefix, shared);
         Map<String, String> parts = new LinkedHashMap<>();

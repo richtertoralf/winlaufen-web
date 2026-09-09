@@ -445,6 +445,8 @@ function showStatus(status) {
   sourceStatus.className = stateClass(status.sourceHealth);
   document.querySelector('#source-help').hidden = status.sourceHealth !== 'DISCONNECTED';
 
+  showStartList(status.startList);
+
   targetNodes().forEach(node => {
     const id = node.querySelector('[data-name=id]').value;
     const runtime = status.outputs.find(output => output.targetId === id);
@@ -459,6 +461,72 @@ function showStatus(status) {
     output.className = stateClass(runtime.state);
   });
 }
+
+/**
+ * Der aktuell geladene Startlistenbestand. Generation 0 heißt "noch keine importiert";
+ * die Teilnehmerzahl ist dafür kein Kriterium, weil ein erfolgreicher Import nie leer ist.
+ */
+function showStartList(startList) {
+  const status = document.querySelector('#startlist-status');
+  status.replaceChildren();
+  if (!startList || !startList.generation) {
+    const note = document.createElement('dd');
+    note.className = 'hint';
+    note.textContent = 'Keine Startliste importiert';
+    status.append(note);
+    return;
+  }
+  const rows = [
+    ['Datei:', startList.sourceLabel],
+    ['Quelle:', startList.source],
+    ['Generation:', String(startList.generation)],
+    ['Teilnehmer:', String(startList.entryCount)],
+    ['Klassen:', String(startList.classCount)]
+  ];
+  for (const [label, value] of rows) {
+    const term = document.createElement('dt');
+    term.textContent = label;
+    const cell = document.createElement('dd');
+    // Dateiname und Quelle kommen vom Server; textContent verhindert jede Auswertung als Markup.
+    cell.textContent = value;
+    status.append(term, cell);
+  }
+}
+
+const startListFile = document.querySelector('#startlist-file');
+const startListMessage = document.querySelector('#startlist-message');
+
+document.querySelector('#startlist-import').onclick = async () => {
+  const button = document.querySelector('#startlist-import');
+  const file = startListFile.files[0];
+  if (!file) {
+    startListMessage.textContent = 'Bitte zuerst eine Startlistendatei auswählen.';
+    startListMessage.className = 'warn';
+    return;
+  }
+  button.disabled = true;
+  startListMessage.textContent = 'Importiere …';
+  startListMessage.className = '';
+  try {
+    // Der Dateiname steht in der Query, der Dateiinhalt roh im Body. application/octet-stream
+    // ist kein einfacher CORS-Inhaltstyp und ergänzt damit die Origin-Prüfung des Servers.
+    const result = await fetch(`/api/v1/startlist?name=${encodeURIComponent(file.name)}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/octet-stream'},
+      body: file
+    }).then(json);
+    startListMessage.textContent = `Startliste erfolgreich importiert: ${result.entryCount} `
+      + `Teilnehmer, ${result.classCount} Klassen, Generation ${result.generation}`;
+    startListMessage.className = 'ok';
+    startListFile.value = '';
+    showStartList(result);
+  } catch (error) {
+    startListMessage.textContent = `Import fehlgeschlagen: ${error.message}`;
+    startListMessage.className = 'warn';
+  } finally {
+    button.disabled = false;
+  }
+};
 
 document.querySelector('#add').onclick =
   () => addTarget({type: 'SELFHOST', channelId: DEFAULT_CHANNEL, enabled: true});
