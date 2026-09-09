@@ -1,7 +1,6 @@
 # Sprecher-Web — Release-Prozess
 
-Aktuelle Entwicklungsversion: `0.3.0-SNAPSHOT`. Es gibt noch keinen Tag, kein
-Release und keine Releasefreigabe.
+Aktuelle Version: `0.4.0`.
 
 Ein Release wird ausschließlich aus einem Git-Tag im Format `vX.Y.Z` gebaut.
 Die Version im Root-POM und die Parent-Versionen aller dort aufgeführten Module
@@ -13,6 +12,10 @@ Es gibt zwei getrennte Versionsangaben, die nicht vermischt werden dürfen:
 
 - Die **Maven-Projektversion** im Root-POM, identisch als Parent-Version in
   allen Modulen, ist die einzige Quelle der Produktversion.
+- Die **Version-Badge** oben in `README.md` zeigt dieselbe Version für Besucher
+  der Repository-Hauptseite. Sie ist bewusst statisch und kein von GitHub
+  abgeleiteter `latest`-Wert, damit sie immer genau den Stand dieses Repositorys
+  nennt. Sie wird deshalb bei jedem Release mitgeführt (siehe Vorbereitung).
 - Die **Build-ID** ist die Git-Commit-ID des gebauten Standes, bewusst kein
   Release-Tag. Sie kommt vom `git-commit-id-maven-plugin`, das die Angabe mit
   JGit direkt aus `.git` liest; ein Git-Programm auf dem Pfad ist dafür nicht
@@ -47,16 +50,25 @@ den Tag statt der Commit-ID liefert.
      -DnewVersion=X.Y.Z -DprocessAllModules=true -DgenerateBackupPoms=false
    ```
 
-2. Den vollständigen Versionsvertrag und Build prüfen:
+2. Die Version-Badge oben in `README.md` auf `X.Y.Z` setzen und die
+   Versionsangaben in `README.md` (Statuszeile, Abschnitt Projektstatus) sowie
+   in diesem Dokument nachziehen:
+
+   ```text
+   ![Version](https://img.shields.io/badge/version-X.Y.Z-blue)
+   ```
+
+3. Den vollständigen Versionsvertrag und Build prüfen:
 
    ```sh
    ./installer/common/verify-release-tag.sh vX.Y.Z
    ./mvnw clean package
    ```
 
-3. Den vollständigen Stand reviewen und committen.
-4. Den freigegebenen Commit mit `vX.Y.Z` taggen.
-5. Den Tag zu GitHub übertragen.
+4. Den vollständigen Stand reviewen und committen.
+5. Den freigegebenen Commit mit `vX.Y.Z` taggen.
+6. Den Tag zu GitHub übertragen. Der Push des Tags erzeugt das öffentliche
+   GitHub Release samt Distributionen; es gibt keinen separaten Freigabeschritt.
 
 Der Workflow `.github/workflows/release.yml` checkt exakt den vom Tag
 referenzierten Commit aus. Danach laufen mit JDK 25 und dem Maven Wrapper der

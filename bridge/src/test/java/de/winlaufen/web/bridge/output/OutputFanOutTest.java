@@ -5,17 +5,23 @@ import de.winlaufen.web.bridge.config.OutputTargetType;
 import de.winlaufen.web.bridge.state.CanonicalStateStore;
 import de.winlaufen.web.contract.AckEnvelope;
 import de.winlaufen.web.contract.ContractJson;
+import de.winlaufen.web.contract.StartListEnvelope;
 import de.winlaufen.web.contract.PresentationConfig;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
+import de.winlaufen.web.bridge.startlist.StartListStore;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Path;
 
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -32,6 +38,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 class OutputFanOutTest {
 
+    @TempDir
+    Path temp;
+
     @Test
     void fansOutIsolatesFailureAndResyncsLatestFullSnapshot() throws Exception {
         Fake first = new Fake();
@@ -43,7 +52,8 @@ class OutputFanOutTest {
         CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
         List<OutputTargetConfig> configs = List.of(target("one", first.port()), target("two", two.port()));
 
-        try (OutputTargetManager manager = new OutputTargetManager(configs, "stream", store)) {
+        try (OutputTargetManager manager = new OutputTargetManager(configs, "stream", store,
+                StartListStore.open(temp.resolve("startlist.properties")))) {
             manager.start();
             store.clock("10:00:00");
             await(() -> first.revision.get() >= 1 && two.revision.get() >= 1);
@@ -90,6 +100,8 @@ class OutputFanOutTest {
 
         final AtomicLong revision = new AtomicLong(-1);
         final AtomicReference<String> clock = new AtomicReference<>("");
+        /** Every start list this fake live server received, in arrival order. */
+        final List<StartListEnvelope> startLists = new CopyOnWriteArrayList<>();
         private final CountDownLatch ready = new CountDownLatch(1);
 
         Fake() throws Exception {
@@ -123,6 +135,11 @@ class OutputFanOutTest {
         @Override
         public void onMessage(WebSocket connection, String text) {
             try {
+                // Like the real live server: route by type. A start list is not acknowledged.
+                if (StartListEnvelope.TYPE.equals(ContractJson.typeOf(text))) {
+                    startLists.add(ContractJson.readStartList(text));
+                    return;
+                }
                 var snapshot = ContractJson.readSnapshot(text);
                 revision.set(snapshot.sourceRevision());
                 clock.set(snapshot.state().clock() == null ? "" : snapshot.state().clock());

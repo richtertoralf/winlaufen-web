@@ -7,6 +7,7 @@ import de.winlaufen.web.contract.AckEnvelope;
 import de.winlaufen.web.contract.ContractJson;
 import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.SnapshotEnvelope;
+import de.winlaufen.web.contract.StartListEnvelope;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
@@ -20,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -239,6 +241,8 @@ class OutputAckLivenessTest {
     private static final class Silent extends WebSocketServer {
 
         final AtomicBoolean acknowledge = new AtomicBoolean();
+        /** Every start list this fake live server received, in arrival order. */
+        final List<StartListEnvelope> startLists = new CopyOnWriteArrayList<>();
         private final CountDownLatch ready = new CountDownLatch(1);
         private final Object lock = new Object();
         private final List<Long> received = new ArrayList<>();
@@ -301,6 +305,12 @@ class OutputAckLivenessTest {
         public void onMessage(WebSocket connection, String text) {
             SnapshotEnvelope snapshot;
             try {
+                // Like the real live server: route by type. The bridge also sends the start list
+                // on every fresh connection, and it carries no source revision to acknowledge.
+                if (StartListEnvelope.TYPE.equals(ContractJson.typeOf(text))) {
+                    startLists.add(ContractJson.readStartList(text));
+                    return;
+                }
                 snapshot = ContractJson.readSnapshot(text);
             } catch (Exception ex) {
                 failure = ex;

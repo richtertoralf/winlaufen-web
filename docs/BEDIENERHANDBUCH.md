@@ -341,6 +341,54 @@ allen verbundenen Browsern.
 
 Zum Schluss **Speichern**.
 
+### Abschnitt „Startliste"
+
+So importieren Sie eine Startliste:
+
+1. **In WinLaufen exportieren.** Unterstützt werden **CSV**, **TXT** und
+   **XLSX**. Das alte binäre Format `.xls` wird abgelehnt — exportieren Sie in
+   diesem Fall neu als CSV oder XLSX.
+2. **Bridge Control öffnen** unter `http://<bridge-ip>:44442/` und zum
+   Abschnitt *Startliste* blättern.
+3. **Datei auswählen.**
+4. **Startliste importieren** anklicken.
+5. **Status prüfen.** Bei Erfolg erscheint eine Bestätigung mit Teilnehmerzahl,
+   Klassenzahl und Generation; darüber steht der neue Bestand.
+
+Nach dem Import steht dort zum Beispiel:
+
+```text
+Datei:       Startliste.xlsx
+Quelle:      IMPORT_XLSX
+Generation:  3
+Teilnehmer:  147
+Klassen:     16
+```
+
+Solange nichts importiert wurde, steht dort **Keine Startliste importiert**.
+
+Drei Dinge sind wichtig:
+
+- **Jeder Import ersetzt die bisherige Startliste vollständig.** Es wird
+  nichts ergänzt und nichts zusammengeführt. Wer in der neuen Datei fehlt,
+  ist danach nicht mehr vorhanden. Das ist beabsichtigt: dieselbe Startnummer
+  kann im Prolog und im Lauf zu verschiedenen Personen gehören.
+- **Die Generation zählt nur Ihre Importe.** Sie erhöht sich bei jedem
+  erfolgreichen Import um genau eins, auch wenn Sie dieselbe Datei erneut
+  importieren. Sie sagt nichts darüber aus, ob ein neuer Wettkampf begonnen
+  hat.
+- **Ein abgelehnter Import ändert nichts.** Meldet Sprecher-Web einen Fehler,
+  gilt weiterhin die zuletzt erfolgreich importierte Startliste.
+
+Die Startliste bleibt gespeichert. Nach einem Neustart der Bridge oder des
+Rechners ist sie mit derselben Generation wieder da; der Neustart selbst zählt
+nicht als Import.
+
+Die importierte Startliste erscheint automatisch in den Live-Ergebnissen im
+Browser — siehe [Live-Ergebnisse im Browser](#8-live-ergebnisse-im-browser).
+Ein Neustart von Bridge oder Live Server ändert daran nichts; die Startliste
+wird von selbst wieder übertragen, ohne erneuten Import.
+
 ---
 
 ## 8. Live-Ergebnisse im Browser
@@ -357,6 +405,41 @@ weiter — als Aushang, als Link oder als QR-Code am Zielbereich.
 Die Seite hat drei Ansichten: **Startliste**, **LIVE** und **Ergebnisse**.
 LIVE folgt automatisch der Klasse, aus der WinLaufen zuletzt ein Ergebnis
 gemeldet hat; unter Ergebnisse wählen Sie eine Klasse selbst aus.
+
+### Ansicht „Startliste"
+
+Hier steht die Startliste, die Sie in Bridge Control importiert haben. Weil
+eine Veranstaltung leicht 2 000 Teilnehmer in mehreren Dutzend Klassen hat,
+zeigt die Ansicht **eine Klasse auf einmal**:
+
+```text
+Startliste                              Klasse [ Schüler U12 m    ▾ ]
+
+   [ ← ]        Klasse 1 von 46        [ → ]
+
+Startzeit   StNr   Name                Verein
+10:00:00       1   Albert ALBRECHT     ATSV Geb. Gelobtland
+10:00:15       2   Anna BAUER          Blau Weiß Zwenkau
+```
+
+Blättern Sie mit **←** und **→** oder wählen Sie eine Klasse direkt aus der
+Liste. An der ersten und letzten Klasse ist die jeweilige Pfeiltaste
+abgeschaltet — es wird nicht im Kreis geblättert.
+
+Klassen und Teilnehmer stehen **genau in der Reihenfolge Ihrer Startliste**.
+Es wird nichts umsortiert, weder alphabetisch noch nach Startnummer: Sie und
+WinLaufen haben die Reihenfolge festgelegt.
+
+Welche Spalten erscheinen, hängt von zwei Dingen ab: von Ihren Einstellungen
+unter *Öffentliche Darstellung* (Verein, Verband, Nation) und davon, ob die
+Startliste die Angabe überhaupt enthält. Eine Spalte, zu der es keine Daten
+gibt, wird nicht angezeigt.
+
+Solange keine Startliste importiert ist, steht dort **Keine Startliste
+verfügbar**.
+
+Nach einem neuen Import erscheint die neue Startliste von selbst — Sie müssen
+den Browser nicht neu laden und keinen Dienst neu starten.
 
 ---
 

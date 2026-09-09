@@ -1,7 +1,13 @@
 # Sprecher-Web — Installation
 
 Dieses Dokument ist die **technische Installationsreferenz** für Linux und
-Windows 11: Profile, Plattformen, Pfade, Dienste, Firewall und Deinstallation.
+Windows 11: Profile, Plattformen, Neuinstallation, Upgrade, Pfade, Dienste,
+Ports, Konfiguration, Firewall, Prüfung nach der Installation und
+Deinstallation.
+
+Die Kurzfassung der Befehle steht in der
+[README](../README.md#installation-und-upgrade); hier stehen die Details und die
+Begründungen.
 
 > Wer Sprecher-Web als Veranstalter installieren und betreiben möchte, findet
 > die durchgehende Schritt-für-Schritt-Anleitung im
@@ -245,11 +251,21 @@ Output Targets sind dort Hinweise und führen nicht zu Exit-Code ungleich 0.
 ```text
 /opt/winlaufen-web/lib/          Programmartefakte (JARs)
 /opt/winlaufen-web/runtime/      optionale gebündelte Java-Runtime
-/etc/winlaufen-web/              Konfiguration
+/etc/winlaufen-web/              Konfiguration und persistente Veranstalterdaten
     bridge.properties            Veranstalter-Konfiguration der Bridge
+    startlist.properties         importierte Startliste (nur bei Profilen mit Bridge)
     live-server.env              technische Live-Server-Parameter
 /var/lib/winlaufen-web/          Arbeitsverzeichnis des Dienstkontos
 ```
+
+`startlist.properties` entsteht erst beim ersten erfolgreichen
+Startlistenimport in Bridge Control. Die Bridge schreibt sie über eine
+temporäre Datei im selben Verzeichnis und ersetzt sie dann in einem Zug, damit
+nie ein halb geschriebener Stand gelesen wird. Der Installer legt diese Datei
+nicht an und fasst sie nicht an; sie überlebt jedes Upgrade.
+
+Der Live Server hält weder den Wettkampfstand noch die Startliste auf Platte.
+Nach seinem Neustart liefert die Bridge beides beim Reconnect erneut.
 
 ### Dienste
 
@@ -276,17 +292,59 @@ Die Bridge schreibt Änderungen aus Bridge Control in
 Dienstkonto. Der Pfad wird der Bridge über die Systemproperty
 `winlaufen.bridge.config` mitgegeben.
 
-### Wiederholte Installation und Upgrade
+### Upgrade einer bestehenden Installation
 
-Der Installer ist upgrade-fähig:
+Es gibt keinen separaten Upgrade-Pfad: **derselbe Installer** führt auch das
+Upgrade durch. Aus einem Source Checkout:
 
-* Vorhandene Konfigurationsdateien werden **nie** überschrieben. Defaults
-  entstehen nur bei einer echten Erstinstallation.
-* Units werden ersetzt, nicht dupliziert.
-* Ein Profilwechsel entfernt den nicht mehr benötigten Dienst, statt ihn
-  verwaist zurückzulassen.
-* Die exakten früheren Installer-Netzwerkdefaults werden auf 44440–44442
-  migriert; gepflegte Veranstalterwerte und Target-Listen bleiben erhalten.
+```sh
+cd ~/winlaufen-web
+git status                       # keine ungesicherten eigenen Änderungen?
+git pull --ff-only
+./mvnw clean package
+sudo ./installer/linux/install.sh --profile all-in-one
+```
+
+Das Profil muss dem bereits installierten entsprechen; ein anderer Wert ist ein
+bewusster Profilwechsel (siehe unten). Läuft auf diesem Rechner WinLaufen mit
+aktiver Sprecher-PC-Verbindung, diese vorher **trennen** und danach wieder
+**verbinden**.
+
+Prüfung danach:
+
+```sh
+systemctl status winlaufen-bridge winlaufen-live-server --no-pager
+sudo ss -ltnp | grep -E ':(44440|44441|44442)\b'
+```
+
+Bei `bridge-only` ist nur 44442 zu erwarten, bei `presentation-node` nur 44440
+und 44441.
+
+Was das Upgrade erhält und was es ersetzt:
+
+| Gegenstand | Verhalten |
+|---|---|
+| `bridge.properties` | bleibt unverändert; Defaults entstehen nur bei einer echten Erstinstallation |
+| `live-server.env` | bleibt unverändert |
+| `startlist.properties` | bleibt unverändert — die importierte Startliste überlebt das Upgrade, ein erneuter Import ist nicht nötig |
+| `/var/lib/winlaufen-web/` | bleibt unverändert |
+| JARs unter `/opt/winlaufen-web/lib/` | werden ersetzt |
+| gebündelte Runtime unter `/opt/winlaufen-web/runtime/` | wird ersetzt, wenn die Distribution eine mitbringt |
+| systemd-Units | werden ersetzt, nicht dupliziert |
+| Dienste des Profils | werden aktiviert und neu gestartet |
+| Dienst eines nicht gewählten Profils | wird deaktiviert und entfernt, statt verwaist zurückzubleiben |
+
+Zusätzlich migriert der Installer einmalig die **exakten** früheren
+Installer-Netzwerkdefaults auf den festen Portblock 44440–44442: Control-Port
+8090, Control-Bind `127.0.0.1`, der lokale Ingest-Endpunkt auf Port 8081 sowie
+die Live-Server-Ports 8080/8081. Individuell gepflegte Werte, andere Hosts und
+andere Ports bleiben unverändert; eine Meldung erscheint nur bei einer
+tatsächlichen Änderung. Diese Portnummern sind **historisch** und keine
+aktuellen Standardwerte.
+
+Der Wettkampfstand selbst wird nicht übernommen — er ist bewusst nur im
+Speicher. Nach dem Neustart der Dienste füllt WinLaufen ihn wieder, sobald es
+den nächsten Klassensnapshot liefert.
 
 ### Firewall unter Linux
 
@@ -318,8 +376,9 @@ sudo ./installer/linux/uninstall.sh --purge    # zusätzlich Konfiguration
 ```
 
 Ohne `--purge` bleiben `/etc/winlaufen-web` und `/var/lib/winlaufen-web`
-erhalten, damit eine gepflegte WinLaufen-Adresse und Target-Liste eine
-Neuinstallation überleben.
+erhalten, damit eine gepflegte WinLaufen-Adresse, die Target-Liste und die
+importierte Startliste eine Neuinstallation überleben. `--purge` entfernt auch
+`startlist.properties`; danach ist ein erneuter Import nötig.
 
 ## 6. Windows-11-Installation
 

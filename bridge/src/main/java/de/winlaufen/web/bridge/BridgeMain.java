@@ -5,8 +5,12 @@ import de.winlaufen.web.bridge.config.BridgeConfigStore;
 import de.winlaufen.web.bridge.control.BridgeControlServer;
 import de.winlaufen.web.bridge.output.OutputTargetManager;
 import de.winlaufen.web.bridge.source.winlaufen.WinLaufenClient;
+import de.winlaufen.web.bridge.startlist.CanonicalStartList;
+import de.winlaufen.web.bridge.startlist.StartListStore;
 import de.winlaufen.web.bridge.state.CanonicalStateStore;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,10 +39,12 @@ public final class BridgeMain {
         loaded.notices().forEach(notice -> System.out.println("Hinweis: " + notice));
 
         AtomicReference<BridgeConfig> config = new AtomicReference<>(loaded.config());
+        StartListStore startLists = openStartLists(configStore.path());
         CanonicalStateStore state = new CanonicalStateStore(config.get().presentation());
         WinLaufenClient source = new WinLaufenClient(config.get().sourceHost(), state);
         String streamId = UUID.randomUUID().toString();
-        OutputTargetManager outputs = new OutputTargetManager(config.get().targets(), streamId, state);
+        OutputTargetManager outputs = new OutputTargetManager(config.get().targets(), streamId,
+                state, startLists);
 
         BridgeControlServer[] control = new BridgeControlServer[1];
         AtomicBoolean stopped = new AtomicBoolean();
@@ -55,8 +61,8 @@ public final class BridgeMain {
 
         try {
             control[0] = new BridgeControlServer(config.get().controlBindAddress(),
-                    config.get().controlPort(), state, configStore, config::get, outputs::runtimes,
-                    next -> apply(config, next, source, state, outputs));
+                    config.get().controlPort(), state, configStore, startLists, config::get,
+                    outputs::runtimes, next -> apply(config, next, source, state, outputs));
             control[0].start();
             outputs.start();
             source.start();
@@ -65,11 +71,46 @@ public final class BridgeMain {
             System.out.printf("Bridge Control läuft auf %s:%d (Stream %s)%n",
                     config.get().controlBindAddress(), config.get().controlPort(), streamId);
             System.out.println("Konfiguration: " + configStore.path());
+            System.out.println("Startliste: " + startListSummary(startLists));
             new CountDownLatch(1).await();
         } catch (Exception ex) {
             shutdown.run();
             throw ex;
         }
+    }
+
+    /**
+     * Opens the start-list store next to the organiser configuration and adopts a previously
+     * imported start list.
+     *
+     * <p>A start list the operator imported is organiser data, not WinLaufen source state, so it
+     * is the one thing the bridge keeps on disk across restarts. The canonical competition state
+     * stays memory-only: it would otherwise pretend to be live data after a restart.
+     *
+     * <p>An unreadable file does not stop the bridge. Live results must not depend on a start
+     * list, so the bridge reports the problem and starts without one instead of refusing to run.
+     * The broken file is left untouched; the next successful import replaces it.
+     */
+    static StartListStore openStartLists(Path configPath) {
+        Path path = StartListStore.pathBesideConfig(configPath);
+        try {
+            return StartListStore.open(path);
+        } catch (IOException ex) {
+            System.out.println("WARNUNG: " + ex.getMessage());
+            System.out.println("WARNUNG: Bridge startet ohne Startliste. Bitte die Startliste in "
+                    + "Bridge Control erneut importieren.");
+            return StartListStore.emptyAt(path);
+        }
+    }
+
+    private static String startListSummary(StartListStore startLists) {
+        CanonicalStartList current = startLists.current();
+        if (!current.isPresent()) {
+            return "keine importiert (" + startLists.path() + ")";
+        }
+        return current.sourceLabel() + ", " + current.entries().size()
+                + " Teilnehmer, Generation " + current.generation()
+                + " (" + startLists.path() + ")";
     }
 
     /**

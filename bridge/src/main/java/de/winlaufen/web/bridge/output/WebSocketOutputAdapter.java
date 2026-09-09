@@ -1,16 +1,21 @@
 package de.winlaufen.web.bridge.output;
 
 import de.winlaufen.web.bridge.config.OutputTargetConfig;
+import de.winlaufen.web.bridge.startlist.CanonicalStartList;
+import de.winlaufen.web.bridge.startlist.StartListEntry;
 import de.winlaufen.web.bridge.state.CanonicalSnapshot;
 import de.winlaufen.web.contract.AckEnvelope;
 import de.winlaufen.web.contract.ContractJson;
 import de.winlaufen.web.contract.ContractViolationException;
 import de.winlaufen.web.contract.SnapshotEnvelope;
+import de.winlaufen.web.contract.StartListEnvelope;
+import de.winlaufen.web.contract.StartListRow;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.framing.CloseFrame;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,11 +40,15 @@ public final class WebSocketOutputAdapter implements LiveOutputAdapter {
     private static final long SEND_POLL_MILLIS = 1_000L;
     private static final long STABLE_CONNECTION_NANOS = 2_000_000_000L;
     private static final int MAX_ERROR_CHARS = 200;
+    /** No real generation, so the first delivery on a connection always happens. */
+    private static final long UNSENT_GENERATION = -1;
 
     private final OutputTargetConfig config;
     private final String streamId;
     private final long ackStaleNanos;
     private final AtomicReference<CanonicalSnapshot> latest;
+    private final AtomicReference<CanonicalStartList> latestStartList =
+            new AtomicReference<>(CanonicalStartList.empty());
     private final AtomicReference<OutputTargetRuntime> runtime;
     private final AtomicBoolean running = new AtomicBoolean();
 
@@ -54,6 +63,11 @@ public final class WebSocketOutputAdapter implements LiveOutputAdapter {
     private volatile long lastSentRevision = -1;
     /** Forces a full snapshot after every handshake, even when nothing changed meanwhile. */
     private volatile boolean resyncPending;
+    /**
+     * Generation of the start list this connection has already carried. Reset per connection, so
+     * every fresh connection receives the current start list again — including the absent one.
+     */
+    private volatile long sentStartListGeneration = UNSENT_GENERATION;
 
     public WebSocketOutputAdapter(OutputTargetConfig config, String streamId,
                                   CanonicalSnapshot initial) {
@@ -81,6 +95,12 @@ public final class WebSocketOutputAdapter implements LiveOutputAdapter {
     @Override
     public void publish(CanonicalSnapshot value) {
         latest.set(value);
+        wakeData();
+    }
+
+    @Override
+    public void publishStartList(CanonicalStartList value) {
+        latestStartList.set(value);
         wakeData();
     }
 
@@ -154,6 +174,7 @@ public final class WebSocketOutputAdapter implements LiveOutputAdapter {
             lastSentRevision = -1;
             lastAckProgressNanos = openedNanos;
             resyncPending = true;
+            sentStartListGeneration = UNSENT_GENERATION;
             while (running.get() && connection.isOpen()) {
                 deliver(connection);
                 awaitData();
@@ -170,6 +191,7 @@ public final class WebSocketOutputAdapter implements LiveOutputAdapter {
     }
 
     private void deliver(Client connection) {
+        deliverStartList(connection);
         CanonicalSnapshot value = latest.get();
         OutputTargetRuntime current = runtime.get();
         boolean acknowledged = !resyncPending
@@ -207,6 +229,54 @@ public final class WebSocketOutputAdapter implements LiveOutputAdapter {
         resyncPending = false;
         lastSentRevision = value.sourceRevision();
         evaluateAckLiveness();
+    }
+
+    /**
+     * Sends the start list only when this connection has not carried its generation yet: after a
+     * handshake, and after an import. A clock telegram raises the canonical revision but not the
+     * start-list generation, so the participant list is never retransmitted with it.
+     *
+     * <p>An absent start list is generation 0 and is delivered like any other, so a live server
+     * whose bridge has none stops showing an older one.
+     */
+    private void deliverStartList(Client connection) {
+        CanonicalStartList value = latestStartList.get();
+        if (value.generation() == sentStartListGeneration) {
+            return;
+        }
+        // Same backpressure rule as the snapshot: never queue behind an unflushed message.
+        if (connection.hasBufferedData()) {
+            return;
+        }
+        String json;
+        try {
+            json = ContractJson.startList(envelope(value));
+        } catch (ContractViolationException ex) {
+            // Reconnecting cannot repair a data problem. Record it, do not retry this generation,
+            // and leave the transport open for the competition state and the next import.
+            OutputTargetRuntime current = runtime.get();
+            setState(current.state(), current.retryAttempt(),
+                    "Startliste nicht publizierbar: " + safe(ex));
+            sentStartListGeneration = value.generation();
+            return;
+        }
+        connection.send(json);
+        sentStartListGeneration = value.generation();
+    }
+
+    private StartListEnvelope envelope(CanonicalStartList value) {
+        List<StartListRow> rows = value.entries().stream()
+                .map(WebSocketOutputAdapter::row)
+                .toList();
+        return new StartListEnvelope(config.channelId(), streamId, value.generation(),
+                value.source().name(), value.sourceLabel(), rows);
+    }
+
+    /** The canonical entry as the wire carries it; every value stays the text the source gave. */
+    private static StartListRow row(StartListEntry entry) {
+        return new StartListRow(entry.bib(), entry.className(), entry.startTime(),
+                entry.lastName(), entry.firstName(), entry.club(), entry.association(),
+                entry.course(), entry.birthYear(), entry.gender(), entry.nation());
     }
 
     private void evaluateAckLiveness() {

@@ -251,12 +251,32 @@ Ergebnisse erhalten.
 
 ### Startliste
 
-Die Position in der Oberfläche existiert von Anfang an.
+Die Ansicht zeigt die Startliste, die der Veranstalter in Bridge Control
+importiert hat.
 
-Solange kein verifiziertes Startlistenprotokoll existiert, zeigt die Ansicht
-einen klaren Hinweis, dass Teilnehmerdaten noch nicht verfügbar sind.
+Dargestellt wird **eine Klasse auf einmal**, weil eine Veranstaltung leicht
+mehrere Tausend Teilnehmer in mehreren Dutzend Klassen hat:
 
-Es darf kein nicht unterstütztes WinLaufen-Startlistenprotokoll erfunden werden.
+- direkte Klassenauswahl,
+- Blättern zur vorherigen und nächsten Klasse; an der ersten und letzten Klasse
+  ist die jeweilige Richtung abgeschaltet, es wird nicht im Kreis geblättert,
+- Anzeige, welche Klasse von wie vielen gezeigt wird.
+
+Reihenfolge: Klassen in der Reihenfolge ihres ersten Auftretens im Import,
+Teilnehmer innerhalb der Klasse in der Reihenfolge der Datei. Es wird weder
+alphabetisch noch nach Startnummer oder Startzeit nachsortiert — die
+Reihenfolge hat der Veranstalter beziehungsweise WinLaufen festgelegt.
+
+Spalten: Startzeit, Startnummer und Name immer; Verein, Verband und Nation
+gemäß der öffentlichen Darstellungskonfiguration; Jahrgang und Strecke, sofern
+die Startliste sie enthält. Eine Spalte, zu der kein Eintrag einen Wert
+liefert, erscheint nicht.
+
+Ist keine Startliste vorhanden, zeigt die Ansicht einen klaren Hinweis.
+
+Die Startliste kommt als **Dateiexport** aus WinLaufen (CSV, TXT, XLSX). Ein
+Startlisten-Wireprotokoll auf der Sprecher-PC-Schnittstelle existiert nicht und
+darf nicht erfunden werden.
 
 ### Öffentliche Darstellungskonfiguration
 

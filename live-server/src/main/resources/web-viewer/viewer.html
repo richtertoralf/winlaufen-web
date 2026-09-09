@@ -21,8 +21,16 @@ Die angezeigten Daten sind nicht aktuell. Es wird automatisch neu verbunden.</di
   <button data-view="results">Ergebnisse</button>
 </nav>
 <section id="startlist" class="view">
-  <div class="context"><h1>Startliste</h1></div>
-  <div class="compact-empty"><strong>Startliste</strong>Noch keine Startlistendaten verfügbar.</div>
+  <div class="context">
+    <h1>Startliste</h1>
+    <label class="class-picker" for="startlist-class">Klasse<select id="startlist-class"></select></label>
+  </div>
+  <div class="class-nav" id="startlist-nav" hidden>
+    <button type="button" id="startlist-previous" aria-label="Vorherige Klasse">←</button>
+    <span id="startlist-position" role="status"></span>
+    <button type="button" id="startlist-next" aria-label="Nächste Klasse">→</button>
+  </div>
+  <div id="startlist-table" class="table-wrap"></div>
 </section>
 <section id="live" class="view active">
   <div class="context"><h1><span class="label">LIVE</span> · <span id="live-context">Noch keine aktuellen Ergebnisse</span></h1></div>

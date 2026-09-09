@@ -6,6 +6,8 @@ import de.winlaufen.web.contract.Competition;
 import de.winlaufen.web.contract.CompetitionClass;
 import de.winlaufen.web.contract.CurrentFinish;
 import de.winlaufen.web.contract.PresentationConfig;
+import de.winlaufen.web.contract.StartListRow;
+import de.winlaufen.web.liveserver.state.PublishedStartList;
 import de.winlaufen.web.liveserver.state.PublishedState;
 
 import java.util.List;
@@ -25,6 +27,45 @@ public final class PublicJson {
                 + ",\"publicationRevision\":" + published.publicationRevision()
                 + ",\"state\":" + canonical(published.state())
                 + ",\"presentation\":" + presentation(published.presentation())
+                + "}";
+    }
+
+    /**
+     * The published start list as its own browser message.
+     *
+     * <p>It is not part of {@link #state} on purpose: that message travels with every clock
+     * telegram, and a start list has thousands of entries. Browsers receive this one on connect
+     * and whenever an import was published.
+     *
+     * <p>{@code generation} is the bridge's import counter, carried through for display and
+     * diagnosis. {@code publicationRevision} is this live server's own ordering of what a browser
+     * has already seen; the two are different things and are never compared with each other.
+     */
+    public static String startList(PublishedStartList published) {
+        StringBuilder entries = new StringBuilder("[");
+        for (StartListRow row : published.entries()) {
+            if (entries.length() > 1) {
+                entries.append(',');
+            }
+            entries.append("{\"bib\":").append(quote(row.bib()))
+                    .append(",\"className\":").append(quote(row.className()))
+                    .append(",\"startTime\":").append(quote(row.startTime()))
+                    .append(",\"lastName\":").append(quote(row.lastName()))
+                    .append(",\"firstName\":").append(quote(row.firstName()))
+                    .append(",\"club\":").append(quote(row.club()))
+                    .append(",\"association\":").append(quote(row.association()))
+                    .append(",\"course\":").append(quote(row.course()))
+                    .append(",\"birthYear\":").append(quote(row.birthYear()))
+                    .append(",\"gender\":").append(quote(row.gender()))
+                    .append(",\"nation\":").append(quote(row.nation()))
+                    .append('}');
+        }
+        return "{\"type\":\"startlist\""
+                + ",\"publicationRevision\":" + published.publicationRevision()
+                + ",\"generation\":" + published.generation()
+                + ",\"source\":" + quote(published.source())
+                + ",\"sourceLabel\":" + quote(published.sourceLabel())
+                + ",\"entries\":" + entries.append(']')
                 + "}";
     }
 

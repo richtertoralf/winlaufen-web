@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.winlaufen.web.contract.ContractJson;
 import de.winlaufen.web.contract.ContractLimits;
+import de.winlaufen.web.liveserver.state.PublishedStartListStore;
 import de.winlaufen.web.liveserver.state.PublishedStateStore;
 import de.winlaufen.web.liveserver.state.PublishedStateStoreTest;
 import org.java_websocket.client.WebSocketClient;
@@ -32,13 +33,15 @@ class LiveWebSocketServerTest {
 
     private LiveWebSocketServer server;
     private PublishedStateStore store;
+    private PublishedStartListStore startLists;
     private int port;
 
     @BeforeEach
     void start() throws Exception {
         port = freePort();
         store = new PublishedStateStore("local");
-        server = new LiveWebSocketServer("127.0.0.1", port, store, "local", "12345678");
+        startLists = new PublishedStartListStore("local");
+        server = new LiveWebSocketServer("127.0.0.1", port, store, startLists, "local", "12345678");
         server.start();
         server.awaitStart();
     }
@@ -57,7 +60,7 @@ class LiveWebSocketServerTest {
         ingest.send(ContractJson.snapshot(PublishedStateStoreTest.snapshot("stream", 3, "11:22:33")));
         assertTrue(ingest.next().contains("\"type\":\"ack\""));
         assertEquals("11:22:33", store.get().state().clock());
-        assertTrue(browser.next().contains("11:22:33"));
+        assertTrue(browser.next("snapshot").contains("11:22:33"));
 
         browser.closeBlocking();
         ingest.closeBlocking();
@@ -84,7 +87,7 @@ class LiveWebSocketServerTest {
         Collector two = connectBrowser();
         Collector three = connectBrowser();
         for (Collector browser : new Collector[]{one, two, three}) {
-            JsonNode initial = MAPPER.readTree(browser.next());
+            JsonNode initial = MAPPER.readTree(browser.next("snapshot"));
             assertEquals(0, initial.get("publicationRevision").asLong());
         }
 
@@ -95,16 +98,16 @@ class LiveWebSocketServerTest {
         assertTrue(ingest.next().contains("\"type\":\"ack\""));
 
         for (Collector browser : new Collector[]{one, two, three}) {
-            assertEquals("09:00:01", clockOf(browser.next()));
-            assertEquals("09:00:02", clockOf(browser.next()));
+            assertEquals("09:00:01", clockOf(browser.next("snapshot")));
+            assertEquals("09:00:02", clockOf(browser.next("snapshot")));
         }
 
         // One browser leaving must not disturb the others or the ingest connection.
         two.closeBlocking();
         ingest.send(ContractJson.snapshot(PublishedStateStoreTest.snapshot("stream", 3, "09:00:03")));
         assertTrue(ingest.next().contains("\"type\":\"ack\""));
-        assertEquals("09:00:03", clockOf(one.next()));
-        assertEquals("09:00:03", clockOf(three.next()));
+        assertEquals("09:00:03", clockOf(one.next("snapshot")));
+        assertEquals("09:00:03", clockOf(three.next("snapshot")));
 
         one.closeBlocking();
         three.closeBlocking();
@@ -130,6 +133,10 @@ class LiveWebSocketServerTest {
             JsonNode parsed = MAPPER.readTree(message);
             if ("heartbeat".equals(parsed.get("type").asText())) {
                 assertFalse(parsed.has("publicationRevision"), "a sign of life carries no state");
+                continue;
+            }
+            if ("startlist".equals(parsed.get("type").asText())) {
+                // The start list has its own publication counter and is not part of this sequence.
                 continue;
             }
             long current = parsed.get("publicationRevision").asLong();
@@ -163,7 +170,7 @@ class LiveWebSocketServerTest {
         int reused = server.getPort();
         server.shutdown();
         server = new LiveWebSocketServer("127.0.0.1", reused, new PublishedStateStore("local"),
-                "local", "12345678");
+                new PublishedStartListStore("local"), "local", "12345678");
         server.start();
         server.awaitStart();
 
@@ -179,7 +186,8 @@ class LiveWebSocketServerTest {
     void browsersGetASignOfLifeAndIngestConnectionsDoNot() throws Exception {
         int fastPort = freePort();
         var fastStore = new PublishedStateStore("local");
-        var fast = new LiveWebSocketServer("127.0.0.1", fastPort, fastStore, "local", "12345678",
+        var fast = new LiveWebSocketServer("127.0.0.1", fastPort, fastStore,
+                new PublishedStartListStore("local"), "local", "12345678",
                 ContractLimits.MAX_INGEST_MESSAGE_BYTES, ContractLimits.MAX_BROWSER_MESSAGE_BYTES,
                 80);
         fast.start();
@@ -195,6 +203,8 @@ class LiveWebSocketServerTest {
 
             assertEquals("snapshot", MAPPER.readTree(browser.next()).get("type").asText(),
                     "the first message of a connection stays the full snapshot");
+            assertEquals("startlist", MAPPER.readTree(browser.next()).get("type").asText(),
+                    "the start list follows once per connection, before any sign of life");
             for (int index = 0; index < 3; index++) {
                 assertEquals("heartbeat", MAPPER.readTree(browser.next()).get("type").asText(),
                         "the browser link keeps getting a sign of life while nothing changes");
@@ -287,7 +297,7 @@ class LiveWebSocketServerTest {
         server.shutdown();
 
         server = new LiveWebSocketServer("127.0.0.1", reused, new PublishedStateStore("local"),
-                "local", "12345678");
+                new PublishedStartListStore("local"), "local", "12345678");
         server.start();
         server.awaitStart();
         assertEquals(reused, server.getPort());
@@ -308,7 +318,7 @@ class LiveWebSocketServerTest {
     private JsonNode nextSnapshot(Collector collector) throws Exception {
         for (;;) {
             JsonNode parsed = MAPPER.readTree(collector.next());
-            if (!"heartbeat".equals(parsed.get("type").asText())) {
+            if ("snapshot".equals(parsed.get("type").asText())) {
                 return parsed;
             }
         }
@@ -376,6 +386,20 @@ class LiveWebSocketServerTest {
             String value = messages.poll(3, TimeUnit.SECONDS);
             assertNotNull(value);
             return value;
+        }
+
+        /**
+         * The next message of this type. A browser connection carries several kinds — the state
+         * snapshot, the start list and the sign of life — and a test usually means exactly one.
+         */
+        String next(String type) throws Exception {
+            for (int attempt = 0; attempt < 20; attempt++) {
+                String value = next();
+                if (type.equals(MAPPER.readTree(value).get("type").asText())) {
+                    return value;
+                }
+            }
+            throw new AssertionError("no message of type " + type);
         }
     }
 }

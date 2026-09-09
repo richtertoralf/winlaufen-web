@@ -9,6 +9,9 @@ import de.winlaufen.web.bridge.config.OutputTargetConfig;
 import de.winlaufen.web.bridge.config.OutputTargetType;
 import de.winlaufen.web.bridge.output.OutputConnectionState;
 import de.winlaufen.web.bridge.output.OutputTargetRuntime;
+import de.winlaufen.web.bridge.startlist.CanonicalStartList;
+import de.winlaufen.web.bridge.startlist.StartListEntry;
+import de.winlaufen.web.bridge.startlist.StartListSource;
 import de.winlaufen.web.bridge.state.CanonicalSnapshot;
 import de.winlaufen.web.contract.CanonicalState;
 import de.winlaufen.web.contract.PresentationConfig;
@@ -72,7 +75,8 @@ class BridgeControlJsonTest {
         var runtime = new OutputTargetRuntime("local", OutputConnectionState.RETRY_WAIT, null, -1, 3,
                 "Zeile1\r\n\tTab \"quote\" \\ backslash " + (char) 1 + " control");
 
-        String json = BridgeControlJson.status(snapshot, List.of(runtime));
+        String json = BridgeControlJson.status(snapshot, List.of(runtime),
+                CanonicalStartList.empty());
         JsonNode parsed = MAPPER.readTree(json);
 
         assertEquals(7, parsed.get("sourceRevision").asLong());
@@ -91,9 +95,59 @@ class BridgeControlJsonTest {
         var snapshot = new CanonicalSnapshot(0, CanonicalState.empty(), PresentationConfig.defaults());
         var runtime = OutputTargetRuntime.initial("local", true);
 
-        JsonNode parsed = MAPPER.readTree(BridgeControlJson.status(snapshot, List.of(runtime)));
+        JsonNode parsed = MAPPER.readTree(BridgeControlJson.status(snapshot, List.of(runtime),
+                CanonicalStartList.empty()));
         assertTrue(parsed.get("clock").isNull());
         assertTrue(parsed.get("outputs").get(0).get("lastError").isNull());
+    }
+
+    @Test
+    void statusViewReportsTheStartListWithItsDerivedClassCount() throws Exception {
+        var snapshot = new CanonicalSnapshot(0, CanonicalState.empty(), PresentationConfig.defaults());
+        var entries = List.of(
+                entry("12", "U16"), entry("13", "U16"), entry("12", "U18"));
+        var startList = new CanonicalStartList(4, StartListSource.IMPORT_XLSX, "Startliste.xlsx",
+                entries);
+
+        JsonNode parsed = MAPPER.readTree(BridgeControlJson.status(snapshot, List.of(), startList))
+                .get("startList");
+
+        assertEquals(4, parsed.get("generation").asLong());
+        assertEquals("IMPORT_XLSX", parsed.get("source").asText());
+        assertEquals("Startliste.xlsx", parsed.get("sourceLabel").asText());
+        assertEquals(3, parsed.get("entryCount").asInt());
+        assertEquals(2, parsed.get("classCount").asInt(), "two distinct classes, not three entries");
+    }
+
+    @Test
+    void statusViewReportsGenerationZeroWhenNoStartListWasImported() throws Exception {
+        var snapshot = new CanonicalSnapshot(0, CanonicalState.empty(), PresentationConfig.defaults());
+
+        JsonNode parsed = MAPPER.readTree(
+                        BridgeControlJson.status(snapshot, List.of(), CanonicalStartList.empty()))
+                .get("startList");
+
+        assertEquals(0, parsed.get("generation").asLong());
+        assertEquals(0, parsed.get("entryCount").asInt());
+        assertEquals(0, parsed.get("classCount").asInt());
+    }
+
+    /** A start list value can contain anything the export contained; JSON must survive it. */
+    @Test
+    void startListValuesAreEncodedSafely() throws Exception {
+        var snapshot = new CanonicalSnapshot(0, CanonicalState.empty(), PresentationConfig.defaults());
+        var startList = new CanonicalStartList(1, StartListSource.IMPORT_CSV,
+                "Start \"liste\"\\2026.csv", List.of(entry("12", "Schüler <U16>")));
+
+        JsonNode parsed = MAPPER.readTree(BridgeControlJson.status(snapshot, List.of(), startList))
+                .get("startList");
+
+        assertEquals("Start \"liste\"\\2026.csv", parsed.get("sourceLabel").asText());
+        assertEquals(1, parsed.get("classCount").asInt());
+    }
+
+    private static StartListEntry entry(String bib, String className) {
+        return new StartListEntry(bib, className, "", "", "", "", "", "", "", "", "");
     }
 
     @Test

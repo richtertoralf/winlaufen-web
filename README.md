@@ -1,5 +1,8 @@
 # Sprecher-Web
 
+[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
+[![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
+
 Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
 Das Projekt "Sprecher-Web" nutzt die von WinLaufen bereitgestellte **Sprecher-PC-Schnittstelle**
 und stellt die dort gelieferten Live-Ergebnisdaten **zusätzlich zum "Sprecher-PC" 
@@ -27,10 +30,10 @@ Die beiden sichtbaren Oberflächen heißen:
 - **Sprecher-Web – Bridge Control** — die Veranstalter-Oberfläche
 - **Sprecher-Web – Live-Ergebnisse** — die Ansicht für alle Zuschauer
 
-> **Status: Prototype Baseline, Entwicklungsversion**,
-> kein Release, keine Freigabe. Für ausgewählte Vereine in **kontrollierten
-> Netzen** gedacht, nicht für offenen Internetbetrieb. Vor dem Einsatz den
-> Abschnitt [Known prototype security limitation](#known-prototype-security-limitation)
+> **Status: Version 0.4.0, Prototype Baseline.** Für ausgewählte Vereine in
+> **kontrollierten Netzen** gedacht, nicht für offenen Internetbetrieb. Vor dem
+> Einsatz den Abschnitt
+> [Known prototype security limitation](#known-prototype-security-limitation)
 > lesen.
 
 > 📖 **Sie wollen Sprecher-Web einsetzen?**
@@ -39,84 +42,103 @@ Die beiden sichtbaren Oberflächen heißen:
 
 ## Was Sprecher-Web kann
 
-* Live-Ergebnisse, LIVE-Ansicht und Startlisten-Platzhalter in jedem Browser —
-  Notebook, Tablet, Smartphone, ohne App und ohne Anmeldung.
+**Live-Ergebnisse aus WinLaufen**
+
+* Verbindung zur **WinLaufen-Sprecher-PC-Schnittstelle** auf TCP 4444, strikt
+  read-only und nur ausgehend.
+* Laufende **Wettkampfuhr**, Ergebnistabellen, LIVE-Ansicht und Current Finish
+  in jedem Browser — Notebook, Tablet, Smartphone, ohne App und ohne Anmeldung.
 * Verifiziert für **Lauf und Biathlon**. Tabellen, Uhr, Current Finish,
   Schießen und WinLaufen-Nachrichten werden ohne fachliche Korrektur
   transportiert.
-* Der Veranstalter entscheidet in Bridge Control, welche Spalten öffentlich
-  sichtbar sind (Verein, Verband, Nation, Schießen, Nachrichten).
+* **Bridge Control** als Veranstalter-Oberfläche: WinLaufen-Adresse, Live
+  Server, öffentliche Spalten (Verein, Verband, Nation, Schießen, Nachrichten)
+  und Startlistenimport.
+
+**Startlisten**
+
+* **Startlistenimport in Bridge Control** — Datei auswählen, importieren,
+  fertig. Unterstützt werden **CSV**, **TXT** und **XLSX** aus WinLaufen; das
+  alte binäre `.xls` wird abgelehnt.
+* Jeder erfolgreiche Import **ersetzt die bisherige Startliste vollständig**.
+  Es wird nichts ergänzt und nichts zusammengeführt, denn dieselbe Startnummer
+  kann im Prolog und im Lauf zu verschiedenen Personen gehören. Ein
+  fehlgeschlagener Import ändert nichts.
+* Die Startliste liegt **persistent in der Bridge** und überlebt einen
+  Neustart von Bridge, Live Server und Rechner — ohne erneuten Import.
+* Sie wird **automatisch an alle Live Server übertragen**, nach jedem Import
+  und nach jedem Verbindungsaufbau. Sie ist nicht Teil der sekündlichen
+  Ergebnis-Snapshots.
+* Im Web Viewer erscheint sie **klassenweise**: Vor-/Zurück-Navigation,
+  direkte Klassenauswahl und die Reihenfolge genau wie im WinLaufen-Export.
+
+**Betrieb**
+
 * Ein Ausfall von Netzwerk, Live Server oder Bridge führt nie zu still
   veralteten Daten: Der Browser erkennt ihn, kennzeichnet die Anzeige und
   verbindet ohne Reload automatisch neu.
 * Beliebig viele zusätzliche Live Server parallel — im LAN oder als temporärer
   Server im Internet.
 
-WinSpringen, ein erfundenes Startlistenprotokoll, Datenbank und Broker bleiben
-ausdrücklich außerhalb dieser Version.
+WinSpringen, Datenbank und Broker bleiben ausdrücklich außerhalb dieser
+Version. Startlisten kommen als Dateiexport aus WinLaufen; ein
+Startlisten-Wireprotokoll auf TCP 4444 gibt es nicht und wird nicht erfunden.
 
-## Empfohlene Betriebsweise
+## Installation und Upgrade
 
-| Variante | Aufbau | Wann |
-|---|---|---|
-| **A — All-in-One** | alles auf einem Rechner, am einfachsten direkt auf dem WinLaufen-PC | der Normalfall |
-| **B — anderer Rechner im LAN** | All-in-One oder Bridge only auf einem zweiten Rechner, Adresse des WinLaufen-PCs in Bridge Control | wenn der WinLaufen-PC frei bleiben soll |
-| **C — zusätzlicher Server im Internet** | zusätzlich ein Presentation Node auf einem gemieteten Ubuntu-Server | wenn Zuschauer außerhalb des Veranstaltungsnetzes mitlesen sollen |
-
-Variante C benötigt **keine Domain und kein TLS**: Für den bewusst einfachen,
-temporären Selfhost-Betrieb genügt die öffentliche IPv4-Adresse, und in Bridge
-Control wird im Normalfall nur diese eine Adresse eingetragen. Die verbindlichen
-Grenzen dieses Betriebs stehen unten unter
-[Known prototype security limitation](#known-prototype-security-limitation).
-
-## Architektur in Kürze
-
-| Baustein | Aufgabe |
-|---|---|
-| **`winlaufen-web-bridge`** | liest WinLaufen strikt read-only, hält den kanonischen Live-State, verteilt ihn an 0..n Ziele, stellt Bridge Control bereit |
-| **`winlaufen-web-live-server`** | nimmt den Bridge-Ingest authentifiziert an, hält den veröffentlichten State, liefert die Live-Ergebnisse an Browser |
-| `winlaufen-web-contract` | kleiner versionierter Snapshot-/ACK-Vertrag zwischen beiden |
-
-Beide Runtimes sind getrennte Prozesse. Der Live Server enthält keinen
-WinLaufen-Protokollcode. Auch die lokale Ansicht im All-in-One-Betrieb läuft
-über eine echte ausgehende WebSocket-Verbindung der Bridge.
-
-### Netzwerkvertrag
-
-| Port | Richtung | Funktion |
-|---|---|---|
-| TCP 4444 | Bridge → WinLaufen-PC, **ausgehend** | WinLaufen Sprecher-PC-Quelle |
-| TCP 44440 | eingehend | Live-Ergebnisse / HTTP Web Viewer |
-| TCP 44441 | eingehend | Live WebSocket und Bridge-Ingest auf einem Listener |
-| TCP 44442 | eingehend | Bridge Control |
-
-**TCP 4444 ist keine eingehende Freigabe dieses Projekts.** Diesen Port stellt
-WinLaufen selbst bereit, sobald dort die Sprecher-PC-Verbindung aktiviert wurde;
-die Bridge verbindet sich nur ausgehend dorthin. 4444 gehört deshalb nicht in
-die eingehenden Firewallregeln.
-
-44440 und 44441 müssen für die vorgesehenen Zuschauergeräte erreichbar sein,
-44442 nur für die vorgesehenen Administrationsgeräte.
-
-## Schnellstart
-
-> Vollständige Anleitung für Veranstalter:
-> **[docs/BEDIENERHANDBUCH.md](docs/BEDIENERHANDBUCH.md)**
+> **Technische Referenz:** [docs/INSTALLATION.md](docs/INSTALLATION.md) —
+> Profile, Pfade, Dienste, Ports, Firewall, Deinstallation.
+> **Für Veranstalter Schritt für Schritt:**
+> [docs/BEDIENERHANDBUCH.md](docs/BEDIENERHANDBUCH.md).
 
 Voraussetzungen sind Git und JDK 25; Maven liefert der Maven Wrapper mit.
 Fertige Releases zum Download gibt es noch nicht.
 
-**Linux (Terminal)**
+### Neuinstallation unter Linux
 
 ```sh
 sudo apt install git openjdk-25-jdk
 git clone https://github.com/richtertoralf/winlaufen-web.git
 cd winlaufen-web
 ./mvnw clean package
-sudo ./installer/linux/install.sh
+sudo ./installer/linux/install.sh --profile all-in-one
 ```
 
-**Windows 11 (Powershell)**
+Ohne `--profile` fragt der Installer das Profil interaktiv ab. Die anderen
+Werte sind `bridge-only` und `presentation-node`.
+
+### Upgrade einer bestehenden Linux-Installation
+
+Derselbe Installer führt auch das Upgrade durch:
+
+```sh
+cd ~/winlaufen-web
+git pull --ff-only
+./mvnw clean package
+sudo ./installer/linux/install.sh --profile all-in-one
+```
+
+Dabei gilt:
+
+* Vorhandene Konfiguration wird **nie überschrieben** — die gepflegte
+  WinLaufen-Adresse und die Liste der Live Server bleiben erhalten.
+* Die **importierte Startliste bleibt erhalten**; sie liegt in
+  `/etc/winlaufen-web/startlist.properties` und wird vom Installer nicht
+  angefasst.
+* Programmdateien und systemd-Units werden ersetzt, nicht dupliziert.
+* Die Dienste des gewählten Profils werden aktiviert und neu gestartet.
+
+Prüfung danach:
+
+```sh
+systemctl status winlaufen-bridge winlaufen-live-server --no-pager
+sudo ss -ltnp | grep -E ':(44440|44441|44442)\b'
+```
+
+Bei `bridge-only` gehört nur `winlaufen-bridge` und Port 44442 dazu, bei
+`presentation-node` nur `winlaufen-live-server` und die Ports 44440 und 44441.
+
+### Windows 11
 
 ```powershell
 winget install --id Git.Git --exact --source winget
@@ -151,14 +173,64 @@ Bei der Installation wird genau eine Sache ausgewählt: die Rolle des Rechners.
 Adressen, Ziele und TLS gehören ausschließlich in die spätere Konfiguration
 über Bridge Control.
 
-| Profil | Installiert | Linux | Windows 11 |
-|---|---|---|---|
-| All-in-One | Bridge + Live Server | `--profile all-in-one` | `-Profile AllInOne` |
-| Bridge only | nur Bridge | `--profile bridge-only` | `-Profile BridgeOnly` |
-| Presentation Node | nur Live Server | `--profile presentation-node` | nicht unterstützt |
+| Profil | Installiert | Eigene Ports | Linux | Windows 11 |
+|---|---|---|---|---|
+| All-in-One | Bridge + Live Server | 44440, 44441, 44442 | `--profile all-in-one` | `-Profile AllInOne` |
+| Bridge only | nur Bridge | 44442 | `--profile bridge-only` | `-Profile BridgeOnly` |
+| Presentation Node | nur Live Server | 44440, 44441 | `--profile presentation-node` | nicht unterstützt |
+
+* **All-in-One** — Bridge und Live Server auf demselben Rechner, am
+  einfachsten direkt auf dem WinLaufen-PC. Der Normalfall.
+* **Bridge only** — Bridge in der Nähe von WinLaufen, der Live Server läuft
+  auf einem anderen Rechner.
+* **Presentation Node** — nur Live Server und Web Viewer, ohne
+  WinLaufen-Anbindung; typisch ein gemieteter Server im Internet.
 
 Unterstützt sind Debian, Ubuntu 24.04/26.04 und Raspberry Pi OS für alle drei
 Profile sowie Windows 11 für All-in-One und Bridge only.
+
+## Empfohlene Betriebsweise
+
+| Variante | Aufbau | Wann |
+|---|---|---|
+| **A — All-in-One** | alles auf einem Rechner, am einfachsten direkt auf dem WinLaufen-PC | der Normalfall |
+| **B — anderer Rechner im LAN** | All-in-One oder Bridge only auf einem zweiten Rechner, Adresse des WinLaufen-PCs in Bridge Control | wenn der WinLaufen-PC frei bleiben soll |
+| **C — zusätzlicher Server im Internet** | zusätzlich ein Presentation Node auf einem gemieteten Ubuntu-Server | wenn Zuschauer außerhalb des Veranstaltungsnetzes mitlesen sollen |
+
+Variante C benötigt **keine Domain und kein TLS**: Für den bewusst einfachen,
+temporären Selfhost-Betrieb genügt die öffentliche IPv4-Adresse, und in Bridge
+Control wird im Normalfall nur diese eine Adresse eingetragen. Die verbindlichen
+Grenzen dieses Betriebs stehen unten unter
+[Known prototype security limitation](#known-prototype-security-limitation).
+
+## Architektur in Kürze
+
+| Baustein | Aufgabe |
+|---|---|
+| **`winlaufen-web-bridge`** | liest WinLaufen strikt read-only, hält den kanonischen Live-State, verteilt ihn an 0..n Ziele, stellt Bridge Control bereit |
+| **`winlaufen-web-live-server`** | nimmt den Bridge-Ingest authentifiziert an, hält den veröffentlichten State, liefert die Live-Ergebnisse an Browser |
+| `winlaufen-web-contract` | kleiner versionierter Vertrag zwischen beiden: Ergebnis-Snapshot, ACK und Startliste |
+
+Beide Runtimes sind getrennte Prozesse. Der Live Server enthält keinen
+WinLaufen-Protokollcode. Auch die lokale Ansicht im All-in-One-Betrieb läuft
+über eine echte ausgehende WebSocket-Verbindung der Bridge.
+
+### Netzwerkvertrag
+
+| Port | Richtung | Funktion |
+|---|---|---|
+| TCP 4444 | Bridge → WinLaufen-PC, **ausgehend** | WinLaufen Sprecher-PC-Quelle |
+| TCP 44440 | eingehend | Live-Ergebnisse / HTTP Web Viewer |
+| TCP 44441 | eingehend | Live WebSocket und Bridge-Ingest auf einem Listener |
+| TCP 44442 | eingehend | Bridge Control |
+
+**TCP 4444 ist keine eingehende Freigabe dieses Projekts.** Diesen Port stellt
+WinLaufen selbst bereit, sobald dort die Sprecher-PC-Verbindung aktiviert wurde;
+die Bridge verbindet sich nur ausgehend dorthin. 4444 gehört deshalb nicht in
+die eingehenden Firewallregeln.
+
+44440 und 44441 müssen für die vorgesehenen Zuschauergeräte erreichbar sein,
+44442 nur für die vorgesehenen Administrationsgeräte.
 
 ## Die angezeigte Wettkampfzeit
 
@@ -196,8 +268,16 @@ für Bediener: [Bedienerhandbuch, Kapitel 9](docs/BEDIENERHANDBUCH.md#9-die-ange
 
 ## Projektstatus
 
-Entwicklungsversion `0.3.0-SNAPSHOT`. Kein Tag, kein Release, keine
-Releasefreigabe.
+**Version `0.4.0`.** Dieses Release schließt den Startlistenweg ab: Import in
+Bridge Control, persistenter Bestand in der Bridge, eigene Übertragung zum Live
+Server und klassenweise Anzeige im Web Viewer — zusätzlich zu Uhr und
+Ergebnissen wie bisher.
+
+Die Prototyp-Grenzen aus
+[Known prototype security limitation](#known-prototype-security-limitation)
+gelten unverändert: Bridge Control hat keine Anmeldung, und der Bridge-Ingest
+verwendet weiterhin ein bekanntes Default-Secret. Das Release ist deshalb keine
+Freigabe für offenen Internetbetrieb.
 
 ### Real bestätigt
 
@@ -214,8 +294,22 @@ Releasefreigabe.
   den neu gelieferten WinLaufen-Wert
 - Bridge stop/start; der letzte Ergebnisstand bleibt auf dem Presentation Node
   erhalten, bis WinLaufen einen neuen Klassensnapshot liefert
+- Startlistenimport in Bridge Control und Anzeige im Web Viewer, gleichzeitig
+  mit laufender realer WinLaufen-Quelle: 1 999 Teilnehmer in 46 Klassen,
+  Klassennavigation, neuer Import ohne Dienstneustart, Live-Server-Restart und
+  Bridge-Restart jeweils ohne erneuten Import
 
 Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
+
+### Geplant, noch nicht vorhanden
+
+- **Generische Read-API des Live Servers** für externe Consumer, damit andere
+  Anwendungen den veröffentlichten Stand maschinenlesbar abrufen können —
+  vorgesehen sind unter anderem `finish-stream-overlay` und die GFX Engine.
+  Sie ist **nicht** implementiert: es gibt heute **kein**
+  `GET /api/v1/startlist`, und `GET /api/v1/state` liefert unverändert nur
+  den Wettkampfstand für den eigenen Web Viewer. Die API wird bewusst
+  allgemein und nicht auf einen einzelnen Consumer zugeschnitten.
 
 ### Noch offen
 
