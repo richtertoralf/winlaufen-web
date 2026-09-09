@@ -4,6 +4,9 @@ import de.winlaufen.web.contract.AckEnvelope;
 import de.winlaufen.web.contract.ContractJson;
 import de.winlaufen.web.contract.ContractLimits;
 import de.winlaufen.web.contract.SnapshotEnvelope;
+import de.winlaufen.web.contract.StartListEnvelope;
+import de.winlaufen.web.liveserver.state.PublishedStartList;
+import de.winlaufen.web.liveserver.state.PublishedStartListStore;
 import de.winlaufen.web.liveserver.state.PublishedState;
 import de.winlaufen.web.liveserver.state.PublishedStateStore;
 import org.java_websocket.WebSocket;
@@ -52,43 +55,54 @@ public final class LiveWebSocketServer extends WebSocketServer {
     private enum Role { BROWSER, INGEST }
 
     private final PublishedStateStore store;
+    private final PublishedStartListStore startLists;
     private final String channelId;
     private final String secret;
     private final String ingestPath;
     private final ConcurrentMap<WebSocket, Long> delivered = new ConcurrentHashMap<>();
+    /**
+     * Start lists have their own publication revision, so a browser that connects while an import
+     * is being published cannot end up with the older of the two messages.
+     */
+    private final ConcurrentMap<WebSocket, Long> deliveredStartLists = new ConcurrentHashMap<>();
     private final CountDownLatch started = new CountDownLatch(1);
     private final long keepaliveMillis;
     private final ScheduledExecutorService keepalive = Executors.newSingleThreadScheduledExecutor(
             runnable -> Thread.ofPlatform().name("live-browser-keepalive").daemon().unstarted(runnable));
     private volatile Exception startupError;
 
-    public LiveWebSocketServer(String bind, int port, PublishedStateStore store, String channelId,
+    public LiveWebSocketServer(String bind, int port, PublishedStateStore store,
+                               PublishedStartListStore startLists, String channelId,
                                String secret) {
-        this(bind, port, store, channelId, secret,
+        this(bind, port, store, startLists, channelId, secret,
                 ContractLimits.MAX_INGEST_MESSAGE_BYTES, ContractLimits.MAX_BROWSER_MESSAGE_BYTES,
                 BROWSER_KEEPALIVE_MILLIS);
     }
 
     /** Test seam: proves the limits without allocating a production-sized payload. */
-    LiveWebSocketServer(String bind, int port, PublishedStateStore store, String channelId,
+    LiveWebSocketServer(String bind, int port, PublishedStateStore store,
+                        PublishedStartListStore startLists, String channelId,
                         String secret, int ingestLimitBytes, int browserLimitBytes) {
-        this(bind, port, store, channelId, secret, ingestLimitBytes, browserLimitBytes,
+        this(bind, port, store, startLists, channelId, secret, ingestLimitBytes, browserLimitBytes,
                 BROWSER_KEEPALIVE_MILLIS);
     }
 
     /** Test seam: proves the keepalive without letting a test wait for the production interval. */
-    LiveWebSocketServer(String bind, int port, PublishedStateStore store, String channelId,
+    LiveWebSocketServer(String bind, int port, PublishedStateStore store,
+                        PublishedStartListStore startLists, String channelId,
                         String secret, int ingestLimitBytes, int browserLimitBytes,
                         long keepaliveMillis) {
         super(new InetSocketAddress(bind, port),
                 drafts(ingestPath(channelId), ingestLimitBytes, browserLimitBytes));
         this.store = store;
+        this.startLists = startLists;
         this.channelId = channelId;
         this.secret = secret;
         this.ingestPath = ingestPath(channelId);
         this.keepaliveMillis = keepaliveMillis;
         setReuseAddr(true);
         store.addListener(this::publish);
+        startLists.addListener(this::publishStartList);
     }
 
     public static String ingestPath(String channelId) {
@@ -140,6 +154,7 @@ public final class LiveWebSocketServer extends WebSocketServer {
     public void onOpen(WebSocket connection, ClientHandshake handshake) {
         if (connection.getAttachment() == Role.BROWSER) {
             send(connection, store.get());
+            send(connection, startLists.get());
         }
     }
 
@@ -149,7 +164,13 @@ public final class LiveWebSocketServer extends WebSocketServer {
             connection.close(CloseFrame.REFUSE, "Read only");
             return;
         }
+        boolean startList = false;
         try {
+            startList = StartListEnvelope.TYPE.equals(ContractJson.typeOf(text));
+            if (startList) {
+                acceptStartList(text);
+                return;
+            }
             SnapshotEnvelope value = ContractJson.readSnapshot(text);
             if (!channelId.equals(value.channelId())) {
                 throw new IllegalArgumentException("Channel mismatch");
@@ -160,7 +181,26 @@ public final class LiveWebSocketServer extends WebSocketServer {
             connection.send(ContractJson.ack(
                     new AckEnvelope(channelId, value.streamId(), value.sourceRevision())));
         } catch (Exception ex) {
-            connection.close(CloseFrame.PROTOCOL_ERROR, "Invalid snapshot");
+            // The reason names which message failed; both end the connection, and the bridge
+            // answers either with a reconnect and a full resync.
+            connection.close(CloseFrame.PROTOCOL_ERROR,
+                    startList ? "Invalid start list" : "Invalid snapshot");
+        }
+    }
+
+    /**
+     * A start list is not acknowledged. The competition state already proves on every revision
+     * that this live server processes what it receives, and an unusable start list closes the
+     * connection here, which the bridge answers with a reconnect and a full resync. A second ACK
+     * type would add a parallel liveness path for a message that arrives a few times a day.
+     */
+    private void acceptStartList(String text) throws Exception {
+        StartListEnvelope value = ContractJson.readStartList(text);
+        if (!channelId.equals(value.channelId())) {
+            throw new IllegalArgumentException("Channel mismatch");
+        }
+        if (!startLists.accept(value)) {
+            throw new IllegalArgumentException("Start list generation decreased");
         }
     }
 
@@ -172,6 +212,7 @@ public final class LiveWebSocketServer extends WebSocketServer {
     @Override
     public void onClose(WebSocket connection, int code, String reason, boolean remote) {
         delivered.remove(connection);
+        deliveredStartLists.remove(connection);
         // A browser leaving changes nothing for anyone else; the bridge leaving means the
         // published copy is no longer current and must stop claiming a connected source.
         if (connection.getAttachment() == Role.INGEST) {
@@ -216,6 +257,30 @@ public final class LiveWebSocketServer extends WebSocketServer {
             if (connection.getAttachment() == Role.BROWSER) {
                 send(connection, value);
             }
+        }
+    }
+
+    /**
+     * Sent only when a start list was actually adopted, never with a clock telegram. A browser
+     * therefore receives the participant list on connect and after an import, not every second.
+     */
+    private void publishStartList(PublishedStartList value) {
+        for (WebSocket connection : getConnections()) {
+            if (connection.getAttachment() == Role.BROWSER) {
+                send(connection, value);
+            }
+        }
+    }
+
+    /** Guarantees that an individual browser never receives a lower start-list revision. */
+    private void send(WebSocket connection, PublishedStartList value) {
+        synchronized (connection) {
+            long last = deliveredStartLists.getOrDefault(connection, -1L);
+            if (value.publicationRevision() < last) {
+                return;
+            }
+            connection.send(PublicJson.startList(value));
+            deliveredStartLists.put(connection, value.publicationRevision());
         }
     }
 

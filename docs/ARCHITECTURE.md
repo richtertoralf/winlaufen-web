@@ -39,8 +39,15 @@ WinLaufen --TCP/4444 read-only--> winlaufen-web-bridge
   Veranstalter-Konfiguration, unabhängige Output-Worker
 - Bridge zusätzlich: in Bridge Control importierte Startliste mit eigener
   `generation`, neben der Konfiguration persistiert und über einen Neustart
-  hinweg gültig. Veranstalterdaten, kein Quell-State; noch keine Übertragung
-  an den Live Server
+  hinweg gültig. Veranstalterdaten, kein Quell-State
+- Startliste als eigener Nachrichtentyp im Fan-out: nach jedem Import und
+  auf jeder neuen Output-Verbindung, **nicht** mit Uhr- oder
+  Ergebnisänderungen
+- Live Server zusätzlich: Published StartList je Channel, memory-only,
+  vollständiger Replace; nach Neustart liefert der Bridge-Reconnect sie
+  wieder
+- Web Viewer: Startliste klassenweise in Importreihenfolge, als eigene
+  Browsernachricht neben dem Zustandssnapshot
 - Live Server: pro Channel memory-only Published State mit eigener
   `publicationRevision`
 - Browser: nur flüchtige öffentliche Kopie

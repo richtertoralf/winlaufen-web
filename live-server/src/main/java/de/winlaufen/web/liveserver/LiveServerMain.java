@@ -1,6 +1,7 @@
 package de.winlaufen.web.liveserver;
 
 import de.winlaufen.web.liveserver.config.LiveServerConfig;
+import de.winlaufen.web.liveserver.state.PublishedStartListStore;
 import de.winlaufen.web.liveserver.state.PublishedStateStore;
 import de.winlaufen.web.liveserver.web.LiveWebSocketServer;
 import de.winlaufen.web.liveserver.web.PublicHttpServer;
@@ -29,8 +30,10 @@ public final class LiveServerMain {
     private static void run() throws Exception {
         LiveServerConfig config = LiveServerConfig.system();
         PublishedStateStore store = new PublishedStateStore(config.channelId());
+        PublishedStartListStore startLists = new PublishedStartListStore(config.channelId());
         LiveWebSocketServer webSocket = new LiveWebSocketServer(config.webSocketBindAddress(),
-                config.webSocketPort(), store, config.channelId(), config.ingestSecret());
+                config.webSocketPort(), store, startLists, config.channelId(),
+                config.ingestSecret());
 
         PublicHttpServer[] http = new PublicHttpServer[1];
         AtomicBoolean stopped = new AtomicBoolean();

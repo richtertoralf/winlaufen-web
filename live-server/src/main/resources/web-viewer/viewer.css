@@ -27,6 +27,12 @@ footer.version{padding:4px var(--pad) 16px;color:var(--muted);font-size:11px;tex
 .label{color:var(--accent)}
 .class-picker{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .class-picker select{max-width:52vw;min-height:36px;padding:6px 8px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);color:var(--ink);font:inherit}
+/* Klassenblaetterung der Startliste: an den Raendern deaktiviert statt zyklisch. */
+.class-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.class-nav[hidden]{display:none}
+.class-nav button{min-width:56px;min-height:36px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);color:var(--ink);font:inherit;font-weight:700;cursor:pointer}
+.class-nav button:disabled{color:var(--muted);border-color:var(--line);cursor:default}
+.class-nav span{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .notice,.compact-empty{margin:8px 0;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);font-size:14px;color:var(--muted)}
 .notice[hidden]{display:none}
 /* Verbindungsverlust: der Hinweis bleibt deutlich, die letzten Daten bleiben lesbar, sind aber

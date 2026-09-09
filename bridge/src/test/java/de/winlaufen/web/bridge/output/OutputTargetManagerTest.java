@@ -5,7 +5,13 @@ import de.winlaufen.web.bridge.config.OutputTargetType;
 import de.winlaufen.web.bridge.state.CanonicalSnapshot;
 import de.winlaufen.web.bridge.state.CanonicalStateStore;
 import de.winlaufen.web.contract.PresentationConfig;
+import de.winlaufen.web.bridge.startlist.CanonicalStartList;
+import de.winlaufen.web.bridge.startlist.StartListStore;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.nio.file.Path;
 
 import java.net.URI;
 import java.util.List;
@@ -22,12 +28,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class OutputTargetManagerTest {
 
+    @TempDir
+    Path temp;
+
+    /** A store without an imported start list; the fan-out still has to offer it to every target. */
+    private StartListStore startLists() {
+        try {
+            return StartListStore.open(temp.resolve("startlist.properties"));
+        } catch (IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
     @Test
     void unchangedTargetsSurviveReconfigurationWhileOthersAreAddedAndRemoved() {
         CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
         Factory factory = new Factory();
         try (OutputTargetManager manager = new OutputTargetManager(
-                List.of(target("alpha", 9001), target("beta", 9002)), "stream", store, factory)) {
+                List.of(target("alpha", 9001), target("beta", 9002)), "stream", store, startLists(), factory)) {
             manager.start();
             FakeAdapter alpha = factory.byId("alpha");
             FakeAdapter beta = factory.byId("beta");
@@ -60,7 +78,7 @@ class OutputTargetManagerTest {
         CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
         Factory factory = new Factory();
         try (OutputTargetManager manager = new OutputTargetManager(
-                List.of(target("alpha", 9001), target("beta", 9002)), "stream", store, factory)) {
+                List.of(target("alpha", 9001), target("beta", 9002)), "stream", store, startLists(), factory)) {
             manager.start();
             FakeAdapter alpha = factory.byId("alpha");
             FakeAdapter originalBeta = factory.byId("beta");
@@ -80,7 +98,7 @@ class OutputTargetManagerTest {
         CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
         Factory factory = new Factory();
         OutputTargetManager manager = new OutputTargetManager(
-                List.of(target("alpha", 9001)), "stream", store, factory);
+                List.of(target("alpha", 9001)), "stream", store, startLists(), factory);
         manager.start();
         FakeAdapter alpha = factory.byId("alpha");
         store.clock("10:00:00");
@@ -129,11 +147,17 @@ class OutputTargetManagerTest {
 
         private final OutputTargetConfig config;
         private final List<CanonicalSnapshot> published = new CopyOnWriteArrayList<>();
+        private final List<CanonicalStartList> publishedStartLists = new CopyOnWriteArrayList<>();
         private volatile boolean started;
         private volatile boolean closed;
 
         FakeAdapter(OutputTargetConfig config) {
             this.config = config;
+        }
+
+        @Override
+        public void publishStartList(CanonicalStartList startList) {
+            publishedStartLists.add(startList);
         }
 
         @Override

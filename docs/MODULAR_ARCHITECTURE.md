@@ -45,6 +45,8 @@ Bereitstellung/Betrieb bleibt gesonderte Arbeit.
 flowchart LR
     SRC[WinLaufen<br/>später verifizierte Quellen] -->|TCP 4444, read-only| BA[Bridge Source Adapter]
     BA --> CBS[Canonical Bridge State<br/>memory-only]
+    CUI --> SLS[Canonical StartList<br/>persistent]
+    SLS --> OT
     BC[Bridge Config Store] --> BA
     BC --> OT[Output Target Manager]
     BC --> CBS
@@ -53,6 +55,8 @@ flowchart LR
     OT -->|eigene ausgehende WS-Verbindung| LS1[LOCAL Live Server]
     OT -->|eigene ausgehende WSS-Verbindung| LS2[SELFHOST Live Server]
     OT -->|eigene ausgehende WSS-Verbindung| LS3[RICHTER_PROJECTS Live Server]
+    LS1 --> PSL1[Published StartList<br/>memory-only]
+    PSL1 --> API1
     LS1 --> PSS1[Published State]
     LS2 --> PSS2[Published State]
     LS3 --> PSS3[Published State]
@@ -192,14 +196,33 @@ Die Startliste ist ein eigener, von A–D getrennter Bestand in der Bridge.
 | Ersetzung | ein erfolgreicher Import ersetzt den **vollständigen** Bestand; kein Merge, kein Patch. Alte Startnummern-, Klassen- und Startzeitzuordnungen sind danach weg. |
 | Fehlerfall | Parsen, Validieren, Persistieren, Umschalten in dieser Reihenfolge. Jeder Fehler lässt den bisherigen Bestand und die `generation` unverändert. |
 | Unlesbare Datei | die Bridge startet ohne Startliste und meldet es. Liveergebnisse hängen nicht von einer Startliste ab. |
+| Verteilung | eigene Nachricht an jedes aktivierte Output Target, **nicht** Teil des Competition-Snapshots |
+| Live Server | hält den zuletzt angenommenen Bestand memory-only, ersetzt ihn vollständig, persistiert nichts |
+| Web Viewer | zeigt ihn klassenweise in der Importreihenfolge |
 
 `generation` versioniert ausschließlich den Startlistenbestand. Sie ist keine
 Wettkampf-, Lauf- oder Teilnehmerkennung: Ein neuer Import kann eine
 Korrektur, eine Nachmeldung oder ein anderer Wettkampf sein, und die Bridge
 entscheidet diese fachliche Frage nicht.
 
-Die Übertragung der Startliste an den Live Server ist **nicht** Teil dieses
-Stands; der Bridge-Live-Server-Vertrag in §6 ist davon unberührt.
+Die Startliste wird **nicht** mit dem Competition State übertragen. Der
+Snapshot begleitet jedes Uhrtelegramm, also etwa sekündlich; ein realer
+Bestand hat rund 2 000 Teilnehmer und etwa 430 KB. Im Snapshot mitgeschickt
+wäre das eine dauernde Neuübertragung der Teilnehmerliste. Die Startliste ist
+deshalb eine eigene Nachricht mit eigener Sendedisziplin (§6, Startliste).
+
+Wann sie übertragen wird:
+
+| Anlass | Wirkung |
+|---|---|
+| erfolgreicher Import | sofortige Veröffentlichung an alle aktivierten Targets |
+| neue oder wiederhergestellte Output-Verbindung | vollständiger Resync des aktuellen Bestands |
+| Bridge-Start mit persistierter Liste | Veröffentlichung, sobald das Target verbunden ist |
+| Uhr-, Ergebnis-, Health- oder Präsentationsänderung | **keine** Übertragung |
+| abgelehnter Import | **keine** Übertragung |
+
+Ein Live-Server-Neustart braucht deshalb keinen erneuten Import: Die Bridge
+verbindet sich neu und sendet den Bestand von selbst wieder vollständig.
 
 ## 6. Bridge → Live Server Contract
 
@@ -208,6 +231,7 @@ Stands; der Bridge-Live-Server-Vertrag in §6 ist davon unberührt.
 `winlaufen-web-contract` enthält ausschließlich:
 
 - immutable DTOs für kanonischen Competition State und Presentation Config;
+- immutable DTOs der Startliste (`StartListEnvelope`, `StartListRow`);
 - Envelopes und ACKs des Bridge-Live-Server-Vertrags;
 - zentrale JSON-Codec- und strikte Validierungsregeln für diesen Vertrag;
 - `schemaVersion = 1` und kompatibilitätsrelevante Limits.
@@ -277,6 +301,59 @@ Normative Form (Feldnamen verbindlich, Beispielwerte illustrativ):
 - Header, Zellen, Reihenfolge, Indizes, Clock, Nachrichten: ohne fachliche
   Korrektur übertragen.
 - Strukturelle Größenlimits gelten auch hier.
+
+### Startliste
+
+Eigener Nachrichtentyp auf derselben Ingest-Verbindung, additiv zum Snapshot
+und ohne dessen Resync-Pflicht zu ersetzen. `schemaVersion` bleibt 1.
+
+```json
+{
+  "type": "startlist",
+  "schemaVersion": 1,
+  "channelId": "event-2026",
+  "streamId": "550e8400-e29b-41d4-a716-446655440000",
+  "generation": 3,
+  "source": "IMPORT_CSV",
+  "sourceLabel": "Startliste.csv",
+  "entries": [
+    {
+      "bib": "0012", "className": "Schüler U12 m", "startTime": "10:00:15",
+      "lastName": "MÜLLER", "firstName": "Anna", "club": "SV Beispiel",
+      "association": "SVSAC", "course": "0.8", "birthYear": "2015",
+      "gender": "m", "nation": "GER"
+    }
+  ]
+}
+```
+
+- Vollständiger Bestand, kein Delta: jede Nachricht ersetzt die Startliste
+  des Empfängers vollständig.
+- Alle Werte bleiben Text. `bib` wird nie zur Zahl — `0012`, `12` und `A12`
+  sind verschiedene Startnummern. `startTime` bleibt eine
+  WinLaufen-Tageszeit ohne Datum und ohne Zeitzone. Es gibt keine
+  Teilnehmerkennung; die Quelle liefert keine.
+- Die Reihenfolge der Einträge ist die des Imports und wird nicht verändert.
+- `generation` zählt die Importe **einer** Bridge und ist deshalb nur
+  innerhalb derselben `streamId` vergleichbar. Innerhalb eines Streams ist
+  eine kleinere Generation veraltet und wird abgelehnt; bei neuer `streamId`
+  ist eine kleinere Generation normal — eine neu gestartete Bridge zählt
+  wieder ab 1 — und muss angenommen werden. Gleiche Generation im gleichen
+  Stream ist idempotent.
+- `generation: 0` mit `entries: []` ist die autoritative Aussage **diese
+  Bridge hat keine Startliste**. Sie wird auf jeder frischen Verbindung
+  gesendet, damit ein Live Server keine Liste weiterzeigt, die seine aktuelle
+  Quelle nicht mehr besitzt. Beides muss zusammenpassen: Einträge ohne
+  Generation und eine Generation ohne Einträge sind je ein Vertragsfehler.
+- **Kein eigener ACK.** Der Competition State bestätigt bei jeder Revision,
+  dass dieser Live Server verarbeitet; eine unbrauchbare Startliste schließt
+  die Verbindung wie ein unbrauchbarer Snapshot, worauf der vorhandene
+  Reconnect samt Resync sie erneut liefert. Ein zweiter ACK-Typ wäre eine
+  parallele Liveness-Infrastruktur für eine Nachricht, die einige Male pro
+  Tag auftritt.
+- Größe: gemessen rund 437 KB für 1 999 Teilnehmer. Die Obergrenze
+  `MAX_START_LIST_ENTRIES` ist bewusst dieselbe Zahl für Import und
+  Transport, damit ein importierbarer Bestand immer auch publizierbar ist.
 
 Der Live Server antwortet nach atomarer Annahme:
 

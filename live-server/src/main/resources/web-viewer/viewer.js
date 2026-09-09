@@ -40,11 +40,18 @@ function receive(message) {
   noteTraffic();
   // Ein Lebenszeichen traegt bewusst keinen Zustand und darf keine Tabelle anfassen.
   if (message.type === 'heartbeat') return;
+  // Die Startliste ist eine eigene Nachricht mit eigener Revision. Sie kommt beim Verbinden und
+  // nach einem Import, nicht mit jedem Uhrtelegramm, und ruehrt die Ergebnisansichten nicht an.
+  if (message.type === 'startlist') { receiveStartList(message); return; }
   if (message.publicationRevision < publicationRevision) return;
   publicationRevision = message.publicationRevision;
   const hadState = state !== null;
+  const previousDisplay = JSON.stringify(display);
   state = message.state;
   display = message.presentation;
+  // Nur eine wirklich geaenderte Darstellungsauswahl baut die Startliste neu auf; ein
+  // Uhrtelegramm darf ihre Tabelle nicht jede Sekunde neu zeichnen.
+  if (JSON.stringify(display) !== previousDisplay && startListClasses.length) renderStartList();
   // LIVE follows the class of the newest result snapshot, exactly as WinLaufen transmitted it.
   // currentFinish carries the class index of the most recent result telegram.
   if (state.currentFinish) liveClassIndex = state.currentFinish.classIndex;
@@ -138,6 +145,128 @@ function table(target, snapshot, highlighted, emptyText) {
   });
   target.replaceChildren(node);
 }
+// --- Startliste --------------------------------------------------------------------------------
+
+// Die Klassen entstehen als abgeleitete Sicht auf die gelieferten Einträge. Die Reihenfolge
+// stammt vollstaendig aus dem Import: Klassen in der Reihenfolge ihres ersten Auftretens,
+// Teilnehmer in der Reihenfolge der Datei. Es wird nirgends nachsortiert.
+let startListClasses = [];
+let startListClassIndex = 0;
+let startListColumns = [];
+let startListPublicationRevision = -1;
+
+const startListSelect = document.querySelector('#startlist-class');
+const startListNav = document.querySelector('#startlist-nav');
+const startListPosition = document.querySelector('#startlist-position');
+const startListPrevious = document.querySelector('#startlist-previous');
+const startListNext = document.querySelector('#startlist-next');
+
+/** Spalte, Ueberschrift und der Wert je Eintrag. Reihenfolge = Anzeigereihenfolge. */
+const STARTLIST_FIELDS = [
+  {header: 'Startzeit', value: entry => entry.startTime},
+  {header: 'StNr', value: entry => entry.bib},
+  {header: 'Name', value: entry => [entry.firstName, entry.lastName].filter(Boolean).join(' ')},
+  {header: 'Verein', value: entry => entry.club, shown: () => display?.showClub !== false},
+  {header: 'Vbd', value: entry => entry.association, shown: () => display?.showAssociation !== false},
+  {header: 'Nation', value: entry => entry.nation, shown: () => display?.showNation === true},
+  {header: 'Jahrgang', value: entry => entry.birthYear},
+  {header: 'Strecke', value: entry => entry.course}
+];
+
+startListSelect.addEventListener('change', () => {
+  startListClassIndex = Number(startListSelect.value);
+  renderStartList();
+});
+startListPrevious.addEventListener('click', () => stepStartListClass(-1));
+startListNext.addEventListener('click', () => stepStartListClass(1));
+
+function stepStartListClass(step) {
+  const next = startListClassIndex + step;
+  // An den Raendern wird nicht umgebrochen; die Schaltflaeche ist dort deaktiviert.
+  if (next < 0 || next >= startListClasses.length) return;
+  startListClassIndex = next;
+  renderStartList();
+}
+
+function receiveStartList(message) {
+  if (message.publicationRevision < startListPublicationRevision) return;
+  startListPublicationRevision = message.publicationRevision;
+  const previousName = startListClasses[startListClassIndex]?.name;
+  startListClasses = groupByClass(message.entries || []);
+  // Eine Spalte erscheint nur, wenn irgendein Eintrag sie fuellt. Das haelt die Tabelle schmal
+  // und ueber alle Klassen hinweg gleich aufgebaut.
+  startListColumns = STARTLIST_FIELDS.filter(field =>
+    startListClasses.some(item => item.entries.some(entry => field.value(entry))));
+  // Nach einem neuen Import und nach einem Reconnect bleibt der Betrachter bei seiner Klasse,
+  // solange es sie noch gibt; sonst beginnt die Ansicht wieder bei der ersten.
+  startListClassIndex = Math.max(0, startListClasses.findIndex(item => item.name === previousName));
+  renderStartList();
+}
+
+/** Klassen in der Reihenfolge ihres ersten Auftretens, Eintraege in Dateireihenfolge. */
+function groupByClass(entries) {
+  const classes = [];
+  const byName = new Map();
+  for (const entry of entries) {
+    let item = byName.get(entry.className);
+    if (!item) {
+      item = {name: entry.className, entries: []};
+      byName.set(entry.className, item);
+      classes.push(item);
+    }
+    item.entries.push(entry);
+  }
+  return classes;
+}
+
+function renderStartList() {
+  const target = document.querySelector('#startlist-table');
+  const total = startListClasses.length;
+  startListNav.hidden = total === 0;
+  startListSelect.parentElement.hidden = total === 0;
+  if (total === 0) {
+    startListSelect.replaceChildren();
+    target.replaceChildren(emptyNote('Keine Startliste verfügbar.'));
+    return;
+  }
+  if (startListClassIndex >= total) startListClassIndex = 0;
+  // Wie bei den Ergebnisklassen: eine Signatur, die keine Trennzeichenkollision kennt.
+  const signature = JSON.stringify(startListClasses.map(item => item.name));
+  if (signature !== startListSelect.dataset.signature) {
+    startListSelect.dataset.signature = signature;
+    startListSelect.replaceChildren(...startListClasses.map((item, index) => new Option(item.name, index)));
+  }
+  startListSelect.value = String(startListClassIndex);
+  startListPosition.textContent = `Klasse ${startListClassIndex + 1} von ${total}`;
+  startListPrevious.disabled = startListClassIndex === 0;
+  startListNext.disabled = startListClassIndex === total - 1;
+
+  const item = startListClasses[startListClassIndex];
+  const columns = startListColumns.filter(field => !field.shown || field.shown());
+  const node = document.createElement('table');
+  const head = node.createTHead().insertRow();
+  columns.forEach(column => {
+    const th = document.createElement('th');
+    th.scope = 'col';
+    th.textContent = column.header;
+    head.append(th);
+  });
+  const body = node.createTBody();
+  item.entries.forEach(entry => {
+    const row = body.insertRow();
+    // textContent statt innerHTML: Teilnehmerdaten kommen aus einer fremden Datei.
+    columns.forEach(column => { row.insertCell().textContent = column.value(entry) || ''; });
+  });
+  target.replaceChildren(node);
+}
+
+function emptyNote(text) {
+  const node = document.createElement('div');
+  node.className = 'compact-empty';
+  node.textContent = text;
+  return node;
+}
+
 function connect(runtime) {
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
   socket = new WebSocket(`${scheme}://${location.hostname}:${runtime.webSocketPort}${runtime.webSocketPath}`);
@@ -147,6 +276,7 @@ function connect(runtime) {
     // veraltet verwerfen und trotz bestehender Verbindung nie wieder Daten anzeigen. Die erste
     // Nachricht jeder Verbindung ist ein vollstaendiger, autoritativer Snapshot.
     publicationRevision = -1;
+    startListPublicationRevision = -1;
     reconnectAttempt = 0;
     noteTraffic();
   };
@@ -179,4 +309,6 @@ function start() {
   ]).then(([value, runtime]) => { receive(value); connect(runtime); })
     .catch(() => { setLink(false); retryLater(start); });
 }
+// Vor der ersten Nachricht steht bereits ein verstaendlicher Zustand statt einer Luecke.
+renderStartList();
 start();

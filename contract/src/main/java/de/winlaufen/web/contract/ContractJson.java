@@ -1,11 +1,16 @@
 package de.winlaufen.web.contract;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Codec and strict validation of the versioned bridge/live-server contract.
@@ -44,6 +49,56 @@ public final class ContractJson {
         SnapshotEnvelope value = MAPPER.readValue(json, SnapshotEnvelope.class);
         validate(value);
         return value;
+    }
+
+    public static String startList(StartListEnvelope value) {
+        validate(value);
+        String json = write(value);
+        if (json.length() > ContractLimits.MAX_JSON_CHARS) {
+            throw new ContractViolationException("Start list exceeds size limit");
+        }
+        return json;
+    }
+
+    public static StartListEnvelope readStartList(String json) throws JsonProcessingException {
+        if (json == null || json.length() > ContractLimits.MAX_JSON_CHARS) {
+            throw new ContractViolationException("Start list exceeds size limit");
+        }
+        StartListEnvelope value = MAPPER.readValue(json, StartListEnvelope.class);
+        validate(value);
+        return value;
+    }
+
+    /**
+     * The {@code type} of an ingest message, so a receiver can pick the right envelope.
+     *
+     * <p>Scanned with the streaming parser instead of parsing the whole document twice: the
+     * snapshot path runs on every clock telegram and must not pay for the start list existing.
+     * The field is found wherever it stands, so this does not depend on field order.
+     */
+    public static String typeOf(String json) {
+        if (json == null || json.length() > ContractLimits.MAX_JSON_CHARS) {
+            throw new ContractViolationException("Message exceeds size limit");
+        }
+        try (JsonParser parser = MAPPER.getFactory().createParser(json)) {
+            if (parser.nextToken() != JsonToken.START_OBJECT) {
+                throw new ContractViolationException("Message is not a JSON object");
+            }
+            while (parser.nextToken() == JsonToken.FIELD_NAME) {
+                String field = parser.currentName();
+                JsonToken value = parser.nextToken();
+                if ("type".equals(field)) {
+                    if (value != JsonToken.VALUE_STRING) {
+                        throw new ContractViolationException("Message type is not a string");
+                    }
+                    return parser.getText();
+                }
+                parser.skipChildren();
+            }
+        } catch (IOException ex) {
+            throw new ContractViolationException("Message is not valid JSON", ex);
+        }
+        throw new ContractViolationException("Message without type");
     }
 
     public static String ack(AckEnvelope value) {
@@ -100,6 +155,63 @@ public final class ContractJson {
             throw new ContractViolationException("Invalid snapshot envelope");
         }
         validateState(value.state(), value.presentation());
+    }
+
+    /**
+     * Structural validation only, matching the rules the bridge already applies to an import:
+     * bib and class are mandatory, {@code (className, bib)} is unique, and every value stays
+     * within its bound. An absent start list carries generation 0 and no entries.
+     */
+    private static void validate(StartListEnvelope value) {
+        if (value == null
+                || !StartListEnvelope.TYPE.equals(value.type())
+                || value.schemaVersion() != SnapshotEnvelope.SCHEMA_VERSION
+                || blank(value.channelId())
+                || blank(value.streamId())
+                || value.generation() < 0
+                || value.source() == null
+                || value.source().length() > ContractLimits.MAX_IDENTIFIER_CHARS
+                || value.sourceLabel() == null
+                || value.sourceLabel().length() > ContractLimits.MAX_START_LIST_VALUE_CHARS
+                || value.entries().size() > ContractLimits.MAX_START_LIST_ENTRIES) {
+            throw new ContractViolationException("Invalid start list envelope");
+        }
+        if (value.generation() == 0 != value.entries().isEmpty()) {
+            throw new ContractViolationException(
+                    "A start list is absent exactly when it has generation 0 and no entries");
+        }
+        Set<List<String>> seen = new HashSet<>();
+        for (StartListRow row : value.entries()) {
+            validateRow(row);
+            if (!seen.add(List.of(row.className(), row.bib()))) {
+                throw new ContractViolationException("Duplicate start number in one class");
+            }
+        }
+    }
+
+    private static void validateRow(StartListRow row) {
+        if (row == null
+                || row.bib() == null || row.bib().isEmpty()
+                || row.className() == null || row.className().isEmpty()) {
+            throw new ContractViolationException("Start list entry without start number or class");
+        }
+        startListValue(row.bib());
+        startListValue(row.className());
+        startListValue(row.startTime());
+        startListValue(row.lastName());
+        startListValue(row.firstName());
+        startListValue(row.club());
+        startListValue(row.association());
+        startListValue(row.course());
+        startListValue(row.birthYear());
+        startListValue(row.gender());
+        startListValue(row.nation());
+    }
+
+    private static void startListValue(String value) {
+        if (value == null || value.length() > ContractLimits.MAX_START_LIST_VALUE_CHARS) {
+            throw new ContractViolationException("Invalid start list value");
+        }
     }
 
     private static void validateCompetition(Competition competition) {

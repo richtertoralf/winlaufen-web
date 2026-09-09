@@ -376,9 +376,10 @@ Die Startliste bleibt gespeichert. Nach einem Neustart der Bridge oder des
 Rechners ist sie mit derselben Generation wieder da; der Neustart selbst zählt
 nicht als Import.
 
-> Die Startliste wird in dieser Version **noch nicht an die Live-Ergebnisse
-> im Browser übertragen**. Die Zuschaueransicht zeigt dort weiterhin den
-> Hinweis, dass Teilnehmerdaten noch nicht verfügbar sind.
+Die importierte Startliste erscheint automatisch in den Live-Ergebnissen im
+Browser — siehe [Live-Ergebnisse im Browser](#8-live-ergebnisse-im-browser).
+Ein Neustart von Bridge oder Live Server ändert daran nichts; die Startliste
+wird von selbst wieder übertragen, ohne erneuten Import.
 
 ---
 
@@ -396,6 +397,41 @@ weiter — als Aushang, als Link oder als QR-Code am Zielbereich.
 Die Seite hat drei Ansichten: **Startliste**, **LIVE** und **Ergebnisse**.
 LIVE folgt automatisch der Klasse, aus der WinLaufen zuletzt ein Ergebnis
 gemeldet hat; unter Ergebnisse wählen Sie eine Klasse selbst aus.
+
+### Ansicht „Startliste"
+
+Hier steht die Startliste, die Sie in Bridge Control importiert haben. Weil
+eine Veranstaltung leicht 2 000 Teilnehmer in mehreren Dutzend Klassen hat,
+zeigt die Ansicht **eine Klasse auf einmal**:
+
+```text
+Startliste                              Klasse [ Schüler U12 m    ▾ ]
+
+   [ ← ]        Klasse 1 von 46        [ → ]
+
+Startzeit   StNr   Name                Verein
+10:00:00       1   Albert ALBRECHT     ATSV Geb. Gelobtland
+10:00:15       2   Anna BAUER          Blau Weiß Zwenkau
+```
+
+Blättern Sie mit **←** und **→** oder wählen Sie eine Klasse direkt aus der
+Liste. An der ersten und letzten Klasse ist die jeweilige Pfeiltaste
+abgeschaltet — es wird nicht im Kreis geblättert.
+
+Klassen und Teilnehmer stehen **genau in der Reihenfolge Ihrer Startliste**.
+Es wird nichts umsortiert, weder alphabetisch noch nach Startnummer: Sie und
+WinLaufen haben die Reihenfolge festgelegt.
+
+Welche Spalten erscheinen, hängt von zwei Dingen ab: von Ihren Einstellungen
+unter *Öffentliche Darstellung* (Verein, Verband, Nation) und davon, ob die
+Startliste die Angabe überhaupt enthält. Eine Spalte, zu der es keine Daten
+gibt, wird nicht angezeigt.
+
+Solange keine Startliste importiert ist, steht dort **Keine Startliste
+verfügbar**.
+
+Nach einem neuen Import erscheint die neue Startliste von selbst — Sie müssen
+den Browser nicht neu laden und keinen Dienst neu starten.
 
 ---
 

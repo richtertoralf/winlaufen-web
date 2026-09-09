@@ -25,6 +25,20 @@ public final class ContractLimits {
 
     public static final int MAX_CLASSES = 1_000;
     public static final int MAX_ROWS = 10_000;
+
+    /**
+     * Maximum participants in one start list, for the import and for the wire alike.
+     *
+     * <p>One number on purpose. A list the bridge accepts must always be publishable, otherwise an
+     * import would succeed while the transport could never deliver it. A measured entry costs
+     * about 220 encoded characters, so this bound stays around half of {@link #MAX_JSON_CHARS}
+     * even with markedly longer names and clubs than the observed exports have. It is roughly six
+     * times the largest real WinLaufen export seen so far, which has about 3 140 participants.
+     */
+    public static final int MAX_START_LIST_ENTRIES = 20_000;
+
+    /** Maximum length of one start-list value, again the bound the import already applies. */
+    public static final int MAX_START_LIST_VALUE_CHARS = 1_024;
     public static final int MAX_HEADERS = 256;
     public static final int MAX_CELL_CHARS = 65_536;
     public static final int MAX_NAME_CHARS = 4_096;

@@ -1,5 +1,7 @@
 package de.winlaufen.web.bridge.startlist;
 
+import de.winlaufen.web.contract.ContractLimits;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -29,8 +31,13 @@ import java.util.Set;
 public record CanonicalStartList(long generation, StartListSource source, String sourceLabel,
                                  List<StartListEntry> entries) {
 
-    /** Defensive bound on one start list. The largest observed real export has about 3 100 rows. */
-    public static final int MAX_ENTRIES = 50_000;
+    /**
+     * Defensive bound on one start list. The largest observed real export has about 3 100 rows.
+     *
+     * <p>It is the transport's bound, so a list that can be imported can always be published; two
+     * separate numbers would allow an import the live server could never receive.
+     */
+    public static final int MAX_ENTRIES = ContractLimits.MAX_START_LIST_ENTRIES;
 
     /** Longest accepted diagnostic label. */
     public static final int MAX_SOURCE_LABEL_CHARS = 256;

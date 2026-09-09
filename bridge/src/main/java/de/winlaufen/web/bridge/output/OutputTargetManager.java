@@ -1,6 +1,8 @@
 package de.winlaufen.web.bridge.output;
 
 import de.winlaufen.web.bridge.config.OutputTargetConfig;
+import de.winlaufen.web.bridge.startlist.CanonicalStartList;
+import de.winlaufen.web.bridge.startlist.StartListStore;
 import de.winlaufen.web.bridge.state.CanonicalSnapshot;
 import de.winlaufen.web.bridge.state.CanonicalStateStore;
 
@@ -19,9 +21,11 @@ import java.util.function.BiFunction;
 public final class OutputTargetManager implements AutoCloseable {
 
     private final CanonicalStateStore store;
+    private final StartListStore startLists;
     private final BiFunction<OutputTargetConfig, CanonicalSnapshot, LiveOutputAdapter> factory;
     private final Object lifecycle = new Object();
     private final AutoCloseable subscription;
+    private final AutoCloseable startListSubscription;
 
     /** Immutable snapshot of the active adapters; read lock-free by the source thread. */
     private volatile List<LiveOutputAdapter> active = List.of();
@@ -32,17 +36,20 @@ public final class OutputTargetManager implements AutoCloseable {
     private record Entry(OutputTargetConfig config, LiveOutputAdapter adapter) { }
 
     public OutputTargetManager(List<OutputTargetConfig> configs, String streamId,
-                               CanonicalStateStore store) {
-        this(configs, streamId, store,
+                               CanonicalStateStore store, StartListStore startLists) {
+        this(configs, streamId, store, startLists,
                 (config, initial) -> new WebSocketOutputAdapter(config, streamId, initial));
     }
 
     OutputTargetManager(List<OutputTargetConfig> configs, String streamId, CanonicalStateStore store,
+                        StartListStore startLists,
                         BiFunction<OutputTargetConfig, CanonicalSnapshot, LiveOutputAdapter> factory) {
         this.store = store;
+        this.startLists = startLists;
         this.factory = factory;
         reconfigure(configs);
         this.subscription = store.addListener(this::publish);
+        this.startListSubscription = startLists.addListener(this::publishStartList);
     }
 
     public void start() {
@@ -79,6 +86,9 @@ public final class OutputTargetManager implements AutoCloseable {
                     continue;
                 }
                 LiveOutputAdapter adapter = factory.apply(config, initial);
+                // A new target starts out knowing the current start list, so it publishes the
+                // real one on its first connection instead of an absent one.
+                adapter.publishStartList(startLists.current());
                 next.put(config.id(), new Entry(config, adapter));
                 fresh.add(adapter);
             }
@@ -108,6 +118,13 @@ public final class OutputTargetManager implements AutoCloseable {
         }
     }
 
+    /** Every configured target gets the same start list; there is no special case for LOCAL. */
+    private void publishStartList(CanonicalStartList startList) {
+        for (LiveOutputAdapter adapter : active) {
+            adapter.publishStartList(startList);
+        }
+    }
+
     @Override
     public void close() {
         List<LiveOutputAdapter> toClose;
@@ -124,6 +141,11 @@ public final class OutputTargetManager implements AutoCloseable {
             subscription.close();
         } catch (Exception ignored) {
             // The store only removes a listener; failure here must not block shutdown.
+        }
+        try {
+            startListSubscription.close();
+        } catch (Exception ignored) {
+            // Same: removing a listener must never prevent a clean shutdown.
         }
         toClose.forEach(OutputTargetManager::closeQuietly);
     }

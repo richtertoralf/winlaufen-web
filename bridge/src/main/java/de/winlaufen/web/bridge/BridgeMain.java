@@ -43,7 +43,8 @@ public final class BridgeMain {
         CanonicalStateStore state = new CanonicalStateStore(config.get().presentation());
         WinLaufenClient source = new WinLaufenClient(config.get().sourceHost(), state);
         String streamId = UUID.randomUUID().toString();
-        OutputTargetManager outputs = new OutputTargetManager(config.get().targets(), streamId, state);
+        OutputTargetManager outputs = new OutputTargetManager(config.get().targets(), streamId,
+                state, startLists);
 
         BridgeControlServer[] control = new BridgeControlServer[1];
         AtomicBoolean stopped = new AtomicBoolean();

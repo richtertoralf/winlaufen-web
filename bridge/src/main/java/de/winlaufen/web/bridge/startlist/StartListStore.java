@@ -12,7 +12,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Holds the one start list the bridge currently works with and keeps it across restarts.
@@ -45,6 +47,7 @@ public final class StartListStore {
 
     private final Path path;
     private final AtomicReference<CanonicalStartList> current;
+    private final List<Consumer<CanonicalStartList>> listeners = new CopyOnWriteArrayList<>();
 
     private StartListStore(Path path, CanonicalStartList initial) {
         this.path = path;
@@ -102,6 +105,20 @@ public final class StartListStore {
     }
 
     /**
+     * Notified after a new start list has become current, so the output fan-out can publish it.
+     *
+     * <p>Deliberately not called for a rejected import: a listener only ever sees a start list
+     * that was validated and persisted. The same shape as
+     * {@code CanonicalStateStore.addListener}.
+     *
+     * @return a handle that removes the listener again
+     */
+    public AutoCloseable addListener(Consumer<CanonicalStartList> listener) {
+        listeners.add(listener);
+        return () -> listeners.remove(listener);
+    }
+
+    /**
      * Replaces the whole start list with {@code parsed} and gives it the next generation.
      *
      * <p>Synchronised so that two concurrent imports cannot receive the same generation or
@@ -118,6 +135,7 @@ public final class StartListStore {
                 parsed.source(), parsed.sourceLabel(), parsed.entries());
         write(next);
         current.set(next);
+        listeners.forEach(listener -> listener.accept(next));
         return next;
     }
 

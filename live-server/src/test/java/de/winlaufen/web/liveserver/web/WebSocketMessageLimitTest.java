@@ -2,6 +2,7 @@ package de.winlaufen.web.liveserver.web;
 
 import de.winlaufen.web.contract.ContractJson;
 import de.winlaufen.web.contract.ContractLimits;
+import de.winlaufen.web.liveserver.state.PublishedStartListStore;
 import de.winlaufen.web.liveserver.state.PublishedStateStore;
 import de.winlaufen.web.liveserver.state.PublishedStateStoreTest;
 import org.java_websocket.client.WebSocketClient;
@@ -38,13 +39,15 @@ class WebSocketMessageLimitTest {
 
     private LiveWebSocketServer server;
     private PublishedStateStore store;
+    private PublishedStartListStore startLists;
     private int port;
 
     @BeforeEach
     void start() throws Exception {
         port = freePort();
         store = new PublishedStateStore("local");
-        server = new LiveWebSocketServer("127.0.0.1", port, store, "local", "12345678",
+        startLists = new PublishedStartListStore("local");
+        server = new LiveWebSocketServer("127.0.0.1", port, store, startLists, "local", "12345678",
                 INGEST_LIMIT, BROWSER_LIMIT);
         server.start();
         server.awaitStart();
@@ -115,7 +118,7 @@ class WebSocketMessageLimitTest {
         Collector ingest = connectIngest();
         ingest.send(ContractJson.snapshot(PublishedStateStoreTest.snapshot("stream", 2, "11:11:11")));
         assertTrue(ingest.next().contains("\"type\":\"ack\""));
-        assertTrue(second.next().contains("11:11:11"));
+        assertTrue(second.next("snapshot").contains("11:11:11"));
         second.closeBlocking();
         ingest.closeBlocking();
     }
@@ -202,6 +205,17 @@ class WebSocketMessageLimitTest {
 
         @Override
         public void onError(Exception ex) { }
+
+        /** The next message of this type; a browser also receives the start list and keepalives. */
+        String next(String type) throws Exception {
+            for (int attempt = 0; attempt < 20; attempt++) {
+                String value = next();
+                if (value.contains("\"type\":\"" + type + "\"")) {
+                    return value;
+                }
+            }
+            throw new AssertionError("no message of type " + type);
+        }
 
         String next() throws InterruptedException {
             String value = messages.poll(3, TimeUnit.SECONDS);
