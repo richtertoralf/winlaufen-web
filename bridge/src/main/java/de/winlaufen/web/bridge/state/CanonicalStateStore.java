@@ -63,6 +63,16 @@ public final class CanonicalStateStore {
         return current.get();
     }
 
+    /** The zone in which the competition time is read, as it is actually being used right now. */
+    public String competitionTimeZone() {
+        return competitionZoneId;
+    }
+
+    /** Whether that zone was configured or only taken from this machine. */
+    public CompetitionTimeZoneSource competitionTimeZoneSource() {
+        return competitionZoneSource;
+    }
+
     /** @return a handle that removes the listener again; used by the output target manager. */
     public AutoCloseable addListener(Consumer<CanonicalSnapshot> listener) {
         listeners.add(listener);

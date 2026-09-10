@@ -1,5 +1,7 @@
 package de.winlaufen.web.bridge.control;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.winlaufen.web.bridge.config.BridgeConfig;
 import de.winlaufen.web.bridge.config.BridgeConfigStore;
 import de.winlaufen.web.bridge.startlist.StartListStore;
@@ -16,10 +18,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -31,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * test drives a real save over HTTP and checks the file afterwards.
  */
 class BridgeControlConfigZoneTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @TempDir
     Path temp;
@@ -56,7 +62,7 @@ class BridgeControlConfigZoneTest {
                 new CanonicalStateStore(PresentationConfig.defaults(),
                         current.get().competitionTimeZone()),
                 store, StartListStore.besideConfig(configFile),
-                current::get, List::of, current::set);
+                current::get, List::of, current::set, List::of);
         server.start();
     }
 
@@ -85,6 +91,62 @@ class BridgeControlConfigZoneTest {
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("sourceHost"));
         assertTrue(!page.body().contains("competition.timezone"));
+    }
+
+    /**
+     * A mistyped zone is not a startup failure — every other function works — but it silently
+     * shifts every time measurement by the offset between the intended and the fallback zone. On a
+     * UTC host that is two hours. So it has to be visible where an organiser actually looks.
+     */
+    @Test
+    void anUnusableZoneFallsBackAndSaysSoOnTheSurface() throws Exception {
+        server.close();
+        Files.writeString(configFile, """
+                source.host=192.168.95.198
+                competition.timezone=Europe/Berln
+                outputs.count=0
+                """);
+        BridgeConfigStore.LoadResult loaded = new BridgeConfigStore(configFile).loadWithNotices();
+        current.set(loaded.config());
+        assertNull(current.get().competitionTimeZone());
+
+        server = new BridgeControlServer("127.0.0.1", 0,
+                new CanonicalStateStore(PresentationConfig.defaults(),
+                        current.get().competitionTimeZone()),
+                store, StartListStore.besideConfig(configFile),
+                current::get, List::of, current::set, loaded::notices);
+        server.start();
+
+        JsonNode status = MAPPER.readTree(get("/api/v1/status").body());
+        // The bridge runs, and it names the zone it really uses.
+        assertEquals(ZoneId.systemDefault().getId(),
+                status.get("competitionTimeZone").get("zone").asText());
+        assertEquals("SYSTEM_DEFAULT", status.get("competitionTimeZone").get("source").asText());
+
+        String notices = status.get("notices").toString();
+        assertTrue(notices.contains("Europe/Berln"), notices);
+        assertTrue(notices.contains("Zeitzone"), notices);
+    }
+
+    @Test
+    void aValidZoneIsReportedAsConfiguredAndWithoutNotices() throws Exception {
+        JsonNode status = MAPPER.readTree(get("/api/v1/status").body());
+        assertEquals("Europe/Berlin", status.get("competitionTimeZone").get("zone").asText());
+        assertEquals("CONFIGURED", status.get("competitionTimeZone").get("source").asText());
+        assertEquals(0, status.get("notices").size());
+    }
+
+    /** The surface has to have somewhere to put the notice, or the status field is pointless. */
+    @Test
+    void theSurfaceRendersConfigNotices() throws Exception {
+        assertTrue(get("/").body().contains("config-notices"));
+        assertTrue(get("/assets/control.js").body().contains("showConfigNotices"));
+    }
+
+    private HttpResponse<String> get(String path) throws Exception {
+        return HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(base() + path)).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> post(String body) throws Exception {

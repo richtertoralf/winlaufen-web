@@ -445,6 +445,7 @@ function showStatus(status) {
   sourceStatus.className = stateClass(status.sourceHealth);
   document.querySelector('#source-help').hidden = status.sourceHealth !== 'DISCONNECTED';
 
+  showConfigNotices(status.notices);
   showStartList(status.startList);
 
   targetNodes().forEach(node => {
@@ -466,6 +467,19 @@ function showStatus(status) {
  * Der aktuell geladene Startlistenbestand. Generation 0 heißt "noch keine importiert";
  * die Teilnehmerzahl ist dafür kein Kriterium, weil ein erfolgreicher Import nie leer ist.
  */
+/**
+ * Hinweise der Konfigurationsdatei, aktuell vor allem eine unbrauchbare
+ * Wettkampf-Zeitzone. Der Fehler bricht den Start bewusst nicht ab, verschiebt aber
+ * jede Zeitmessung um den Versatz zwischen gemeinter und ersatzweise verwendeter
+ * Zone. Nur im Journal waere er fuer einen Veranstalter unsichtbar.
+ */
+function showConfigNotices(notices) {
+  const node = document.querySelector('#config-notices');
+  const lines = Array.isArray(notices) ? notices : [];
+  node.textContent = lines.join(' ');
+  node.hidden = lines.length === 0;
+}
+
 function showStartList(startList) {
   const status = document.querySelector('#startlist-status');
   status.replaceChildren();
