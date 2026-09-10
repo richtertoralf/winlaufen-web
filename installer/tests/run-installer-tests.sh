@@ -1326,6 +1326,46 @@ code_release=$(grep -oP '<maven.compiler.release>\K[0-9]+' "$repository_root/pom
 assert_equals "$code_release" "$WINLAUFEN_JAVA_RELEASE" "Java-Version stimmt mit dem Root-POM überein"
 
 echo
+echo "=== Windows-Skriptkodierung ==="
+# Windows PowerShell 5.1 liest eine .ps1 ohne BOM in der ANSI-Codepage des
+# Systems statt als UTF-8; deutsche Umlaute erscheinen dann als je zwei falsche
+# Zeichen (Issue #5). Der Fehler entsteht beim Parsen, nicht bei der Ausgabe,
+# und laesst sich deshalb nur an der Datei selbst pruefen. Die echte Darstellung
+# einer Windows-PowerShell-5.1-Konsole ist hier nicht testbar; geprueft wird der
+# Dateizustand, der sie bestimmt.
+while IFS= read -r relative; do
+    absolute="$repository_root/$relative"
+    if head -c 3 -- "$absolute" | cmp -s - <(printf '\xef\xbb\xbf'); then
+        ok "UTF-8-BOM vorhanden: $relative"
+    else
+        bad "UTF-8-BOM vorhanden: $relative" \
+            "Ohne BOM zeigt Windows PowerShell 5.1 Umlaute falsch an."
+    fi
+
+    if tail -c +4 -- "$absolute" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+        ok "Gueltiges UTF-8 nach dem BOM: $relative"
+    else
+        bad "Gueltiges UTF-8 nach dem BOM: $relative" \
+            "Datei wurde vermutlich in einer Einzelbyte-Codepage gespeichert."
+    fi
+
+    # Doppelt kodierte Umlaute (UTF-8 als CP1252 gelesen und erneut als UTF-8
+    # gespeichert) bleiben gueltiges UTF-8 und faenden sonst niemand. Sie
+    # beginnen ausnahmslos mit U+00C3, das in deutschem Text nicht vorkommt.
+    if grep -q 'Ã' -- "$absolute"; then
+        bad "Keine doppelt kodierten Umlaute: $relative" \
+            "$(grep -n 'Ã' -- "$absolute" | head -3)"
+    else
+        ok "Keine doppelt kodierten Umlaute: $relative"
+    fi
+done < <(cd "$repository_root" && git ls-files '*.ps1')
+
+assert_contains "$installer_windows" "Gebündelte Java-Runtime installiert" \
+    "Umlaute im Windows-Installer sind unversehrt"
+assert_contains "$uninstaller_windows" "Bitte PowerShell als Administrator ausführen." \
+    "Umlaute im Windows-Uninstaller sind unversehrt"
+
+echo
 echo "=== Packaging: keine Entwicklerpfade, keine Build-Artefakte ==="
 dev_paths=$(grep -rnE '/home/[a-z]+/|C:\\Users\\|/Users/[a-z]+/' \
     "$repository_root/installer" || true)

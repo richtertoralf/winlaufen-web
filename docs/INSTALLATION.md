@@ -109,6 +109,17 @@ Pfad.
 Veröffentlicht wird derzeit nur **amd64**. Auf einem Raspberry Pi ist deshalb
 bis auf Weiteres der Source-Weg (Abschnitt 2.1) zu verwenden.
 
+Dieser Weg ist real abgenommen: Das Paket von `v0.4.0` wurde auf einer
+bereinigten Ubuntu 24.04.4 LTS ohne System-Java, ohne Maven und ohne
+Source-Checkout installiert, und der Installer verwendete die gebündelte
+Runtime. Das Protokoll steht in [SMOKE_TESTS.md](SMOKE_TESTS.md#protokoll-installation-aus-dem-releasepaket-v040).
+Prüfen Sie vor dem Entpacken die Prüfsumme gegen das ebenfalls veröffentlichte
+`SHA256SUMS`:
+
+```sh
+sha256sum -c --ignore-missing SHA256SUMS
+```
+
 Läuft auf dem Zielrechner bereits WinLaufen mit aktiver
 Sprecher-PC-Verbindung, diese vor Installation und Upgrade eines Profils mit
 Bridge trennen (**Abwicklung → Sprecher-PC… → Trennen**) und danach wieder
@@ -141,6 +152,24 @@ Abschnitt 2.2 ausführlich beschrieben: die Freigabe der **Skriptausführung**
 (sonst bricht der Installer mit `PSSecurityException` ab) und das **Trennen der
 WinLaufen-Sprecher-PC-Verbindung** vor Installation und Upgrade eines Profils
 mit Bridge.
+
+Auch dieser Weg ist real abgenommen: Das ZIP von `v0.4.0` wurde auf einem
+Windows-11-PC installiert, auf dem das originale WinLaufen weiterlief und
+System-Java aus anderen Gründen installiert blieb. Die Sprecher-Web-Dienste
+verwendeten dennoch die mitgelieferte Runtime aus dem Paket. Das Protokoll steht
+in [SMOKE_TESTS.md](SMOKE_TESTS.md#protokoll-installation-aus-dem-releasepaket-v040).
+Die Prüfsumme lässt sich vor dem Entpacken vergleichen:
+
+```powershell
+Get-FileHash .\winlaufen-web-<version>-windows-x64.zip -Algorithm SHA256
+```
+
+> **Bekannte Anzeigeabweichung in `v0.4.0`.** Der Windows-Installer aus dem
+> veröffentlichten `v0.4.0`-ZIP stellt deutsche Umlaute in Windows PowerShell 5.1
+> falsch dar. Betroffen ist ausschließlich die Konsolenausgabe; Installation,
+> Dienste und Konfiguration sind korrekt. Ursache und Behebung stehen in
+> [Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5); der Fix ist
+> in `main` und erscheint erstmals im nächsten Release.
 
 ## 2. Installation aus dem Quellcode
 

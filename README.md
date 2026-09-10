@@ -384,6 +384,34 @@ Freigabe für offenen Internetbetrieb.
 
 ### Real bestätigt
 
+**Installation aus den veröffentlichten Releasepaketen von `v0.4.0`**
+
+- **Linux amd64:** Fresh Installation auf Ubuntu 24.04.4 LTS aus
+  `winlaufen-web-0.4.0-linux-amd64.tar.gz`. Auf dem Rechner waren vorher eine
+  frühere Sprecher-Web-Installation mit `uninstall.sh --purge`, OpenJDK 25,
+  Maven, der Source-Checkout und `~/.m2` entfernt; die Ports 44440–44442 waren
+  frei. Die SHA256-Summe wurde gegen das veröffentlichte `SHA256SUMS` geprüft.
+  Installiert wurde ausschließlich mit dem Installer aus dem Paket — **ohne
+  `git clone`, ohne Maven-Build und ohne System-Java**. Der Installer verwendete
+  die gebündelte Runtime `/opt/winlaufen-web/runtime/bin/java`. Bridge Control,
+  Web View, Live-WebSocket und das lokale Output Target waren anschließend in
+  Ordnung; mit der realen WinLaufen-Quelle war die Bridge verbunden, und im
+  Viewer erschienen Live-Daten und die Startliste mit 46 Klassen.
+- **Windows x64:** Clean Installation auf einem Windows-11-PC aus
+  `winlaufen-web-0.4.0-windows-x64.zip`, ebenfalls mit geprüfter SHA256-Summe,
+  in einer PowerShell **als Administrator**. Entfernt waren vorher nur
+  Sprecher-Web selbst — Programm- und Konfigurationsverzeichnis, beide geplanten
+  Aufgaben, die eigenen Firewallregeln und die Listener 44440–44442. Es war
+  **kein nacktes Windows**: Das originale WinLaufen lief auf demselben PC
+  unverändert weiter, und **System-Java blieb bewusst installiert**, weil andere
+  Anwendungen es brauchen. Genau deshalb ist der Nachweis aussagekräftig — die
+  beiden Sprecher-Web-Dienste liefen nicht mit dem System-Java, sondern mit
+  `C:\Program Files\WinLaufen Web\runtime\bin\javaw.exe` aus dem Paket. Bridge
+  Control und Web Viewer arbeiteten, die Bridge war mit dem lokalen WinLaufen
+  auf `127.0.0.1:4444` verbunden, die Startliste mit 46 Klassen wurde angezeigt.
+
+**Weiterhin bestätigt**
+
 - Windows-11-All-in-One-Installation und -Upgrade aus dem Source Checkout
 - reale WinLaufen-Kopplung; Verbinden und Trennen der Sprecher-PC-Schnittstelle
   wird korrekt erkannt
@@ -420,10 +448,11 @@ Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
 
 ### Noch offen
 
-- echte Fresh Installation aus dem Releasepaket, ohne Git, Maven und JDK, auf
-  einem frisch aufgesetzten Rechner nachgewiesen
 - Linux-Releasepaket für ARM64 (Raspberry Pi); veröffentlicht wird derzeit nur
   AMD64
+- Installation aus dem Releasepaket auf einem völlig neu aufgesetzten
+  Windows-PC ohne vorhandenes Java; geprüft ist bisher der reale WinLaufen-PC,
+  auf dem System-Java aus anderen Gründen installiert bleiben musste
 - vollständige Reboot-, Reinstall- und Profilwechsel-Abnahmen
 - Richter-Projects-Pairing
 - bekannte P2-/P3-Punkte aus den Reviews
@@ -433,7 +462,7 @@ Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
 | Punkt | Auswirkung heute |
 |---|---|
 | Der `WinLaufenClient`-Test belegt lokal TCP 4444. | `./mvnw clean package` kann auf einem Rechner scheitern, auf dem WinLaufen mit aktiver Sprecher-PC-Verbindung läuft. Vor dem Bauen dort **Trennen** wählen. |
-| Windows PowerShell 5.1 stellt Umlaute in Installerausgaben teils falsch dar (`FÃ¼r`, `lÃ¤uft`). | Nur die Anzeige ist betroffen; Installation und Konfiguration sind korrekt. |
+| Windows PowerShell 5.1 stellt Umlaute in den Installerausgaben von **`v0.4.0`** falsch dar. | Nur die Anzeige ist betroffen; Installation und Konfiguration sind korrekt. Ursache und Behebung: [Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5). Der Fix ist in `main`, **nicht** im veröffentlichten `v0.4.0`-ZIP, und erscheint erstmals im nächsten Release. |
 | Ob Installation und Upgrade auch bei laufender und verbundener Sprecher-PC-Schnittstelle zuverlässig funktionieren, ist noch nicht geprüft. | Bis dahin gilt verbindlich: vorher **Trennen**, danach **Verbinden**. |
 
 ## Known prototype security limitation
