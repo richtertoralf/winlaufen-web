@@ -485,6 +485,17 @@ if run_install all-in-one "$root"; then
         "Frische Bridge-Konfiguration nennt Bridge Control"
     assert_contains "$config" "competition.timezone" \
         "Frische Bridge-Konfiguration nennt die erweiterte Einstellung für das Ausland"
+
+    # Der erste Lauf auf einem leeren Ziel muss sich als Erstinstallation zu erkennen
+    # geben und nichts als "beibehalten" ausgeben, was es vorher nicht gab.
+    assert_contains "$install_log" "Erstinstallation" "Erster Lauf meldet eine Erstinstallation"
+    assert_contains "$install_log" "NEU: Bridge-Programm" "Erster Lauf legt die Bridge neu an"
+    assert_contains "$install_log" "NEU: bridge.properties" \
+        "Erster Lauf legt die Bridge-Konfiguration neu an"
+    assert_contains "$install_log" "NEU ANGELEGT" "Erster Lauf fasst als Erstinstallation zusammen"
+    assert_absent "$install_log" "BEIBEHALTEN" "Erster Lauf behauptet nichts beibehalten zu haben"
+    assert_contains "$install_log" "Die vorhandene WinLaufen-Installation wird nicht verändert" \
+        "Erster Lauf nennt WinLaufen ausdrücklich als unverändert"
     atomic_update=$(mktemp "$root/etc/winlaufen-web/config.properties.XXXXXX")
     cp -- "$config" "$atomic_update"
     printf 'presentation.showNation=true\n' >> "$atomic_update"
@@ -578,6 +589,29 @@ if run_install all-in-one "$root"; then
     run_install all-in-one "$root"
     after=$(sha256sum "$config" | cut -d' ' -f1)
     assert_equals "$after" "$before" "Reinstall lässt bestehende Bridge-Konfiguration unverändert"
+
+    # Derselbe Lauf muss sich jetzt als Upgrade zu erkennen geben und sagen, was er
+    # ersetzt und was er stehen lässt.
+    assert_contains "$install_log" "Upgrade" "Zweiter Lauf meldet ein Upgrade"
+    assert_contains "$install_log" "AKTUALISIERT: Bridge-Programm" \
+        "Upgrade ersetzt das Bridge-Programm und sagt es"
+    assert_contains "$install_log" "AKTUALISIERT: Live-Server-Programm" \
+        "Upgrade ersetzt das Live-Server-Programm und sagt es"
+    assert_contains "$install_log" "BEIBEHALTEN: bestehende bridge.properties" \
+        "Upgrade nennt die erhaltene Bridge-Konfiguration"
+    assert_contains "$install_log" "BEIBEHALTEN: bestehende live-server.env" \
+        "Upgrade nennt die erhaltene Live-Server-Konfiguration"
+    assert_absent "$install_log" "Erstinstallation" \
+        "Upgrade behauptet nicht, eine Erstinstallation zu sein"
+
+    # Eine importierte Startliste gehört dem Veranstalter und überlebt.
+    printf 'startlist.version=1\n' > "$root/etc/winlaufen-web/startlist.properties"
+    startlist_before=$(sha256sum "$root/etc/winlaufen-web/startlist.properties" | cut -d' ' -f1)
+    run_install all-in-one "$root"
+    assert_equals "$(sha256sum "$root/etc/winlaufen-web/startlist.properties" | cut -d' ' -f1)" \
+        "$startlist_before" "Upgrade lässt die importierte Startliste unverändert"
+    assert_contains "$install_log" "BEIBEHALTEN: importierte Startliste" \
+        "Upgrade nennt die erhaltene Startliste"
     assert_contains "$config" "source.host=10.77.0.1" "Gepflegte WinLaufen-Adresse überlebt den Reinstall"
     assert_contains "$config" "outputs.1.id=club" "Gepflegte Target-Liste überlebt den Reinstall"
     assert_contains "$install_log" "Bestehende Bridge-Konfiguration beibehalten" \
@@ -759,7 +793,7 @@ assert_contains "$installer_windows" "New-ScheduledTaskTrigger -AtStartup" \
 assert_contains "$installer_windows" "Unregister-ScheduledTask -TaskName \$TaskName -Confirm:\$false -ErrorAction SilentlyContinue" \
     "Windows-Aufgaben werden idempotent ersetzt statt dupliziert"
 assert_contains "$installer_windows" "javaw.exe" "Windows startet ohne Konsolenfenster"
-assert_contains "$installer_windows" "Bestehende Bridge-Konfiguration beibehalten" \
+assert_contains "$installer_windows" "BEIBEHALTEN: bestehende bridge.properties" \
     "Windows schützt bestehende Konfiguration"
 assert_contains "$installer_windows" "outputs.0.endpoint=ws://127.0.0.1:\$LiveWsPort\$IngestPathPrefix\$LiveChannel" \
     "Windows All-in-One nutzt den regulären Bridge->Live-Server-Pfad"
@@ -1093,6 +1127,32 @@ windows_java_resolve=$(sed -n '/^function Resolve-JavaExecutable {/,/^}$/p' "$in
     && ok "Gebündelte Runtime wird nach der Installation aus dem Zielpfad gestartet" \
     || bad "Gebündelte Runtime wird nach der Installation aus dem Zielpfad gestartet"
 echo
+echo "=== Erstinstallation und Upgrade als Bedienkonzept ==="
+# Beide Installer laufen hier nicht durch (die produktiven Ports sind auf einem
+# Entwicklerrechner oft belegt), deshalb wird die Bedienlogik an den Skripten selbst
+# festgehalten. Die reale Ausgabe prüft weiter unten der Installerlauf.
+for installer in "$installer_linux" "$installer_windows"; do
+    name=$(basename "$installer")
+    assert_contains "$installer" "Erstinstallation" "$name kennt den Modus Erstinstallation"
+    assert_contains "$installer" "Upgrade" "$name kennt den Modus Upgrade"
+    assert_contains "$installer" "Die vorhandene WinLaufen-Installation wird nicht verändert" \
+        "$name sagt ausdrücklich, dass WinLaufen unangetastet bleibt"
+    assert_contains "$installer" "AKTUALISIERT" "$name kennzeichnet aktualisierte Bestandteile"
+    assert_contains "$installer" "BEIBEHALTEN" "$name kennzeichnet beibehaltene Bestandteile"
+    assert_contains "$installer" "NEU ANGELEGT" "$name fasst eine Erstinstallation zusammen"
+    assert_contains "$installer" "UNVERÄNDERT" "$name nennt WinLaufen als unverändert"
+    assert_contains "$installer" "BEIBEHALTEN: bestehende bridge.properties" \
+        "$name benennt die erhaltene Bridge-Konfiguration konkret"
+    assert_contains "$installer" "BEIBEHALTEN: importierte Startliste" \
+        "$name benennt die erhaltene Startliste konkret"
+done
+# Die Erkennung darf nicht an einem einzelnen Verzeichnis hängen.
+assert_contains "$installer_linux" 'existing_installation()' \
+    "Linux erkennt eine bestehende Installation über eine eigene Prüfung"
+assert_contains "$installer_windows" 'function Test-ExistingInstallation' \
+    "Windows erkennt eine bestehende Installation über eine eigene Prüfung"
+
+echo
 echo "=== Erzeugte Konfigurationsdateien: ASCII-Kommentare ==="
 # Diese Prüfung läuft an den Vorlagen und nicht am Ergebnis eines Installerlaufs,
 # damit sie auch auf einem Rechner greift, auf dem die produktiven Ports belegt sind.
@@ -1389,7 +1449,7 @@ while IFS= read -r relative; do
     fi
 done < <(cd "$repository_root" && git ls-files '*.ps1')
 
-assert_contains "$installer_windows" "Gebündelte Java-Runtime installiert" \
+assert_contains "$installer_windows" "gebündelte Java-Runtime" \
     "Umlaute im Windows-Installer sind unversehrt"
 assert_contains "$uninstaller_windows" "Bitte PowerShell als Administrator ausführen." \
     "Umlaute im Windows-Uninstaller sind unversehrt"

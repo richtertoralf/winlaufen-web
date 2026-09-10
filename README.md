@@ -128,6 +128,35 @@ Startlisten-Wireprotokoll auf TCP 4444 gibt es nicht und wird nicht erfunden.
 > **Für Veranstalter Schritt für Schritt:**
 > [docs/BEDIENERHANDBUCH.md](docs/BEDIENERHANDBUCH.md).
 
+### Installation oder Upgrade?
+
+Derselbe Installer macht beides und erkennt selbst, welcher Fall vorliegt. Er
+sagt es vor der ersten Änderung und fasst am Ende zusammen, was passiert ist.
+
+| | Was passiert |
+|---|---|
+| **Erstinstallation** | Sprecher-Web ist noch nicht vorhanden und wird neu eingerichtet: Programmdateien, Konfiguration, Datenverzeichnis, Dienste und — unter Windows — Firewallregeln. |
+| **Upgrade** | Eine bestehende Installation wird gefunden. Programmdateien und Dienste werden aktualisiert; **Konfiguration und Veranstaltungsdaten bleiben erhalten**. |
+
+Beim Upgrade bleiben insbesondere unangetastet: die WinLaufen-Adresse und die
+Liste der Live Server (`bridge.properties`), die technischen
+Live-Server-Parameter und die **importierte Startliste**. Eine bestehende
+Konfigurationsdatei wird nie überschrieben, auch nicht, wenn eine neue Version
+andere Standardwerte oder Kommentare mitbringt.
+
+**Die vorhandene WinLaufen-Installation wird dabei nie verändert** — weder
+ersetzt noch aktualisiert noch deinstalliert. WinLaufen darf während Build und
+Upgrade weiterlaufen.
+
+Einzelheiten, auch zur Erkennungslogik:
+[docs/INSTALLATION.md](docs/INSTALLATION.md#3-upgrade).
+
+### Zwei Installationswege
+
+Davon unabhängig ist die Frage, **woher** die Dateien kommen. Beides lässt sich
+frei kombinieren: Ein Releasepaket kann eine Erstinstallation oder ein Upgrade
+durchführen, ein Source-Build genauso.
+
 Es gibt **zwei verschiedene Installationswege**. Sie führen zu unterschiedlichen
 Ständen und haben unterschiedliche Voraussetzungen — bitte einen davon wählen
 und nicht mischen.

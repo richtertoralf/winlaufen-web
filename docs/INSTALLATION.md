@@ -294,6 +294,83 @@ deshalb enthalten sie immer eine Runtime.
 
 ## 3. Upgrade
 
+### 3.0 Zwei unabhängige Fragen
+
+Zwei Begriffspaare werden leicht verwechselt, sind aber unabhängig voneinander:
+
+| Frage | Antworten |
+|---|---|
+| **Woher** kommen die Dateien? | Releasepaket oder Source-Build |
+| **Was** wird daraus gemacht? | Erstinstallation oder Upgrade |
+
+Jede Kombination ist möglich. Ein Installer aus dem Source-Tree kann eine
+bestehende Release-Installation aktualisieren, und ein Releasepaket kann auf
+einem leeren Rechner eine Erstinstallation durchführen.
+
+**Erstinstallation** heißt: Sprecher-Web ist auf dem Rechner noch nicht
+vorhanden. Neu eingerichtet werden Programmdateien, Konfiguration,
+Datenverzeichnis, Hintergrunddienste und — unter Windows — die Firewallregeln.
+
+**Upgrade** heißt: Eine bestehende Installation wurde gefunden. Programmdateien
+und die technischen Installationsbestandteile werden aktualisiert; die
+Benutzerkonfiguration und die Veranstaltungsdaten bleiben erhalten.
+
+### 3.1 Wie der Installer den Fall erkennt
+
+Beide Installer prüfen **drei unabhängige Spuren**. Trifft eine davon zu, gilt
+der Lauf als Upgrade:
+
+1. ein installiertes Programmartefakt (`winlaufen-web-bridge.jar` oder
+   `winlaufen-web-live-server.jar` im Programmverzeichnis),
+2. eine vorhandene Konfigurationsdatei (`bridge.properties` bzw.
+   `live-server.env` / `live-server.properties`),
+3. eine registrierte `systemd`-Unit bzw. geplante Aufgabe.
+
+Ein leeres Verzeichnis allein zählt bewusst **nicht**: Es entsteht auch durch
+eine abgebrochene Deinstallation und wäre kein Beleg für eine Installation.
+
+### 3.2 Was der Installer anzeigt
+
+Vor der ersten Änderung nennt er den erkannten Modus:
+
+```text
+============================================================
+Sprecher-Web – Upgrade
+============================================================
+
+Bestehende Sprecher-Web-Installation gefunden.
+
+  Profil:        all-in-one
+  Java:          /opt/winlaufen-web/runtime/bin/java
+  Programm:      /opt/winlaufen-web
+  Konfiguration: /etc/winlaufen-web
+
+Programmdateien werden aktualisiert.
+Bestehende Konfiguration und Veranstaltungsdaten bleiben erhalten.
+Die vorhandene WinLaufen-Installation wird nicht verändert.
+```
+
+Während des Laufs ist jeder Schritt gekennzeichnet:
+
+```text
+  AKTUALISIERT: Bridge-Programm
+  AKTUALISIERT: Live-Server-Programm
+  BEIBEHALTEN: bestehende bridge.properties (/etc/winlaufen-web/bridge.properties)
+  BEIBEHALTEN: importierte Startliste (/etc/winlaufen-web/startlist.properties)
+  AKTUALISIERT: systemd-Unit winlaufen-bridge.service
+```
+
+Am Ende steht eine Zusammenfassung mit `AKTUALISIERT`, `BEIBEHALTEN` und
+`UNVERÄNDERT` — Letzteres nennt ausdrücklich WinLaufen — gefolgt vom
+Betriebsbereitschaftsbericht. Bei einer Erstinstallation lautet der Block
+`NEU ANGELEGT`; das Wort „beibehalten" kommt dort nicht vor, weil es nichts zu
+behalten gab.
+
+Das ist auf Linux und Windows dieselbe Bedienlogik, auch wenn die technische
+Umsetzung sich unterscheidet.
+
+### 3.3 Der eigentliche Ablauf
+
 Es gibt keinen separaten Upgrade-Pfad: **derselbe Installer** führt auch das
 Upgrade durch. Der Weg bleibt dabei derselbe wie bei der Installation — eine
 aus einem Releasepaket installierte Anlage wird mit dem nächsten Releasepaket
@@ -304,7 +381,7 @@ bewusster Profilwechsel. Läuft auf diesem Rechner WinLaufen mit aktiver
 Sprecher-PC-Verbindung, diese vorher **trennen** und danach wieder
 **verbinden**.
 
-### 3.1 Upgrade einer Installation aus dem Releasepaket
+### 3.4 Upgrade einer Installation aus dem Releasepaket
 
 Linux:
 
@@ -325,7 +402,7 @@ Eine Git-Arbeitskopie wird dafür nicht benötigt. Das alte entpackte Paket kann
 nach erfolgreichem Upgrade gelöscht werden; die installierten Dateien liegen
 unter `/opt/winlaufen-web` bzw. `C:\Program Files\WinLaufen Web`.
 
-### 3.2 Upgrade einer Entwicklerinstallation
+### 3.5 Upgrade einer Entwicklerinstallation
 
 ```sh
 cd ~/winlaufen-web
@@ -341,7 +418,7 @@ und dem Installer aus dem Checkout.
 Dieser Weg aktualisiert auf den ausgecheckten Git-Stand und nicht
 notwendigerweise auf einen veröffentlichten Release.
 
-### 3.3 Getrennte Rechner: erst Live Server, dann Bridge
+### 3.6 Getrennte Rechner: erst Live Server, dann Bridge
 
 Stehen Bridge und Live Server auf **verschiedenen** Rechnern — Profile
 **Bridge only** und **Presentation Node** —, laufen sie beim Upgrade kurz in
@@ -357,7 +434,7 @@ stellt sich die Frage nicht.
 
 Hintergrund und Nachweis: [RELEASE.md](RELEASE.md#upgrade-reihenfolge-bei-getrennten-rechnern).
 
-### 3.4 Was das Upgrade erhält und was es ersetzt
+### 3.7 Was das Upgrade erhält und was es ersetzt
 
 Für beide Installationswege identisch. Die Pfade in der Tabelle sind die von
 Linux; unter Windows gilt dasselbe Verhalten für `C:\Program Files\WinLaufen Web\`

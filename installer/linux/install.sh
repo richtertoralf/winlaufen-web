@@ -381,11 +381,58 @@ Runtime verwenden: installer/common/build-dist.sh --with-runtime"
 # WinLaufen-Zielport und gehört ausdrücklich nicht in diesen Preflight.
 preflight_ports
 
+# ------------------------------------------------- Erstinstallation oder Upgrade
+#
+# Ein Bediener soll nicht aus Logzeilen erraten muessen, ob gerade etwas neu
+# angelegt oder eine bestehende Installation aktualisiert wird. Erkannt wird an
+# drei unabhaengigen Spuren, nicht an einem einzelnen Verzeichnis: ein
+# installiertes Programmartefakt, eine vorhandene Konfiguration oder eine
+# registrierte systemd-Unit. Ein leeres Verzeichnis allein zaehlt bewusst nicht.
+existing_installation() {
+    local artefact
+    for artefact in "$INSTALL_PREFIX/lib/$WINLAUFEN_BRIDGE_JAR" "$INSTALL_PREFIX/lib/$WINLAUFEN_LIVE_JAR"; do
+        [[ -f "$(staged "$artefact")" ]] && return 0
+    done
+    local config
+    for config in "$CONFIG_DIR/bridge.properties" "$CONFIG_DIR/live-server.env"; do
+        [[ -f "$(staged "$config")" ]] && return 0
+    done
+    local unit
+    for unit in "$BRIDGE_UNIT" "$LIVE_UNIT"; do
+        [[ -f "$(staged "$SYSTEMD_DIR/$unit")" ]] && return 0
+    done
+    return 1
+}
+
+if existing_installation; then
+    INSTALL_MODE="Upgrade"
+else
+    INSTALL_MODE="Erstinstallation"
+fi
+
 echo
-echo "== Installiere Profil: $PROFILE =="
-note "Java:        $JAVA_BIN"
-note "Programm:    $(staged "$INSTALL_PREFIX")"
+echo "============================================================"
+echo "$WINLAUFEN_PRODUCT_NAME – $INSTALL_MODE"
+echo "============================================================"
+echo
+if [[ "$INSTALL_MODE" == "Upgrade" ]]; then
+    echo "Bestehende $WINLAUFEN_PRODUCT_NAME-Installation gefunden."
+else
+    echo "Es wurde keine bestehende $WINLAUFEN_PRODUCT_NAME-Installation gefunden."
+fi
+echo
+note "Profil:        $PROFILE"
+note "Java:          $JAVA_BIN"
+note "Programm:      $(staged "$INSTALL_PREFIX")"
 note "Konfiguration: $(staged "$CONFIG_DIR")"
+echo
+if [[ "$INSTALL_MODE" == "Upgrade" ]]; then
+    echo "Programmdateien werden aktualisiert."
+    echo "Bestehende Konfiguration und Veranstaltungsdaten bleiben erhalten."
+else
+    echo "$WINLAUFEN_PRODUCT_NAME wird neu eingerichtet."
+fi
+echo "Die vorhandene WinLaufen-Installation wird nicht verändert."
 
 # ------------------------------------------------------------ Systembenutzer
 
@@ -408,18 +455,33 @@ for dir in "${install_dirs[@]}"; do
 done
 
 if ((install_bridge)); then
+    if [[ -f "$(staged "$INSTALL_PREFIX/lib/$WINLAUFEN_BRIDGE_JAR")" ]]; then
+        step_bridge="AKTUALISIERT"
+    else
+        step_bridge="NEU"
+    fi
     install -m 0644 "$bridge_source" "$(staged "$INSTALL_PREFIX/lib/$WINLAUFEN_BRIDGE_JAR")"
-    note "Bridge-Artefakt installiert"
+    note "$step_bridge: Bridge-Programm"
 fi
 if ((install_live)); then
+    if [[ -f "$(staged "$INSTALL_PREFIX/lib/$WINLAUFEN_LIVE_JAR")" ]]; then
+        step_live="AKTUALISIERT"
+    else
+        step_live="NEU"
+    fi
     install -m 0644 "$live_source" "$(staged "$INSTALL_PREFIX/lib/$WINLAUFEN_LIVE_JAR")"
-    note "Live-Server-Artefakt installiert"
+    note "$step_live: Live-Server-Programm"
 fi
 
 if [[ -d "$DIST_DIR/runtime" ]]; then
+    if [[ -d "$(staged "$INSTALL_PREFIX/runtime")" ]]; then
+        runtime_step="AKTUALISIERT"
+    else
+        runtime_step="NEU"
+    fi
     rm -rf -- "$(staged "$INSTALL_PREFIX/runtime")"
     cp -R -- "$DIST_DIR/runtime" "$(staged "$INSTALL_PREFIX/runtime")"
-    note "Gebündelte Java-Runtime installiert"
+    note "$runtime_step: gebündelte Java-Runtime"
 fi
 
 # ------------------------------------------------------------ Konfiguration
@@ -462,7 +524,7 @@ migrate_live_network_defaults() {
 if ((install_bridge)); then
     if [[ -f "$(staged "$bridge_config")" ]]; then
         migrate_bridge_network_defaults "$(staged "$bridge_config")"
-        note "Bestehende Bridge-Konfiguration beibehalten: $bridge_config"
+        note "BEIBEHALTEN: bestehende bridge.properties ($bridge_config)"
     else
         if [[ "$PROFILE" == "all-in-one" ]]; then
             # All-in-One: lokaler Live Server ist als reguläres Output Target
@@ -514,14 +576,14 @@ presentation.showShooting=true
 presentation.showMessages=false
 EOF
         fi
-        note "Bridge-Standardkonfiguration erzeugt: $bridge_config"
+        note "NEU: bridge.properties ($bridge_config)"
     fi
 fi
 
 if ((install_live)); then
     if [[ -f "$(staged "$live_config")" ]]; then
         migrate_live_network_defaults "$(staged "$live_config")"
-        note "Bestehende Live-Server-Konfiguration beibehalten: $live_config"
+        note "BEIBEHALTEN: bestehende live-server.env ($live_config)"
     else
         cat > "$(staged "$live_config")" <<EOF
 # $WINLAUFEN_PRODUCT_NAME - Live Server
@@ -534,8 +596,14 @@ WINLAUFEN_LIVE_WS_PORT=$WINLAUFEN_LIVE_WS_PORT
 WINLAUFEN_LIVE_CHANNEL=$WINLAUFEN_LIVE_CHANNEL
 WINLAUFEN_LIVE_SECRET=$WINLAUFEN_DEFAULT_SECRET
 EOF
-        note "Live-Server-Standardkonfiguration erzeugt: $live_config"
+        note "NEU: live-server.env ($live_config)"
     fi
+fi
+
+# Die Startliste gehoert dem Veranstalter und wird nie angefasst. Sie hier zu
+# nennen, erspart die Frage, ob sie das Upgrade ueberlebt hat.
+if [[ -f "$(staged "$CONFIG_DIR/startlist.properties")" ]]; then
+    note "BEIBEHALTEN: importierte Startliste ($CONFIG_DIR/startlist.properties)"
 fi
 
 # ------------------------------------------------------------ systemd-Units
@@ -607,8 +675,10 @@ EOF
 }
 
 mkdir -p "$(staged "$SYSTEMD_DIR")"
-((install_bridge)) && write_bridge_unit && note "systemd-Unit geschrieben: $BRIDGE_UNIT"
-((install_live)) && write_live_unit && note "systemd-Unit geschrieben: $LIVE_UNIT"
+if [[ -f "$(staged "$SYSTEMD_DIR/$BRIDGE_UNIT")" ]]; then unit_step="AKTUALISIERT"; else unit_step="NEU"; fi
+((install_bridge)) && write_bridge_unit && note "$unit_step: systemd-Unit $BRIDGE_UNIT"
+if [[ -f "$(staged "$SYSTEMD_DIR/$LIVE_UNIT")" ]]; then unit_step="AKTUALISIERT"; else unit_step="NEU"; fi
+((install_live)) && write_live_unit && note "$unit_step: systemd-Unit $LIVE_UNIT"
 
 # Units eines nicht gewählten Profils aus einer früheren Installation entfernen,
 # damit eine Profiländerung keine verwaisten Dienste hinterlässt.
@@ -875,8 +945,40 @@ show_installation_report() {
     cat <<EOF
 
 ============================================================
-$WINLAUFEN_PRODUCT_NAME – Installation erfolgreich
+$WINLAUFEN_PRODUCT_NAME – $INSTALL_MODE erfolgreich
 ============================================================
+EOF
+    if [[ "$INSTALL_MODE" == "Upgrade" ]]; then
+        cat <<EOF
+
+AKTUALISIERT
+$(((install_bridge)) && echo "  Bridge")
+$(((install_live)) && echo "  Live Server")
+  systemd-Units
+
+BEIBEHALTEN
+  Konfiguration in $CONFIG_DIR
+$([[ -f "$(staged "$CONFIG_DIR/startlist.properties")" ]] && echo "  importierte Startliste")
+  Veranstaltungsdaten in $STATE_DIR
+
+UNVERÄNDERT
+  WinLaufen
+EOF
+    else
+        cat <<EOF
+
+NEU ANGELEGT
+$(((install_bridge)) && echo "  Bridge")
+$(((install_live)) && echo "  Live Server")
+  Konfiguration in $CONFIG_DIR
+  Datenverzeichnis $STATE_DIR
+  systemd-Units
+
+UNVERÄNDERT
+  WinLaufen
+EOF
+    fi
+    cat <<EOF
 
 Lokale Komponenten:
 EOF
