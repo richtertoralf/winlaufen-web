@@ -30,7 +30,7 @@ class WinLaufenClientTest {
                 try (var ignored = server.accept()) { secondConnection.countDown(); }
                 catch (Exception ex) { throw new RuntimeException(ex); }
             });
-            CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+            CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
             try (WinLaufenClient client = new WinLaufenClient("localhost", store)) {
                 client.start();
                 assertTrue(secondConnection.await(7, TimeUnit.SECONDS));
@@ -59,7 +59,7 @@ class WinLaufenClientTest {
                 try (var ignored = server.accept()) { secondConnection.countDown(); }
                 catch (Exception ex) { throw new RuntimeException(ex); }
             });
-            CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+            CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
             store.addListener(event -> health.add(event.state().sourceHealth()));
             try (WinLaufenClient client = new WinLaufenClient("localhost", store)) {
                 client.start();

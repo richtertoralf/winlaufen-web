@@ -131,7 +131,10 @@ public final class BridgeControlServer implements AutoCloseable {
                 targets(form, old),
                 new PresentationConfig(on(form, "showClub"), on(form, "showAssociation"),
                         on(form, "showNation"), on(form, "showShooting"),
-                        on(form, "showPublicMessages")));
+                        on(form, "showPublicMessages")),
+                // Not on this form, and it still has to survive a save: the whole configuration is
+                // rewritten from what is passed here, so a value left out would silently vanish.
+                old.competitionTimeZone());
         store.save(next);
         changed.accept(next);
         logWarnings(next);

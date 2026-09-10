@@ -49,7 +49,7 @@ class OutputFanOutTest {
         first.startReady();
         two.startReady();
 
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         List<OutputTargetConfig> configs = List.of(target("one", first.port()), target("two", two.port()));
 
         try (OutputTargetManager manager = new OutputTargetManager(configs, "stream", store,

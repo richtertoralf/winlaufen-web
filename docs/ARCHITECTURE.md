@@ -66,9 +66,13 @@ Startlisten-Dateiexport --Bridge Control---------->|
   `publicationRevision`
 - Bridge und Live Server sind zusätzlich **Messstellen**: Bei jedem erkannten
   WinLaufen-Uhrtelegramm erzeugt die Bridge ein **Clock-Sample** mit eigener
-  Revision, ihrer Systemzeit beim Empfang, der Differenz zur Wettkampfzeit und
-  dem Status ihrer Zeitreferenz; der Live Server misst dasselbe Sample beim
-  Eintreffen erneut. Ein Sample entsteht auch bei unverändertem Uhrwert — nur so
+  Revision, ihrer Systemzeit beim Empfang, der Differenz zur Wettkampfzeit, der
+  verwendeten Wettkampf-Zeitzone samt deren Herkunft und dem Status ihrer
+  Zeitreferenz; der Live Server misst dasselbe Sample beim Eintreffen erneut und
+  rechnet dabei mit der Zone aus dem Sample, nie mit seiner eigenen. Die
+  gemessene Differenz ist eine Messdifferenz gegen die jeweilige Systemuhr und
+  ausdrücklich kein ermittelter Uhrenfehler: WinLaufen liefert Sekundenauflösung,
+  und Umschaltmoment, Sendezeitpunkt und Transportdauer sind unbekannt. Ein Sample entsteht auch bei unverändertem Uhrwert — nur so
   ist „Uhr steht fachlich still" von „es kommen keine Telegramme mehr"
   unterscheidbar. Snapshots ohne Uhrtelegramm führen das bestehende Sample
   unverändert mit
@@ -80,6 +84,11 @@ Startlisten-Dateiexport --Bridge Control---------->|
   oder bewertet, welche Messstelle genauer ist. Ein Referenzstatus wird nur dann
   als synchronisiert gemeldet, wenn das feststellbar ist — heute nirgends, also
   durchgehend `UNVERIFIED`
+- Die Wettkampf-Zeitzone ist Veranstalterkonfiguration
+  (`competition.timezone` in `bridge.properties`). Ohne Eintrag gilt die Zone des
+  Bridge-Rechners, und das Sample kennzeichnet sie als `SYSTEM_DEFAULT` statt sie
+  als bestätigt auszugeben. Zeitzonenherkunft und Uhrqualität sind getrennte
+  Angaben
   Damit lässt sich „WinLaufen getrennt" von „Bridge getrennt" unterscheiden —
   die browserseitige `SourceHealth` wird beim Bridge-Verlust bewusst abgewertet
   und kann das allein nicht ausdrücken

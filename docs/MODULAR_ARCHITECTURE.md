@@ -133,9 +133,10 @@ Pfade:
   `GET http://<live-server>:44440/api/v1/startlist`; read-only, ohne
   synchronen Zugriff auf Bridge oder WinLaufen, jede Antwort mit demselben
   aktuellen Zeitblock und dem Verbindungsstatus der Kette. Bridge und Live
-  Server sind darin Messstellen: Sie erfassen Zeitpunkte und Differenzen und
-  benennen den Status ihrer Zeitreferenz, treffen aber keine Auswahl und
-  kalibrieren nicht (siehe [API.md](API.md))
+  Server sind darin Messstellen: Sie erfassen Zeitpunkte und Messdifferenzen und
+  benennen Zeitzonenherkunft und Status ihrer Zeitreferenz, treffen aber keine
+  Auswahl, kalibrieren nicht und behaupten keinen Uhrenfehler
+  (siehe [API.md](API.md))
 - Browser live: `ws://<live-server>:44441/live/v1`
 - Bridge ingest: `ws://<live-server>:44441/bridge/v1/channels/<channel-id>`;
   über Internet zwingend `wss://...` (typischer externer Port 443)

@@ -87,7 +87,12 @@ Die beiden sichtbaren Oberflächen heißen:
   WinLaufen-Uhrtelegramm liefern sie Empfangszeitpunkt, gemessene Differenz zur
   Wettkampfzeit und den Status ihrer Zeitreferenz — zwei unabhängige Messungen
   nebeneinander. Sie korrigieren nichts, wählen keinen Offset und kalibrieren
-  nicht; das entscheidet der Consumer.
+  nicht; das entscheidet der Consumer. Die Differenz ist eine **Messdifferenz**
+  gegen die jeweilige Systemuhr, kein ermittelter Uhrenfehler.
+* Für die Differenz wird die **Wettkampf-Zeitzone** gebraucht. Sie steht in
+  `bridge.properties` unter `competition.timezone`; ohne Eintrag gilt die Zone
+  des Rechners, und die API kennzeichnet sie dann als bloßen Rückfall. Auf einem
+  Server mit Systemzone UTC sollte sie gesetzt werden.
 * Read-only und ohne Rückfrage bei WinLaufen: Jeder Request wird aus dem
   bereits veröffentlichten Zustand beantwortet.
 * Details: [docs/API.md](docs/API.md).

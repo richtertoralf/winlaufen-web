@@ -157,7 +157,8 @@ public final class ContractJson {
         }
         if (sample.revision() < 0
                 || sample.referenceStatus() == null
-                || sample.referenceSource() == null) {
+                || sample.referenceSource() == null
+                || sample.competitionTimeZoneSource() == null) {
             throw new ContractViolationException("Invalid clock sample");
         }
         for (String value : List.of(sample.competitionTime(), sample.competitionTimeZone(),

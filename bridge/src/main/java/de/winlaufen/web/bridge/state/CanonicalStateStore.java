@@ -4,6 +4,7 @@ import de.winlaufen.web.bridge.source.winlaufen.ResultBlock;
 import de.winlaufen.web.contract.CanonicalState;
 import de.winlaufen.web.contract.ClockSample;
 import de.winlaufen.web.contract.CompetitionTimeOffset;
+import de.winlaufen.web.contract.CompetitionTimeZoneSource;
 import de.winlaufen.web.contract.TimeReference;
 import de.winlaufen.web.contract.ClassSnapshot;
 import de.winlaufen.web.contract.Competition;
@@ -31,48 +32,31 @@ import java.util.function.Consumer;
  */
 public final class CanonicalStateStore {
 
-    /**
-     * System property naming the zone in which the WinLaufen competition time is read when a
-     * difference against a measured instant is formed.
-     *
-     * <p>It defaults to the zone of this machine, which is right whenever the bridge runs in the
-     * time zone of the event — the normal case. It is a property and not a hard-wired value because
-     * that assumption breaks exactly where it is easy to overlook: a Linux host set to UTC would
-     * silently produce differences that are off by the whole UTC offset. The zone actually used is
-     * therefore carried in every sample and visible in the read API.
-     */
-    public static final String COMPETITION_ZONE_PROPERTY = "winlaufen.competition.timezone";
-
     private final AtomicReference<CanonicalSnapshot> current;
     private final List<Consumer<CanonicalSnapshot>> listeners = new CopyOnWriteArrayList<>();
     private final TimeReference reference;
     private final String competitionZoneId;
+    private final CompetitionTimeZoneSource competitionZoneSource;
     private long clockSampleRevision;
 
-    public CanonicalStateStore(PresentationConfig presentation) {
-        this(presentation, TimeReference.systemClock(), configuredCompetitionZone());
+    /**
+     * @param configuredZoneId the organiser's competition time zone, or {@code null} when none was
+     *                         configured — then the zone of this machine is used and every sample
+     *                         says that it is only a fallback
+     */
+    public CanonicalStateStore(PresentationConfig presentation, String configuredZoneId) {
+        this(presentation, TimeReference.systemClock(), configuredZoneId);
     }
 
     /** Test seam: makes the measurement deterministic without touching the machine's clock. */
     public CanonicalStateStore(PresentationConfig presentation, TimeReference reference,
-                               String competitionZoneId) {
+                               String configuredZoneId) {
         this.reference = reference;
-        this.competitionZoneId = competitionZoneId;
+        this.competitionZoneId = configuredZoneId != null
+                ? configuredZoneId : ZoneId.systemDefault().getId();
+        this.competitionZoneSource = configuredZoneId != null
+                ? CompetitionTimeZoneSource.CONFIGURED : CompetitionTimeZoneSource.SYSTEM_DEFAULT;
         current = new AtomicReference<>(new CanonicalSnapshot(0, CanonicalState.empty(), presentation));
-    }
-
-    private static String configuredCompetitionZone() {
-        String configured = System.getProperty(COMPETITION_ZONE_PROPERTY);
-        if (configured == null || configured.isBlank()) {
-            return ZoneId.systemDefault().getId();
-        }
-        try {
-            return ZoneId.of(configured.trim()).getId();
-        } catch (RuntimeException ex) {
-            System.err.println("Unbekannte Zeitzone in " + COMPETITION_ZONE_PROPERTY + ": "
-                    + configured + " — es gilt " + ZoneId.systemDefault().getId());
-            return ZoneId.systemDefault().getId();
-        }
     }
 
     public CanonicalSnapshot get() {
@@ -117,7 +101,8 @@ public final class CanonicalStateStore {
     private synchronized void applyClock(String value, Instant at) {
         CanonicalSnapshot old = current.get();
         ClockSample sample = new ClockSample(++clockSampleRevision, value, competitionZoneId,
-                at.toString(), CompetitionTimeOffset.differenceMillis(value, competitionZoneId, at),
+                competitionZoneSource, at.toString(),
+                CompetitionTimeOffset.differenceMillis(value, competitionZoneId, at),
                 reference.status(), reference.source());
         publish(old.sourceRevision() + 1,
                 new CanonicalState(SourceHealth.CONNECTED, value, old.state().competition(),

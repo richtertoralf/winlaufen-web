@@ -496,6 +496,7 @@ Windows x64. Raspberry Pi OS auf ARM wird über den Source-Weg installiert.
 /opt/winlaufen-web/runtime/      gebündelte Java-Runtime, falls die Quelle eine mitbringt
 /etc/winlaufen-web/              Konfiguration und persistente Veranstalterdaten
     bridge.properties            Veranstalter-Konfiguration der Bridge
+                                 (optional: competition.timezone)
     startlist.properties         importierte Startliste (nur bei Profilen mit Bridge)
     live-server.env              technische Live-Server-Parameter
 /var/lib/winlaufen-web/          Arbeitsverzeichnis des Dienstkontos
@@ -510,6 +511,27 @@ C:\ProgramData\WinLaufen Web\
     bridge.properties                      Veranstalter-Konfiguration
     live-server.properties                 technische Live-Server-Parameter
 ```
+
+### Wettkampf-Zeitzone
+
+`bridge.properties` kennt eine optionale Angabe, die nur die Zeitmessungen der
+Read API betrifft:
+
+```properties
+competition.timezone=Europe/Berlin
+```
+
+Sie legt fest, in welcher Zeitzone die WinLaufen-Wettkampfzeit gelesen wird,
+wenn die Bridge ihre Differenz zur eigenen Systemzeit bestimmt. Ohne Eintrag
+gilt die Zeitzone des Rechners; die API kennzeichnet das dann ausdrücklich als
+Rückfall und nicht als bestätigte Wettkampfzone.
+
+**Für Veranstaltungen in Deutschland sollte der Eintrag gesetzt werden**,
+besonders auf einem Linux-System, dessen Systemzone UTC ist — sonst wäre jede
+Messdifferenz um den vollen UTC-Versatz daneben. Für Uhr, Ergebnisse, Startliste
+und Web Viewer ist die Angabe ohne Bedeutung; sie wird nicht bei der
+Installation abgefragt und ist nicht erforderlich, um Sprecher-Web zu betreiben.
+Details: [API.md](API.md).
 
 `startlist.properties` entsteht erst beim ersten erfolgreichen
 Startlistenimport in Bridge Control. Die Bridge schreibt sie über eine

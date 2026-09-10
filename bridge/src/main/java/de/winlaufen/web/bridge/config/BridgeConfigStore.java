@@ -11,6 +11,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -34,6 +35,12 @@ public final class BridgeConfigStore {
 
     public static final int DEFAULT_LIVE_WEBSOCKET_PORT = 44441;
     public static final int DEFAULT_LIVE_HTTP_PORT = 44440;
+    /** Key of the competition time zone in {@code bridge.properties}. */
+    public static final String COMPETITION_TIMEZONE_KEY = "competition.timezone";
+
+    /** Older equivalent as a system property; still honoured when the file says nothing. */
+    public static final String COMPETITION_TIMEZONE_PROPERTY = "winlaufen.competition.timezone";
+
     public static final int DEFAULT_CONTROL_PORT = 44442;
     public static final String DEFAULT_CONTROL_BIND = "0.0.0.0";
 
@@ -112,7 +119,7 @@ public final class BridgeConfigStore {
         BridgeConfig config = new BridgeConfig("WINLAUFEN", host,
                 values.getProperty("bridge.control.bind", DEFAULT_CONTROL_BIND),
                 port(values.getProperty("bridge.control.port"), DEFAULT_CONTROL_PORT),
-                targets, presentation(values));
+                targets, presentation(values), competitionTimeZone(values, notices));
         return new LoadResult(config, List.copyOf(notices));
     }
 
@@ -151,6 +158,34 @@ public final class BridgeConfigStore {
                 "local", values.getProperty("local.secret", DEFAULT_LOCAL_SECRET));
     }
 
+    /**
+     * The competition time zone, if the organiser set one.
+     *
+     * <p>The file wins over the system property of the same purpose. The property is the older,
+     * documented way and stays usable for a dev run or a test, but a stray {@code -D} on a service
+     * unit must not silently override what an operator wrote into the configuration.
+     *
+     * <p>An unusable value is reported and treated as unset rather than failing the start: the
+     * bridge's job is to deliver results, and a wrong zone only affects a measurement that is
+     * marked as a fallback anyway.
+     */
+    private static String competitionTimeZone(Properties values, List<String> notices) {
+        String configured = values.getProperty(COMPETITION_TIMEZONE_KEY);
+        if (configured == null || configured.isBlank()) {
+            configured = System.getProperty(COMPETITION_TIMEZONE_PROPERTY);
+        }
+        if (configured == null || configured.isBlank()) {
+            return null;
+        }
+        try {
+            return ZoneId.of(configured.trim()).getId();
+        } catch (RuntimeException ex) {
+            notices.add("Unbekannte Wettkampf-Zeitzone \"" + configured.trim()
+                    + "\" — es gilt die Zeitzone dieses Rechners.");
+            return null;
+        }
+    }
+
     private static PresentationConfig presentation(Properties values) {
         return new PresentationConfig(
                 bool(values, "presentation.showClub", bool(values, "public.showClub", true)),
@@ -168,6 +203,9 @@ public final class BridgeConfigStore {
         values.setProperty("source.host", config.sourceHost());
         values.setProperty("bridge.control.bind", config.controlBindAddress());
         values.setProperty("bridge.control.port", Integer.toString(config.controlPort()));
+        if (config.competitionTimeZone() != null) {
+            values.setProperty(COMPETITION_TIMEZONE_KEY, config.competitionTimeZone());
+        }
         values.setProperty("outputs.count", Integer.toString(config.targets().size()));
         for (int index = 0; index < config.targets().size(); index++) {
             OutputTargetConfig target = config.targets().get(index);

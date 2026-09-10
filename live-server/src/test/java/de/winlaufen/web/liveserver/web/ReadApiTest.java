@@ -6,6 +6,7 @@ import de.winlaufen.web.contract.CanonicalState;
 import de.winlaufen.web.contract.ClassSnapshot;
 import de.winlaufen.web.contract.ClockSample;
 import de.winlaufen.web.contract.CompetitionTimeOffset;
+import de.winlaufen.web.contract.CompetitionTimeZoneSource;
 import de.winlaufen.web.contract.Competition;
 import de.winlaufen.web.contract.CompetitionClass;
 import de.winlaufen.web.contract.CurrentFinish;
@@ -712,6 +713,55 @@ class ReadApiTest {
         assertEquals(json("/api/v1/state").get("time"), json("/api/v1/startlist").get("time"));
     }
 
+    @Test
+    void theZoneAndItsOriginAreVisibleOnBothEndpoints() throws Exception {
+        states.ingestConnected();
+        publishClockAndResults("14:31:40");
+        publishStartList(1, entries(2));
+
+        for (String path : List.of("/api/v1/state", "/api/v1/startlist")) {
+            JsonNode time = json(path).get("time");
+            assertEquals("Europe/Berlin", time.get("competitionTimeZone").asText(), path);
+            assertEquals("CONFIGURED", time.get("competitionTimeZoneSource").asText(), path);
+        }
+    }
+
+    /**
+     * The live server runs on a machine in UTC while the bridge measured in Europe/Berlin. It has
+     * to subtract against the zone that came with the sample; using its own would shift every
+     * measurement by the whole UTC offset without anything looking wrong.
+     */
+    @Test
+    void theLiveServerUsesTheZoneFromTheSampleAndNotItsOwn() throws Exception {
+        states.ingestConnected();
+        // 12:30:00Z is 14:30:00 in Berlin and 12:30:00 in UTC — two hours apart.
+        bridgeNow.set(Instant.parse("2026-09-10T12:30:00Z"));
+        now.set(Instant.parse("2026-09-10T12:30:00Z"));
+        publishClockAndResults("14:30:00");
+
+        JsonNode time = json("/api/v1/state").get("time");
+        assertEquals(0, time.get("bridge").get("competitionMinusReferenceMs").asLong());
+        // Read as UTC this would be +7 200 000 ms. It is not.
+        assertEquals(0, time.get("liveServer").get("competitionMinusReferenceMs").asLong());
+        assertEquals("Europe/Berlin", time.get("competitionTimeZone").asText());
+    }
+
+    /**
+     * Two separate questions. A zone can be decided while the clock behind the measurement is
+     * unverified, and neither statement says anything about the other.
+     */
+    @Test
+    void zoneOriginAndReferenceStatusAreIndependent() throws Exception {
+        states.ingestConnected();
+        publishClockAndResults("14:31:40");
+
+        JsonNode time = json("/api/v1/state").get("time");
+        assertEquals("CONFIGURED", time.get("competitionTimeZoneSource").asText());
+        assertEquals("UNVERIFIED", time.get("bridge").get("referenceStatus").asText());
+        assertEquals("UNVERIFIED", time.get("liveServer").get("referenceStatus").asText());
+        assertEquals("CONNECTED", json("/api/v1/state").get("connection").get("status").asText());
+    }
+
     // ---------------------------------------------------------------- transport
 
     @Test
@@ -791,7 +841,8 @@ class ReadApiTest {
     /** What the bridge would have measured for this telegram, with its own clock. */
     private ClockSample newSample(String clock) {
         Instant at = bridgeNow.get();
-        currentSample = new ClockSample(++sampleRevision, clock, ZONE, at.toString(),
+        currentSample = new ClockSample(++sampleRevision, clock, ZONE,
+                CompetitionTimeZoneSource.CONFIGURED, at.toString(),
                 CompetitionTimeOffset.differenceMillis(clock, ZONE, at),
                 TimeReferenceStatus.UNVERIFIED, TimeReferenceSource.SYSTEM_CLOCK);
         return currentSample;

@@ -65,7 +65,7 @@ class ProtocolLimitsTest {
     @Test
     void everyBlockAcceptedByTheReaderStaysPublishable() throws Exception {
         ResultBlock block = read(resultBlock(ContractLimits.MAX_HEADERS, 3, "wert"));
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         store.result(block);
         store.message("x".repeat(ContractLimits.MAX_MESSAGE_CHARS));
 

@@ -40,7 +40,8 @@ public final class BridgeMain {
 
         AtomicReference<BridgeConfig> config = new AtomicReference<>(loaded.config());
         StartListStore startLists = openStartLists(configStore.path());
-        CanonicalStateStore state = new CanonicalStateStore(config.get().presentation());
+        CanonicalStateStore state = new CanonicalStateStore(config.get().presentation(),
+                config.get().competitionTimeZone());
         WinLaufenClient source = new WinLaufenClient(config.get().sourceHost(), state);
         String streamId = UUID.randomUUID().toString();
         OutputTargetManager outputs = new OutputTargetManager(config.get().targets(), streamId,

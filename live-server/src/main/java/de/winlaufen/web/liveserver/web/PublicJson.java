@@ -92,8 +92,9 @@ public final class PublicJson {
      * <ul>
      *   <li>{@code competitionTime} — what WinLaufen reports, carried through as the string it
      *       sent. Not a timestamp: no date, no zone, and nothing turns it into one.
-     *   <li>{@code competitionTimeZone} — the zone in which that string was read as a time of day
-     *       to form the differences below, and nothing else.
+     *   <li>{@code competitionTimeZone} and {@code competitionTimeZoneSource} — the zone in which
+     *       that string was read as a time of day to form the differences below, and how that zone
+     *       was arrived at. {@code SYSTEM_DEFAULT} means nobody confirmed it for this event.
      *   <li>{@code clockChangedAt} — since when the competition time has this value. Not a
      *       staleness measure: the value may legitimately stand still.
      *   <li>{@code clockSampleRevision} — how many clock telegrams the bridge has processed on this
@@ -110,6 +111,8 @@ public final class PublicJson {
         ClockSample sample = published.state().clockSample();
         return "{\"competitionTime\":" + nullable(published.state().clock())
                 + ",\"competitionTimeZone\":" + (sample == null ? "null" : nullable(sample.competitionTimeZone()))
+                + ",\"competitionTimeZoneSource\":"
+                + (sample == null ? "null" : quote(sample.competitionTimeZoneSource().name()))
                 + ",\"clockChangedAt\":" + instant(published.clockChangedAtEpochMilli())
                 + ",\"clockSampleRevision\":" + (sample == null ? "null" : Long.toString(sample.revision()))
                 + ",\"bridge\":" + bridgeMeasurement(sample)
@@ -124,6 +127,12 @@ public final class PublicJson {
      * <p>{@code systemTimeAtReceipt} is the reading of the bridge machine's own clock, not a
      * verified instant — that machine may be minutes off. {@code referenceStatus} says what is
      * known about it, and an {@code UNVERIFIED} status is a normal, usable answer, not a fault.
+     *
+     * <p>{@code competitionMinusReferenceMs} is a measured difference, never an established clock
+     * error. WinLaufen sends a time of day with second resolution and nothing reveals when within
+     * that second it switched, when the telegram was built and sent, or how long the transport
+     * took. What the number states is only this: the value in this telegram against the reading of
+     * this measuring point when it processed it.
      */
     private static String bridgeMeasurement(ClockSample sample) {
         if (sample == null) {

@@ -50,6 +50,7 @@ Fragen beantworten und nicht ineinander umgerechnet werden dürfen.
 |---|---|
 | `time.competitionTime` | Welche Wettkampfzeit meldet WinLaufen? |
 | `time.competitionTimeZone` | In welcher Zeitzone wurde diese Tageszeit für die Differenzen unten gelesen? |
+| `time.competitionTimeZoneSource` | Wurde diese Zone ausdrücklich konfiguriert oder nur vom System übernommen? |
 | `time.clockChangedAt` | Seit wann hat die Wettkampfzeit diesen Wert? |
 | `time.clockSampleRevision` | Wie viele echte Uhrtelegramme hat die Bridge in diesem Lauf verarbeitet? |
 | `time.bridge` | Was hat die **Bridge** beim Empfang dieses Telegramms gemessen? |
@@ -105,14 +106,49 @@ dabei.
   `referenceStatus`.
 - `competitionMinusReferenceMs` — `Wettkampfzeit − Zeitreferenz dieser
   Messstelle` in Millisekunden, **positiv**, wenn die Wettkampfzeit vorausläuft.
-  Im Beispiel oben liegt WinLaufen gegenüber der Bridge-Uhr 99,9 Sekunden
-  voraus. Das heißt **nicht**, dass WinLaufen 99,9 Sekunden vor der echten
-  Weltzeit liegt — ob die Differenz eine reale Abweichung ist, hängt allein am
-  Referenzstatus. `null`, wenn keine Differenz bildbar war.
+  `null`, wenn keine Differenz bildbar war. Was dieser Wert bedeutet, steht
+  unten unter [Messdifferenz, kein Uhrenfehler](#messdifferenz-kein-uhrenfehler)
+  — er ist bewusst weniger, als er auf den ersten Blick aussieht.
 - `referenceStatus` — `SYNCHRONIZED`, `UNVERIFIED` oder `UNAVAILABLE`.
 - `referenceSource` — woher die Zeitstempel stammen, derzeit `SYSTEM_CLOCK`.
 
 `liveServer` hat dieselbe Struktur und misst dasselbe Sample beim Eintreffen.
+
+### Messdifferenz, kein Uhrenfehler
+
+`competitionMinusReferenceMs` ist **eine unmittelbar gemessene Differenz** und
+sonst nichts:
+
+> Der im konkreten WinLaufen-Uhrtelegramm enthaltene Wettkampfzeitwert gegenüber
+> der Referenz-/Systemzeit dieser Messstelle beim Empfang genau dieses Samples.
+
+Ein Beispiel: `competitionMinusReferenceMs = +99 900` bedeutet ausschließlich,
+dass der Wert in diesem Telegramm gegenüber der Referenzzeit dieser Messstelle
+beim Empfang um rund 99,9 Sekunden vorauslag.
+
+Es ist **nicht**:
+
+- ein automatisch bestimmter Uhrenfehler des WinLaufen-PCs,
+- ein kalibrierter Offset,
+- eine garantierte Abweichung zur Weltzeit,
+- eine Netzwerk- oder Transportlatenz,
+- ein Wert, den ein Consumer ungeprüft als Korrektur anwenden sollte.
+
+Der Grund ist nicht Vorsicht, sondern fehlende Information. Unbekannt bleibt:
+
+- wann innerhalb der laufenden Sekunde WinLaufen den Wert intern umschaltet,
+- wann daraus ein Telegramm gebaut und gesendet wird,
+- welche Verarbeitungs- und Übertragungsverzögerung davor liegt.
+
+Ob aus der Differenz auf eine reale Abweichung zur Weltzeit geschlossen werden
+darf, hängt zusätzlich an `referenceStatus`, `referenceSource`, der Herkunft der
+Wettkampf-Zeitzone und dem Übertragungsverhalten von WinLaufen. Diese Bewertung
+findet in Bridge und Live Server **nicht** statt.
+
+Eine einzelne Messung taugt deshalb nicht als absolute Kalibrierung. Ein
+Consumer, der mehrere Samples über die Zeit betrachtet, kann daraus ein Muster
+ableiten — diese Auswertung gehört in das Zielsystem und ausdrücklich nicht
+hierher.
 
 **Aus der Differenz der beiden `systemTimeAtReceipt` darf keine
 Transportlatenz abgeleitet werden.** Solange nicht nachweislich beide
@@ -145,22 +181,64 @@ bridge.referenceStatus = UNVERIFIED    über die Genauigkeit der Uhr ist nichts 
 Diese Kombination ist der Regelfall und völlig in Ordnung. Umgekehrt kann bei
 `WINLAUFEN_DISCONNECTED` das zuletzt gemessene Sample weiterhin sichtbar sein.
 
-### Zeitzone
+### Wettkampf-Zeitzone und ihre Herkunft
 
 Die Wettkampfzeit ist eine **Tageszeit ohne Datum**. Um sie von einem Zeitpunkt
-abzuziehen, muss bekannt sein, in welcher Zone sie gelesen wird. Diese Zone
-steht in jeder Antwort unter `time.competitionTimeZone` und reist im Sample mit,
-damit beide Messstellen dieselbe Auslegung verwenden.
+abzuziehen, muss bekannt sein, in welcher Zone sie gelesen wird. Diese Zone steht
+in jeder Antwort unter `time.competitionTimeZone` und **reist im Clock-Sample
+mit**, damit beide Messstellen dieselbe Auslegung verwenden. Ein Live Server auf
+einem UTC-Rechner deutet eine in Ortszeit gelesene Wettkampfzeit deshalb nicht
+still um.
 
-Voreingestellt ist die Zone des Bridge-Rechners. Das stimmt, solange die Bridge
-in der Zeitzone der Veranstaltung läuft — der Normalfall. **Es stimmt nicht auf
-einem Server, der auf UTC steht.** Dort ist die Zone explizit zu setzen:
+`time.competitionTimeZoneSource` sagt, **wie** diese Zone zustande kam:
 
-```sh
-java -Dwinlaufen.competition.timezone=Europe/Berlin -jar winlaufen-web-bridge.jar
+| Wert | Bedeutung |
+|---|---|
+| `CONFIGURED` | Die Zone wurde für diese Bridge ausdrücklich festgelegt. Jemand hat sich entschieden. |
+| `SYSTEM_DEFAULT` | Es wurde nichts konfiguriert, also gilt die Zone des Rechners, auf dem die Bridge läuft. |
+
+**`SYSTEM_DEFAULT` heißt nicht, dass die Zone fachlich richtig ist.** Es heißt
+nur, dass keine konfiguriert wurde. Das trifft zu, solange die Bridge in der
+Zeitzone der Veranstaltung läuft — der Normalfall — und ist genau dort falsch, wo
+es leicht übersehen wird: auf einem Linux-Server, dessen Systemzone UTC ist.
+Jede Differenz wäre dann um den vollen UTC-Versatz daneben, ohne dass irgendetwas
+ungewöhnlich aussieht.
+
+Konfiguriert wird sie in `bridge.properties`:
+
+```properties
+competition.timezone=Europe/Berlin
 ```
 
-Ein unbekannter Wert wird gemeldet und die Systemzone verwendet.
+Für Veranstaltungen in Deutschland sollte dieser Eintrag gesetzt werden,
+insbesondere wenn die Bridge auf einem Linux-System mit Systemzone UTC läuft.
+Der Eintrag überlebt ein Speichern in Bridge Control, obwohl die Oberfläche kein
+Feld dafür hat.
+
+Alternativ und nachrangig wirkt weiterhin die Systemproperty
+`-Dwinlaufen.competition.timezone=Europe/Berlin`; sie greift nur, wenn die
+Konfigurationsdatei nichts sagt. Ein unbekannter Wert wird beim Start gemeldet
+und wie „nicht konfiguriert" behandelt — die Bridge startet trotzdem, denn eine
+falsche Zone betrifft nur eine Messung, die dann ohnehin als Rückfall markiert
+ist.
+
+### Zeitzonenherkunft und Uhrqualität sind zwei Dinge
+
+`competitionTimeZoneSource` und `referenceStatus` beantworten verschiedene
+Fragen und dürfen nicht vermischt werden:
+
+```text
+competitionTimeZoneSource = CONFIGURED     jemand hat die Wettkampfzone festgelegt
+bridge.referenceStatus    = UNVERIFIED     über die Genauigkeit der Bridge-Uhr ist nichts bekannt
+```
+
+```text
+competitionTimeZoneSource = SYSTEM_DEFAULT gut möglich, dass die Zone passt — bestätigt hat es niemand
+bridge.referenceStatus    = SYNCHRONIZED   die Uhr geht nachweislich richtig
+```
+
+Beide Kombinationen sind möglich und sagen jeweils nichts über die andere Frage
+aus.
 
 ### Mitternacht
 
@@ -178,12 +256,19 @@ weit außerhalb dessen, wofür diese Messung gedacht ist.
 
 ### Auflösung und erreichbare Genauigkeit
 
-Die WinLaufen-Uhr hat **Sekundenauflösung**. Schon deshalb ist die Differenz
-nicht genauer als etwa eine Sekunde, unabhängig davon, wie genau die
-Systemuhren gehen. Für optische Produktionssysteme wie ein Finish-Overlay ist
-eine Größenordnung von etwa 100 ms brauchbar; die API sagt zu, die tatsächlich
-gemessenen Werte samt ihrem Status zu liefern, und **garantiert keine
-Genauigkeit**.
+Die WinLaufen-Uhr hat **Sekundenauflösung**. Ein einzelnes Telegramm mit
+`HH:MM:SS` kann deshalb grundsätzlich keine 100-ms-genaue absolute Kalibrierung
+tragen, egal wie genau die beteiligten Systemuhren gehen.
+
+Für optische Produktionssysteme wie ein Finish-Overlay ist eine Größenordnung
+von etwa 100 ms in der Praxis brauchbar. Das ist ein **Anwendungsziel des
+Consumers, keine Zusage dieser API**. Die API sagt ausschließlich zu, die
+tatsächlich gemessenen Werte samt ihrem Status zu liefern, und **garantiert
+keine Genauigkeit**.
+
+Mehrere Samples über die Zeit können einem Consumer helfen, ein Muster, einen
+Offset oder eine Drift zu bestimmen. Diese Auswertung gehört in das Zielsystem
+und ist ausdrücklich nicht Teil dieser API.
 
 ### Wenn keine verlässliche Referenz vorhanden ist
 
@@ -199,14 +284,26 @@ ersetzen einander nicht:
 
 | | Frage |
 |---|---|
-| `clockChangedAt` | Seit wann hat die Wettkampfzeit **fachlich** diesen Wert? |
+| `clockChangedAt` | Wann hat Sprecher-Web erstmals ein Sample mit **diesem** Wettkampfzeitwert gesehen? |
 | `time.bridge.systemTimeAtReceipt` | Wann wurde zuletzt **technisch** ein Telegramm beobachtet? |
 
-Das Feld heißt bewusst nicht `clockObservedAt`: Es benennt eine Wertänderung,
-keine Beobachtung. **Das Alter von `clockChangedAt` ist kein Freshness-Maß** —
-eine Wettkampfzeit darf bei völlig gesunder Quelle stillstehen. Ob die Kette
-funktioniert, beantworten `connection.status`, `connection.lastUpdateAt` und
-`clockSampleRevision`.
+Genauer gesagt ist `clockChangedAt` der Zeitpunkt, zu dem der Live Server
+erstmals ein Clock-Sample mit einem gegenüber dem vorherigen bekannten Sample
+**geänderten** Wettkampfzeitwert erkannt hat. Es ist bewusst nicht formuliert als
+„seit wann hat die Wettkampfzeit diesen Wert", denn der interne Umschaltmoment
+innerhalb von WinLaufen ist von außen nicht sichtbar. Was hier steht, ist die
+beobachtete Wertänderung im Sprecher-Web-Datenpfad — nicht mehr.
+
+Das Feld heißt deshalb auch nicht `clockObservedAt`: Es benennt eine
+Wertänderung, keine Beobachtung der Quelle. Es ist ausdrücklich:
+
+- **kein Freshness-Maß** — eine Wettkampfzeit darf bei völlig gesunder Quelle
+  stillstehen. Ob die Kette funktioniert, beantworten `connection.status`,
+  `connection.lastUpdateAt` und `clockSampleRevision`;
+- **kein Beobachtungszeitpunkt der Quelle**;
+- **kein Kalibrierungsanker mit zugesagter Genauigkeit** — er liegt näher am
+  tatsächlichen Umschalten als jede spätere Wiederholung desselben Werts, aber
+  wie nah, sagt niemand zu.
 
 Hat dieser Live Server seit seinem Start noch **nie** einen Snapshot erhalten,
 sind alle Zeitfelder bis auf `apiGeneratedAt` `null`. Eine Wettkampfzeit wird
@@ -287,6 +384,7 @@ am Tag und gehört deshalb nach `/api/v1/startlist`.
   "time" : {
     "competitionTime" : "10:14:37",
     "competitionTimeZone" : "Europe/Berlin",
+    "competitionTimeZoneSource" : "CONFIGURED",
     "clockChangedAt" : "2026-09-10T08:14:37.150Z",
     "clockSampleRevision" : 1234,
     "bridge" : {
@@ -393,6 +491,7 @@ Startliste veröffentlicht wurde.
   "time" : {
     "competitionTime" : "10:14:37",
     "competitionTimeZone" : "Europe/Berlin",
+    "competitionTimeZoneSource" : "CONFIGURED",
     "clockChangedAt" : "2026-09-10T08:14:37.150Z",
     "clockSampleRevision" : 1234,
     "bridge" : {
@@ -507,6 +606,8 @@ Bestandteil:
   kein `bestReference` und keine Empfehlung,
 - keine Entscheidung, ob die Bridge- oder die Live-Server-Messung besser ist,
 - **keine Zusage über UTC-Genauigkeit**,
+- **keine Aussage, dass eine gemessene Differenz der Uhrenfehler eines Rechners
+  ist**,
 - keine ClockCalibration und keine Driftkorrektur,
 - keine Ableitung einer Zielzeit aus Uhrwert oder Empfangszeit,
 - keine abgeleitete Transportlatenz aus den beiden Empfangszeitpunkten,
