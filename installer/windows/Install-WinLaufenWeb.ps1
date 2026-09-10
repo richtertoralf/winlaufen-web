@@ -687,107 +687,93 @@ winlaufen.live.secret=$DefaultSecret
     }
 }
 
-# ------------------------------------------------------------ Startskripte
+# ------------------------------------------------------------ Startargumente
 #
-# Die geplanten Aufgaben rufen diese Skripte auf. Sie lesen die Konfiguration und
-# setzen daraus die Systemproperties der Anwendung.
+# Die geplanten Aufgaben starten die Java-Prozesse DIREKT. Frueher lag dazwischen
+# cmd.exe mit einer Batchdatei, und genau das war der Fehler: javaw.exe ist ein
+# GUI-Subsystem-Programm, auf das cmd.exe nicht wartet. cmd war sofort fertig, die
+# Aufgabe fiel auf Ready zurueck, und der Java-Prozess lief losgeloest weiter.
+# Stop-ScheduledTask beendete danach nur noch eine Huelle, die es gar nicht mehr
+# gab - der Dienst lief unbeirrt weiter und musste von Hand erschlagen werden.
+#
+# Startet die Aufgabe javaw.exe selbst, ist der verfolgte Prozess der Dienst.
+# Stop beendet ihn wirklich, Start erzeugt eine neue PID, und Aufgabenzustand,
+# Prozess und Portbelegung sagen dasselbe aus.
 
-$bridgeLauncher = Join-Path $InstallPrefix 'start-bridge.cmd'
-$liveLauncher   = Join-Path $InstallPrefix 'start-live-server.cmd'
-
+$bridgeArguments = @()
 if ($installBridge) {
-    $cmd = @"
-@echo off
-rem $ProductName - Bridge. Wird von der geplanten Aufgaben-Instanz aufgerufen.
-"$javaExe" "-D$BridgeConfigProperty=$bridgeConfig" -jar "$InstallPrefix\lib\$BridgeJar"
-exit /b %errorlevel%
-"@
-    Set-Content -LiteralPath (Get-StagedPath $bridgeLauncher) -Value $cmd -Encoding ASCII
+    $bridgeArguments = @("-D$BridgeConfigProperty=$bridgeConfig", '-jar',
+        (Join-Path $InstallPrefix "lib\$BridgeJar"))
 }
 
+$liveArguments = @()
 if ($installLive) {
-    # Der Live Server wird ausschließlich über Systemproperties konfiguriert.
-    # Die Properties-Datei wird hier zu -D-Argumenten expandiert.
-    $ps1 = Join-Path $InstallPrefix 'start-live-server.ps1'
-    $launcherScript = @"
-# $ProductName - Live Server Starter
-#
-# Die geplante Aufgabe muss so lange Running bleiben, wie der Live Server laeuft.
-# Der PowerShell-Aufrufoperator "&" kehrt bei javaw.exe sofort zurueck, weil das
-# ein GUI-Subsystem-Programm ohne umgeleitete Stroeme ist; PowerShell und cmd
-# beendeten sich dann sofort und die Aufgabe fiel auf Ready zurueck, obwohl der
-# Java-Prozess weiterlief. Deshalb wird der Prozess hier explizit gestartet und
-# auf sein Ende gewartet.
-
-# Windows uebergibt Argumente als eine einzige Zeichenkette, die der Zielprozess
-# mit CommandLineToArgvW wieder zerlegt. Diese Funktion setzt genau dessen Regeln
-# um, damit Leerzeichen, Backslashes und Anfuehrungszeichen in Pfaden und Secrets
-# unveraendert ankommen.
-function ConvertTo-CommandLineArgument {
-    param([string]`$Value)
-
-    if (`$Value.Length -gt 0 -and `$Value -notmatch '[\s"]') { return `$Value }
-    `$builder = New-Object System.Text.StringBuilder
-    [void]`$builder.Append('"')
-    `$index = 0
-    while (`$index -lt `$Value.Length) {
-        `$backslashes = 0
-        while (`$index -lt `$Value.Length -and `$Value[`$index] -eq [char]'\') {
-            `$backslashes++
-            `$index++
-        }
-        if (`$index -eq `$Value.Length) {
-            [void]`$builder.Append('\' * (`$backslashes * 2))
-        } elseif (`$Value[`$index] -eq [char]'"') {
-            [void]`$builder.Append('\' * (`$backslashes * 2 + 1))
-            [void]`$builder.Append('"')
-            `$index++
-        } else {
-            [void]`$builder.Append('\' * `$backslashes)
-            [void]`$builder.Append(`$Value[`$index])
-            `$index++
+    # Der Live Server wird ausschliesslich ueber Systemproperties konfiguriert.
+    # Die Properties-Datei wird hier einmal zu -D-Argumenten expandiert, weil die
+    # Aufgabe keinen Zwischenprozess mehr hat, der sie beim Start lesen koennte.
+    # Wer live-server.properties spaeter von Hand aendert, muss den Installer
+    # erneut ausfuehren; darauf weist die Installation am Ende hin.
+    $liveProperties = [ordered]@{}
+    foreach ($line in Get-Content -LiteralPath (Get-StagedPath $liveConfig)) {
+        if ($line -match '^\s*([^#=]+)=(.*)$') {
+            $liveProperties[$Matches[1].Trim()] = $Matches[2].Trim()
         }
     }
-    [void]`$builder.Append('"')
-    return `$builder.ToString()
+    foreach ($key in $liveProperties.Keys) { $liveArguments += "-D$key=$($liveProperties[$key])" }
+    $liveArguments += '-jar'
+    $liveArguments += (Join-Path $InstallPrefix "lib\$LiveJar")
 }
 
-`$config = @{}
-Get-Content -LiteralPath '$liveConfig' | ForEach-Object {
-    if (`$_ -match '^\s*([^#=]+)=(.*)$') { `$config[`$Matches[1].Trim()] = `$Matches[2].Trim() }
-}
-`$arguments = @()
-foreach (`$key in `$config.Keys) { `$arguments += "-D`$key=`$(`$config[`$key])" }
-`$arguments += '-jar'
-`$arguments += '$InstallPrefix\lib\$LiveJar'
-
-`$startInfo = New-Object System.Diagnostics.ProcessStartInfo
-`$startInfo.FileName = '$javaExe'
-`$startInfo.Arguments = ((`$arguments | ForEach-Object { ConvertTo-CommandLineArgument `$_ }) -join ' ')
-`$startInfo.UseShellExecute = `$false
-`$startInfo.CreateNoWindow = `$true
-
-`$process = [System.Diagnostics.Process]::Start(`$startInfo)
-`$process.WaitForExit()
-exit `$process.ExitCode
-"@
-    Set-Content -LiteralPath (Get-StagedPath $ps1) -Value $launcherScript -Encoding UTF8
-
-    $cmd = @"
-@echo off
-rem $ProductName - Live Server. Wird von der geplanten Aufgaben-Instanz aufgerufen.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$ps1"
-exit /b %errorlevel%
-"@
-    Set-Content -LiteralPath (Get-StagedPath $liveLauncher) -Value $cmd -Encoding ASCII
+# Aus fruheren Installationen: die Startskripte werden nicht mehr verwendet.
+foreach ($stale in @('start-bridge.cmd', 'start-live-server.cmd', 'start-live-server.ps1')) {
+    $stalePath = Get-StagedPath (Join-Path $InstallPrefix $stale)
+    if (Test-Path -LiteralPath $stalePath) {
+        Remove-Item -LiteralPath $stalePath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # ------------------------------------------------------------ Geplante Aufgaben
 
-function Register-BackgroundTask {
-    param([string]$TaskName, [string]$Launcher)
+function ConvertTo-CommandLineArgument {
+    param([string]$Value)
 
-    $action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"$Launcher`""
+    # Windows uebergibt Argumente als eine einzige Zeichenkette, die der Zielprozess
+    # mit CommandLineToArgvW wieder zerlegt. Diese Funktion setzt genau dessen Regeln
+    # um, damit Leerzeichen, Backslashes und Anfuehrungszeichen in Pfaden und Secrets
+    # unveraendert beim Java-Prozess ankommen.
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
+    $builder = New-Object System.Text.StringBuilder
+    [void]$builder.Append('"')
+    $index = 0
+    while ($index -lt $Value.Length) {
+        $backslashes = 0
+        while ($index -lt $Value.Length -and $Value[$index] -eq [char]'\') {
+            $backslashes++
+            $index++
+        }
+        if ($index -eq $Value.Length) {
+            [void]$builder.Append('\' * ($backslashes * 2))
+        } elseif ($Value[$index] -eq [char]'"') {
+            [void]$builder.Append('\' * ($backslashes * 2 + 1))
+            [void]$builder.Append('"')
+            $index++
+        } else {
+            [void]$builder.Append('\' * $backslashes)
+            [void]$builder.Append($Value[$index])
+            $index++
+        }
+    }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+
+function Register-BackgroundTask {
+    param([string]$TaskName, [string]$Executable, [string[]]$Arguments)
+
+    # Kein cmd.exe und kein PowerShell dazwischen: Der Prozess, den die Aufgabe
+    # startet, ist der Dienst selbst. Nur so beendet Stop-ScheduledTask ihn auch.
+    $action = New-ScheduledTaskAction -Execute $Executable `
+        -Argument (($Arguments | ForEach-Object { ConvertTo-CommandLineArgument $_ }) -join ' ')
     $trigger = New-ScheduledTaskTrigger -AtStartup
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
@@ -902,10 +888,10 @@ function Get-BridgeOperationalDiagnostic {
 
 if ([string]::IsNullOrWhiteSpace($StagingRoot) -and -not $SkipTasks) {
     if ($installLive) {
-        Register-BackgroundTask -TaskName $LiveTaskName -Launcher $liveLauncher
+        Register-BackgroundTask -TaskName $LiveTaskName -Executable $javaExe -Arguments $liveArguments
     }
     if ($installBridge) {
-        Register-BackgroundTask -TaskName $BridgeTaskName -Launcher $bridgeLauncher
+        Register-BackgroundTask -TaskName $BridgeTaskName -Executable $javaExe -Arguments $bridgeArguments
     }
 
     if ($installLive) {
