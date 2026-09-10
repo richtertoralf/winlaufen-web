@@ -15,7 +15,6 @@ import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.SourceHealth;
 
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -41,8 +40,8 @@ public final class CanonicalStateStore {
 
     /**
      * @param configuredZoneId the organiser's competition time zone, or {@code null} when none was
-     *                         configured — then the zone of this machine is used and every sample
-     *                         says that it is only a fallback
+     *                         configured — then Sprecher-Web's own default for WinLaufen applies
+     *                         and every sample says so
      */
     public CanonicalStateStore(PresentationConfig presentation, String configuredZoneId) {
         this(presentation, TimeReference.systemClock(), configuredZoneId);
@@ -53,9 +52,9 @@ public final class CanonicalStateStore {
                                String configuredZoneId) {
         this.reference = reference;
         this.competitionZoneId = configuredZoneId != null
-                ? configuredZoneId : ZoneId.systemDefault().getId();
+                ? configuredZoneId : CompetitionTimeZoneSource.APPLICATION_DEFAULT_ZONE;
         this.competitionZoneSource = configuredZoneId != null
-                ? CompetitionTimeZoneSource.CONFIGURED : CompetitionTimeZoneSource.SYSTEM_DEFAULT;
+                ? CompetitionTimeZoneSource.CONFIGURED : CompetitionTimeZoneSource.APPLICATION_DEFAULT;
         current = new AtomicReference<>(new CanonicalSnapshot(0, CanonicalState.empty(), presentation));
     }
 

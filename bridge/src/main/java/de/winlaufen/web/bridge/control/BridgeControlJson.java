@@ -66,9 +66,9 @@ public final class BridgeControlJson {
     /**
      * The zone the bridge actually reads the competition time in, and where it came from.
      *
-     * <p>Shown so a mistyped {@code competition.timezone} cannot hide: it falls back to the
-     * machine's zone, and then this says {@code SYSTEM_DEFAULT} while {@code notices} names the
-     * unusable value.
+     * <p>Without configuration this is Sprecher-Web's own default for WinLaufen, which is the
+     * normal case and needs no action. A mistyped {@code competition.timezone} lands in the same
+     * place, and then {@code notices} names the unusable value.
      */
     public record TimeZoneView(String zone, String source) { }
 

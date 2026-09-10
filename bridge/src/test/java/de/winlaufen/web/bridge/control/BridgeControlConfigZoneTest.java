@@ -18,7 +18,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -94,12 +93,12 @@ class BridgeControlConfigZoneTest {
     }
 
     /**
-     * A mistyped zone is not a startup failure — every other function works — but it silently
-     * shifts every time measurement by the offset between the intended and the fallback zone. On a
-     * UTC host that is two hours. So it has to be visible where an organiser actually looks.
+     * A mistyped zone is not a startup failure — every other function works — but it would shift
+     * every time measurement. It falls back to the application default, never to whatever zone this
+     * computer happens to be set to, and it says so where an organiser actually looks.
      */
     @Test
-    void anUnusableZoneFallsBackAndSaysSoOnTheSurface() throws Exception {
+    void anUnusableZoneFallsBackToTheApplicationDefaultAndSaysSo() throws Exception {
         server.close();
         Files.writeString(configFile, """
                 source.host=192.168.95.198
@@ -119,13 +118,40 @@ class BridgeControlConfigZoneTest {
 
         JsonNode status = MAPPER.readTree(get("/api/v1/status").body());
         // The bridge runs, and it names the zone it really uses.
-        assertEquals(ZoneId.systemDefault().getId(),
-                status.get("competitionTimeZone").get("zone").asText());
-        assertEquals("SYSTEM_DEFAULT", status.get("competitionTimeZone").get("source").asText());
+        assertEquals("Europe/Berlin", status.get("competitionTimeZone").get("zone").asText());
+        assertEquals("APPLICATION_DEFAULT",
+                status.get("competitionTimeZone").get("source").asText());
 
+        // The warning has to name the bad value, the value that replaced it and where to fix it.
         String notices = status.get("notices").toString();
         assertTrue(notices.contains("Europe/Berln"), notices);
-        assertTrue(notices.contains("Zeitzone"), notices);
+        assertTrue(notices.contains("Europe/Berlin"), notices);
+        assertTrue(notices.contains("bridge.properties"), notices);
+    }
+
+    /**
+     * The normal German event: nothing configured, and the surface simply states the default.
+     * There is nothing to warn about and nothing for an organiser to do.
+     */
+    @Test
+    void withoutConfigurationTheDefaultIsShownWithoutAWarning() throws Exception {
+        server.close();
+        Files.writeString(configFile, "source.host=192.168.95.198\noutputs.count=0\n");
+        BridgeConfigStore.LoadResult loaded = new BridgeConfigStore(configFile).loadWithNotices();
+        current.set(loaded.config());
+
+        server = new BridgeControlServer("127.0.0.1", 0,
+                new CanonicalStateStore(PresentationConfig.defaults(),
+                        current.get().competitionTimeZone()),
+                store, StartListStore.besideConfig(configFile),
+                current::get, List::of, current::set, loaded::notices);
+        server.start();
+
+        JsonNode status = MAPPER.readTree(get("/api/v1/status").body());
+        assertEquals("Europe/Berlin", status.get("competitionTimeZone").get("zone").asText());
+        assertEquals("APPLICATION_DEFAULT",
+                status.get("competitionTimeZone").get("source").asText());
+        assertEquals(0, status.get("notices").size());
     }
 
     @Test
@@ -141,6 +167,12 @@ class BridgeControlConfigZoneTest {
     void theSurfaceRendersConfigNotices() throws Exception {
         assertTrue(get("/").body().contains("config-notices"));
         assertTrue(get("/assets/control.js").body().contains("showConfigNotices"));
+        assertTrue(get("/").body().contains("competition-timezone"));
+
+        String script = get("/assets/control.js").body();
+        assertTrue(script.contains("showCompetitionTimeZone"));
+        // Der Normalfall ist keine Warnung, sondern eine Angabe.
+        assertTrue(script.contains("Standard für WinLaufen"), script.contains("Standard") + "");
     }
 
     private HttpResponse<String> get(String path) throws Exception {

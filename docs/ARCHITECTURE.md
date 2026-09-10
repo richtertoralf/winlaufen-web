@@ -109,11 +109,12 @@ Fünf Dinge bleiben dabei getrennt und werden nie ineinander gerechnet:
   oder bewertet, welche Messstelle genauer ist. Ein Referenzstatus wird nur dann
   als synchronisiert gemeldet, wenn das feststellbar ist — heute nirgends, also
   durchgehend `UNVERIFIED`
-- Die Wettkampf-Zeitzone ist Veranstalterkonfiguration
-  (`competition.timezone` in `bridge.properties`). Ohne Eintrag gilt die Zone des
-  Bridge-Rechners, und das Sample kennzeichnet sie als `SYSTEM_DEFAULT` statt sie
-  als bestätigt auszugeben. Zeitzonenherkunft und Uhrqualität sind getrennte
-  Angaben
+- Die Wettkampf-Zeitzone ist ohne Eintrag `Europe/Berlin`, der fachliche Standard
+  für WinLaufen; das Sample kennzeichnet sie dann als `APPLICATION_DEFAULT`. Die
+  Zone des Rechners bestimmt sie bewusst **nicht** — sie ist ein Zufall der
+  Einrichtung und würde auf einem UTC-Host jede Differenz verschieben. Für das
+  Ausland wird `competition.timezone` in `bridge.properties` gesetzt.
+  Zeitzonenherkunft und Uhrqualität sind getrennte Angaben
   Damit lässt sich „WinLaufen getrennt" von „Bridge getrennt" unterscheiden —
   die browserseitige `SourceHealth` wird beim Bridge-Verlust bewusst abgewertet
   und kann das allein nicht ausdrücken

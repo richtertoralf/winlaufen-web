@@ -104,10 +104,10 @@ Die beiden sichtbaren Oberflächen heißen:
 * Das funktioniert **vollständig offline**. Ohne belegbare Zeitreferenz meldet
   die API `UNVERIFIED`; das ist kein Fehlerzustand, und ein Consumer kann
   weiterhin einen manuell bestimmten Offset verwenden.
-* Für die Differenz wird die **Wettkampf-Zeitzone** gebraucht. Sie steht in
-  `bridge.properties` unter `competition.timezone`; ohne Eintrag gilt die Zone
-  des Rechners, und die API kennzeichnet das als bloßen Rückfall. Auf einem
-  Server mit Systemzone UTC sollte sie gesetzt werden.
+* **Wettkampf-Zeitzone:** Sprecher-Web verwendet standardmäßig `Europe/Berlin`.
+  Für normale WinLaufen-Veranstaltungen in Deutschland ist **keine Einstellung
+  erforderlich**. Nur für eine Veranstaltung in einer anderen Zeitzone wird sie
+  eingetragen — siehe [docs/INSTALLATION.md](docs/INSTALLATION.md#wettkampf-zeitzone).
 
 **Betrieb**
 

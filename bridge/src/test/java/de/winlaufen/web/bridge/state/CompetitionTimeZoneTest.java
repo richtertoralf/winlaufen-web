@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,34 +47,43 @@ class CompetitionTimeZoneTest {
     }
 
     /**
-     * Nothing configured: the machine's zone is used, and the sample says it is only a fallback.
-     * Whichever zone this test machine happens to be in, the source must be the honest one.
+     * The normal case for a German event: nobody configures anything and it is simply right.
+     * WinLaufen is used essentially only in Germany, so that is the application's own default.
      */
     @Test
-    void withoutConfigurationTheMachineZoneIsUsedAndMarkedAsFallback() {
+    void withoutConfigurationTheApplicationDefaultApplies() {
         ClockSample sample = sampleOf(null);
-        assertEquals(ZoneId.systemDefault().getId(), sample.competitionTimeZone());
-        assertEquals(CompetitionTimeZoneSource.SYSTEM_DEFAULT, sample.competitionTimeZoneSource());
+        assertEquals("Europe/Berlin", sample.competitionTimeZone());
+        assertEquals(CompetitionTimeZoneSource.APPLICATION_DEFAULT,
+                sample.competitionTimeZoneSource());
+        // 14:30:00 competition against 14:30:00 Berlin local time.
+        assertEquals(0, sample.competitionMinusReferenceMs());
     }
 
     /**
-     * The setup that is easy to overlook: a Linux host on UTC. Reading a German competition time as
-     * UTC is off by the whole offset, and the only protection is that the sample says where the
-     * zone came from.
+     * The setup that used to be the trap: a Linux host on UTC. The machine's zone no longer decides
+     * anything, so a German event stays correct without a single configuration entry.
      */
     @Test
-    void aUtcHostWithoutConfigurationIsVisiblyAFallback() {
-        ClockSample utc = sampleOf(null);
-        ClockSample berlin = sampleOf("Europe/Berlin");
+    void aHostInAnotherZoneDoesNotChangeTheCompetitionZone() {
+        ClockSample sample = sampleOf(null);
 
-        assertEquals(CompetitionTimeZoneSource.SYSTEM_DEFAULT, utc.competitionTimeZoneSource());
-        assertEquals(CompetitionTimeZoneSource.CONFIGURED, berlin.competitionTimeZoneSource());
+        assertEquals("Europe/Berlin", sample.competitionTimeZone());
+        assertEquals(CompetitionTimeZoneSource.APPLICATION_DEFAULT,
+                sample.competitionTimeZoneSource());
+        // Would be +7 200 000 ms if the host zone (UTC on this test machine's CI) decided.
+        assertEquals(0, sample.competitionMinusReferenceMs());
+    }
 
-        // Same telegram, same instant, two hours apart purely because of the zone.
-        ClockSample explicitUtc = sampleOf("UTC");
-        assertEquals("UTC", explicitUtc.competitionTimeZone());
-        assertEquals(2 * 3600_000, explicitUtc.competitionMinusReferenceMs());
-        assertEquals(0, berlin.competitionMinusReferenceMs());
+    /** Abroad: one entry in the configuration file, and it is honoured and reported as such. */
+    @Test
+    void anEventAbroadIsConfiguredExplicitly() {
+        ClockSample sample = sampleOf("America/New_York");
+
+        assertEquals("America/New_York", sample.competitionTimeZone());
+        assertEquals(CompetitionTimeZoneSource.CONFIGURED, sample.competitionTimeZoneSource());
+        // 12:30Z is 08:30 in New York, so 14:30:00 competition time is six hours ahead.
+        assertEquals(6 * 3600_000, sample.competitionMinusReferenceMs());
     }
 
     /** The zone travels with every sample, so a receiver never has to fall back to its own. */

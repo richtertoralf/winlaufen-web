@@ -137,7 +137,7 @@ Fragen beantworten und nicht ineinander umgerechnet werden dürfen.
 |---|---|
 | `time.competitionTime` | Welche Wettkampfzeit meldet WinLaufen? |
 | `time.competitionTimeZone` | In welcher Zeitzone wurde diese Tageszeit für die Differenzen unten gelesen? |
-| `time.competitionTimeZoneSource` | Wurde diese Zone ausdrücklich konfiguriert oder nur vom System übernommen? |
+| `time.competitionTimeZoneSource` | Wurde diese Zone ausdrücklich konfiguriert oder gilt der WinLaufen-Standard? |
 | `time.clockChangedAt` | Seit wann hat die Wettkampfzeit diesen Wert? |
 | `time.clockSampleRevision` | Wie viele echte Uhrtelegramme hat die Bridge in diesem Lauf verarbeitet? |
 | `time.bridge` | Was hat die **Bridge** beim Empfang dieses Telegramms gemessen? |
@@ -278,37 +278,36 @@ mit**, damit beide Messstellen dieselbe Auslegung verwenden. Ein Live Server auf
 einem UTC-Rechner deutet eine in Ortszeit gelesene Wettkampfzeit deshalb nicht
 still um.
 
-`time.competitionTimeZoneSource` sagt, **wie** diese Zone zustande kam:
+**Ohne jede Konfiguration gilt `Europe/Berlin`.** WinLaufen wird praktisch
+ausschließlich in Deutschland eingesetzt, also ist das der fachliche Standard von
+Sprecher-Web — für eine normale Veranstaltung ist nichts einzustellen. Die Zone
+des Rechners spielt bewusst **keine** Rolle: Sie ist ein Zufall der Einrichtung
+dieses Computers, und ein Linux-Server auf UTC würde sonst jede Differenz um den
+vollen Versatz verschieben, ohne dass etwas ungewöhnlich aussieht.
+
+`time.competitionTimeZoneSource` sagt, **wie** die Zone zustande kam:
 
 | Wert | Bedeutung |
 |---|---|
-| `CONFIGURED` | Die Zone wurde für diese Bridge ausdrücklich festgelegt. Jemand hat sich entschieden. |
-| `SYSTEM_DEFAULT` | Es wurde nichts konfiguriert, also gilt die Zone des Rechners, auf dem die Bridge läuft. |
+| `CONFIGURED` | Die Zone wurde für diese Bridge ausdrücklich festgelegt. |
+| `APPLICATION_DEFAULT` | Es wurde nichts konfiguriert; es gilt der WinLaufen-Standard `Europe/Berlin`. |
 
-**`SYSTEM_DEFAULT` heißt nicht, dass die Zone fachlich richtig ist.** Es heißt
-nur, dass keine konfiguriert wurde. Das trifft zu, solange die Bridge in der
-Zeitzone der Veranstaltung läuft — der Normalfall — und ist genau dort falsch, wo
-es leicht übersehen wird: auf einem Linux-Server, dessen Systemzone UTC ist.
-Jede Differenz wäre dann um den vollen UTC-Versatz daneben, ohne dass irgendetwas
-ungewöhnlich aussieht.
-
-Konfiguriert wird sie in `bridge.properties`:
+Für eine Veranstaltung **außerhalb Deutschlands** wird die Zone in
+`bridge.properties` eingetragen:
 
 ```properties
-competition.timezone=Europe/Berlin
+competition.timezone=America/New_York
 ```
 
-Für Veranstaltungen in Deutschland sollte dieser Eintrag gesetzt werden,
-insbesondere wenn die Bridge auf einem Linux-System mit Systemzone UTC läuft.
 Der Eintrag überlebt ein Speichern in Bridge Control, obwohl die Oberfläche kein
-Feld dafür hat.
+Feld dafür hat. Alternativ und nachrangig wirkt weiterhin die Systemproperty
+`-Dwinlaufen.competition.timezone=…`; sie greift nur, wenn die
+Konfigurationsdatei nichts sagt, und zählt ebenfalls als `CONFIGURED`.
 
-Alternativ und nachrangig wirkt weiterhin die Systemproperty
-`-Dwinlaufen.competition.timezone=Europe/Berlin`; sie greift nur, wenn die
-Konfigurationsdatei nichts sagt. Ein unbekannter Wert wird beim Start gemeldet
-und wie „nicht konfiguriert" behandelt — die Bridge startet trotzdem, denn eine
-falsche Zone betrifft nur eine Messung, die dann ohnehin als Rückfall markiert
-ist.
+Ein **unbrauchbarer Wert** — ein Tippfehler wie `America/New_Yrok` — bricht den
+Start nicht ab. Es gilt dann `Europe/Berlin`, also wieder der Anwendungsstandard
+und nicht die Zone des Rechners, und Bridge Control zeigt eine Warnung mit dem
+falschen Wert und den beiden Konfigurationspfaden.
 
 ### Zeitzonenherkunft und Uhrqualität sind zwei Dinge
 
@@ -316,13 +315,13 @@ ist.
 Fragen und dürfen nicht vermischt werden:
 
 ```text
-competitionTimeZoneSource = CONFIGURED     jemand hat die Wettkampfzone festgelegt
-bridge.referenceStatus    = UNVERIFIED     über die Genauigkeit der Bridge-Uhr ist nichts bekannt
+competitionTimeZoneSource = CONFIGURED          jemand hat die Wettkampfzone festgelegt
+bridge.referenceStatus    = UNVERIFIED          über die Genauigkeit der Bridge-Uhr ist nichts bekannt
 ```
 
 ```text
-competitionTimeZoneSource = SYSTEM_DEFAULT gut möglich, dass die Zone passt — bestätigt hat es niemand
-bridge.referenceStatus    = SYNCHRONIZED   die Uhr geht nachweislich richtig
+competitionTimeZoneSource = APPLICATION_DEFAULT es gilt der WinLaufen-Standard Europe/Berlin
+bridge.referenceStatus    = SYNCHRONIZED        die Uhr geht nachweislich richtig
 ```
 
 Beide Kombinationen sind möglich und sagen jeweils nichts über die andere Frage
@@ -648,7 +647,7 @@ Vollständig beschrieben unter [Zeitmodell](#5-zeitmodell).
 |---|---|
 | `competitionTime` | Wettkampfzeit aus WinLaufen, unveränderte Zeichenkette. `null`, solange keine ankam. |
 | `competitionTimeZone` | Zone, in der diese Tageszeit für die Differenzen gelesen wurde. |
-| `competitionTimeZoneSource` | `CONFIGURED` oder `SYSTEM_DEFAULT`. |
+| `competitionTimeZoneSource` | `CONFIGURED` oder `APPLICATION_DEFAULT`. |
 | `clockChangedAt` | Wann erstmals ein Sample mit **diesem** Wert erkannt wurde, ISO-8601 UTC. |
 | `clockSampleRevision` | Anzahl der von der Bridge verarbeiteten Uhrtelegramme in diesem Bridge-Lauf. |
 | `bridge` | Messung der Bridge: `systemTimeAtReceipt`, `competitionMinusReferenceMs`, `referenceStatus`, `referenceSource`. `null`, solange kein Sample vorliegt. |

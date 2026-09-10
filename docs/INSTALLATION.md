@@ -512,7 +512,7 @@ Windows x64. Raspberry Pi OS auf ARM wird über den Source-Weg installiert.
 /opt/winlaufen-web/runtime/      gebündelte Java-Runtime, falls die Quelle eine mitbringt
 /etc/winlaufen-web/              Konfiguration und persistente Veranstalterdaten
     bridge.properties            Veranstalter-Konfiguration der Bridge
-                                 (optional: competition.timezone)
+                                 (competition.timezone nur für das Ausland)
     startlist.properties         importierte Startliste (nur bei Profilen mit Bridge)
     live-server.env              technische Live-Server-Parameter
 /var/lib/winlaufen-web/          Arbeitsverzeichnis des Dienstkontos
@@ -530,29 +530,44 @@ C:\ProgramData\WinLaufen Web\
 
 ### Wettkampf-Zeitzone
 
-`bridge.properties` kennt eine optionale Angabe, die nur die Zeitmessungen der
-Read API betrifft:
+**Für Veranstaltungen in Deutschland ist hier nichts zu tun.** Sprecher-Web
+verwendet standardmäßig `Europe/Berlin`; die Zeitzone des Rechners spielt keine
+Rolle, auch nicht auf einem Server, der auf UTC steht.
 
-```properties
-competition.timezone=Europe/Berlin
+Die Angabe betrifft ausschließlich die Zeitmessungen der Read API: Sie legt fest,
+in welcher Zone die WinLaufen-Wettkampfzeit gelesen wird, wenn die Differenz zur
+Systemzeit bestimmt wird. Für Uhr, Ergebnisse, Startliste und Web Viewer ist sie
+ohne Bedeutung. Bridge Control zeigt die verwendete Zone im Abschnitt WinLaufen
+an.
+
+**Nur für eine Veranstaltung in einer anderen Zeitzone** wird sie in
+`bridge.properties` eingetragen:
+
+Linux:
+
+```sh
+sudo nano /etc/winlaufen-web/bridge.properties
 ```
 
-Sie legt fest, in welcher Zeitzone die WinLaufen-Wettkampfzeit gelesen wird,
-wenn die Bridge ihre Differenz zur eigenen Systemzeit bestimmt. Ohne Eintrag
-gilt die Zeitzone des Rechners; die API kennzeichnet das dann ausdrücklich als
-Rückfall und nicht als bestätigte Wettkampfzone.
+Windows:
 
-**Für Veranstaltungen in Deutschland sollte der Eintrag gesetzt werden**,
-besonders auf einem Linux-System, dessen Systemzone UTC ist — sonst wäre jede
-Messdifferenz um den vollen UTC-Versatz daneben. Für Uhr, Ergebnisse, Startliste
-und Web Viewer ist die Angabe ohne Bedeutung; sie wird nicht bei der
-Installation abgefragt und ist nicht erforderlich, um Sprecher-Web zu betreiben.
+```powershell
+notepad "C:\ProgramData\WinLaufen Web\bridge.properties"
+```
 
-Ein **unbrauchbarer Wert** — ein Tippfehler wie `Europe/Berln` — bricht den Start
-nicht ab. Die Bridge verwendet dann die Zeitzone des Rechners und meldet den
-Fehler in **Bridge Control** im Abschnitt WinLaufen sowie unter
-`GET /api/v1/status`. Die Read API zeigt dann `competitionTimeZoneSource` als
-`SYSTEM_DEFAULT` und die tatsächlich verwendete Zone.
+Eintrag:
+
+```properties
+competition.timezone=America/New_York
+```
+
+Weitere Beispiele: `Europe/Prague`, `Australia/Sydney`. Nach der Änderung die
+Bridge neu starten.
+
+Ist der Wert **unbrauchbar** — etwa `America/New_Yrok` —, startet die Bridge
+trotzdem, verwendet wieder `Europe/Berlin` und zeigt in Bridge Control eine
+Warnung mit dem falschen Wert und beiden Konfigurationspfaden. Es wird **nicht**
+auf die Zeitzone des Rechners zurückgefallen.
 
 Es gibt **keine NTP- und keine Internetpflicht**: Sprecher-Web funktioniert
 vollständig in einem vom Internet getrennten Netz. Die API meldet dann bei den

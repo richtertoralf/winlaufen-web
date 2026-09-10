@@ -1,5 +1,6 @@
 package de.winlaufen.web.bridge.config;
 
+import de.winlaufen.web.contract.CompetitionTimeZoneSource;
 import de.winlaufen.web.contract.PresentationConfig;
 
 import java.io.IOException;
@@ -166,8 +167,9 @@ public final class BridgeConfigStore {
      * unit must not silently override what an operator wrote into the configuration.
      *
      * <p>An unusable value is reported and treated as unset rather than failing the start: the
-     * bridge's job is to deliver results, and a wrong zone only affects a measurement that is
-     * marked as a fallback anyway.
+     * bridge's job is to deliver results. It then falls back to Sprecher-Web's own default for
+     * WinLaufen, never to the zone of this machine — a typo must not silently turn into whatever
+     * zone the computer happens to be set to.
      */
     private static String competitionTimeZone(Properties values, List<String> notices) {
         String configured = values.getProperty(COMPETITION_TIMEZONE_KEY);
@@ -180,8 +182,12 @@ public final class BridgeConfigStore {
         try {
             return ZoneId.of(configured.trim()).getId();
         } catch (RuntimeException ex) {
-            notices.add("Unbekannte Wettkampf-Zeitzone \"" + configured.trim()
-                    + "\" — es gilt die Zeitzone dieses Rechners.");
+            notices.add("Ungültige Wettkampf-Zeitzone \"" + configured.trim()
+                    + "\". Es wird der WinLaufen-Standard \""
+                    + CompetitionTimeZoneSource.APPLICATION_DEFAULT_ZONE + "\" verwendet. "
+                    + "Einstellbar in " + COMPETITION_TIMEZONE_KEY + " unter Linux in "
+                    + "/etc/winlaufen-web/bridge.properties, unter Windows in "
+                    + "C:\\ProgramData\\WinLaufen Web\\bridge.properties.");
             return null;
         }
     }

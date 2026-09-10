@@ -762,6 +762,29 @@ class ReadApiTest {
         assertEquals("CONNECTED", json("/api/v1/state").get("connection").get("status").asText());
     }
 
+    /**
+     * The normal German event: nothing configured anywhere, and the API says which zone applies
+     * and that it is the application's own default rather than someone's decision.
+     */
+    @Test
+    void theApplicationDefaultZoneIsReportedAsSuch() throws Exception {
+        states.ingestConnected();
+        publishSnapshot(SourceHealth.CONNECTED, "14:31:40",
+                new ClockSample(1, "14:31:40", "Europe/Berlin",
+                        CompetitionTimeZoneSource.APPLICATION_DEFAULT,
+                        bridgeNow.get().toString(), 99_900L,
+                        TimeReferenceStatus.UNVERIFIED, TimeReferenceSource.SYSTEM_CLOCK),
+                null, PresentationConfig.defaults());
+        publishStartList(1, entries(2));
+
+        for (String path : List.of("/api/v1/state", "/api/v1/startlist")) {
+            JsonNode time = json(path).get("time");
+            assertEquals("Europe/Berlin", time.get("competitionTimeZone").asText(), path);
+            assertEquals("APPLICATION_DEFAULT",
+                    time.get("competitionTimeZoneSource").asText(), path);
+        }
+    }
+
     // ---------------------------------------------------------------- transport
 
     @Test

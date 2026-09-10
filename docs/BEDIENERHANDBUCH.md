@@ -716,17 +716,34 @@ bereitstellen, damit andere Anwendungen ihn verwenden können — zum Beispiel e
 Grafikeinblendung im Livestream. Für Sie als Veranstalter ändert sich dadurch
 nichts: Sie müssen nichts einschalten und nichts einstellen.
 
-Ein Punkt kann für Sie relevant werden, wenn ein solches System die Wettkampfzeit
-mit einer echten Uhrzeit in Beziehung setzen soll. Dann sollte in der
-Konfigurationsdatei der Bridge die Zeitzone der Veranstaltung stehen:
+**Auch die Wettkampf-Zeitzone müssen Sie nicht einstellen.** Sprecher-Web
+verwendet `Europe/Berlin`; Bridge Control zeigt das im Abschnitt WinLaufen als
+„Standard für WinLaufen" an. Das ist keine Warnung, sondern die normale Anzeige.
 
-```properties
-competition.timezone=Europe/Berlin
+Nur wenn Ihre Veranstaltung **in einer anderen Zeitzone** stattfindet, tragen Sie
+diese einmalig in der Konfigurationsdatei der Bridge ein:
+
+Windows:
+
+```powershell
+notepad "C:\ProgramData\WinLaufen Web\bridge.properties"
 ```
 
-Das ist **optional** und nur für diesen Fall gedacht. Für Uhr, Ergebnisse,
-Startliste und die Anzeige im Browser spielt es keine Rolle. Wer das einrichtet,
-findet die Einzelheiten in [INSTALLATION.md](INSTALLATION.md) und
+Linux:
+
+```sh
+sudo nano /etc/winlaufen-web/bridge.properties
+```
+
+Zeile ergänzen, zum Beispiel:
+
+```properties
+competition.timezone=America/New_York
+```
+
+Danach die Bridge neu starten. Steht dort ein Tippfehler, läuft Sprecher-Web
+weiter, verwendet `Europe/Berlin` und zeigt Ihnen in Bridge Control eine
+Warnung. Einzelheiten stehen in [INSTALLATION.md](INSTALLATION.md) und
 [API.md](API.md).
 
 ## Weiterführende Dokumentation

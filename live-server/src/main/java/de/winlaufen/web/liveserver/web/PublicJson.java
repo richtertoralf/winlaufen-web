@@ -94,7 +94,8 @@ public final class PublicJson {
      *       sent. Not a timestamp: no date, no zone, and nothing turns it into one.
      *   <li>{@code competitionTimeZone} and {@code competitionTimeZoneSource} — the zone in which
      *       that string was read as a time of day to form the differences below, and how that zone
-     *       was arrived at. {@code SYSTEM_DEFAULT} means nobody confirmed it for this event.
+     *       was arrived at. {@code APPLICATION_DEFAULT} means nobody configured one and
+     *       Sprecher-Web's own default for WinLaufen applies.
      *   <li>{@code clockChangedAt} — since when the competition time has this value. Not a
      *       staleness measure: the value may legitimately stand still.
      *   <li>{@code clockSampleRevision} — how many clock telegrams the bridge has processed on this
