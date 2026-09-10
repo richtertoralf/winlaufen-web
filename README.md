@@ -1,6 +1,6 @@
 # Sprecher-Web
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
+[![Version](https://img.shields.io/badge/version-0.4.1-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
 [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
 
 Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
@@ -30,7 +30,7 @@ Die beiden sichtbaren Oberflächen heißen:
 - **Sprecher-Web – Bridge Control** — die Veranstalter-Oberfläche
 - **Sprecher-Web – Live-Ergebnisse** — die Ansicht für alle Zuschauer
 
-> **Status: Version 0.4.0, Prototype Baseline.** Für ausgewählte Vereine in
+> **Status: Version 0.4.1, Prototype Baseline.** Für ausgewählte Vereine in
 > **kontrollierten Netzen** gedacht, nicht für offenen Internetbetrieb. Vor dem
 > Einsatz den Abschnitt
 > [Known prototype security limitation](#known-prototype-security-limitation)
@@ -72,8 +72,7 @@ Die beiden sichtbaren Oberflächen heißen:
 * Im Web Viewer erscheint sie **klassenweise**: Vor-/Zurück-Navigation,
   direkte Klassenauswahl und die Reihenfolge genau wie im WinLaufen-Export.
 
-**Generische Read API** — *Entwicklungsstand, siehe
-[Projektstatus](#projektstatus). Nicht in Version 0.4.0 enthalten.*
+**Generische Read API** — *neu in 0.4.1.*
 
 * Der Live Server stellt seinen Zustand **maschinenlesbar** über HTTP bereit:
   `GET /api/v1/state` für den laufenden Zustand und `GET /api/v1/startlist`
@@ -188,7 +187,7 @@ Stände gedacht.
 
 ### Installation aus dem Releasepaket — empfohlen
 
-Aktuelle Version: **0.4.0**. Die Dateinamen unten enthalten die Version; in
+Aktuelle Version: **0.4.1**. Die Dateinamen unten enthalten die Version; in
 den Befehlen steht dafür `<version>`.
 
 **Linux**
@@ -438,22 +437,21 @@ für Bediener: [Bedienerhandbuch, Kapitel 9](docs/BEDIENERHANDBUCH.md#9-die-ange
 
 ## Projektstatus
 
-**Version `0.4.0`.** Dieses Release schließt den Startlistenweg ab: Import in
-Bridge Control, persistenter Bestand in der Bridge, eigene Übertragung zum Live
-Server und klassenweise Anzeige im Web Viewer — zusätzlich zu Uhr und
-Ergebnissen wie bisher.
+**Version `0.4.1`.** Dieses Release öffnet Sprecher-Web für andere Systeme: Die
+**generische Read API** des Live Servers stellt Wettkampfzeit, Ergebnisse,
+Verbindungsstatus und den vollständigen Startlistenbestand maschinenlesbar
+bereit — für Overlay- und Timing-Systeme, Monitoring und eigene Integrationen.
+Bridge und Live Server messen dabei zu jedem WinLaufen-Uhrtelegramm, korrigieren
+aber nichts; die Auswertung bleibt beim Consumer.
 
-Es ist zugleich die erste Version mit **fertigen Releasepaketen** für Linux
-amd64 und Windows x64, die ohne Git, Maven und JDK installiert werden können.
+Dazu kommen zwei Korrekturen aus dem realen Windows-Betrieb: Die geplanten
+Aufgaben besitzen jetzt ihre Java-Prozesse, sodass `Stop-ScheduledTask` sie
+wirklich beendet, und der Installer stellt deutsche Umlaute richtig dar.
 
-### Entwicklungsstand
-
-**Aktuelles Release: `0.4.0`** — enthält MS1 und MS2, **nicht** die Read API.
-
-**In Arbeit für `0.4.1`:** Die generische Read API des Live Servers samt
-Zeitmodell ist vollständig implementiert und automatisiert getestet, liegt aber
-auf dem Feature-Branch `feat/live-read-api` und ist noch nicht veröffentlicht.
-Offen ist der abschließende manuelle Test mit der echten Anlage.
+`0.4.0` brachte zuvor den Startlistenweg — Import in Bridge Control, persistenter
+Bestand in der Bridge, Übertragung zum Live Server und klassenweise Anzeige im
+Web Viewer — sowie die ersten fertigen Releasepakete für Linux amd64 und
+Windows x64.
 
 Die Prototyp-Grenzen aus
 [Known prototype security limitation](#known-prototype-security-limitation)
@@ -534,7 +532,7 @@ Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
 | Punkt | Auswirkung heute |
 |---|---|
 | Der `WinLaufenClient`-Test belegt lokal TCP 4444. | `./mvnw clean package` kann auf einem Rechner scheitern, auf dem WinLaufen mit aktiver Sprecher-PC-Verbindung läuft. Vor dem Bauen dort **Trennen** wählen. |
-| Windows PowerShell 5.1 stellt Umlaute in den Installerausgaben von **`v0.4.0`** falsch dar. | Nur die Anzeige ist betroffen; Installation und Konfiguration sind korrekt. Ursache und Behebung: [Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5). Der Fix ist in `main`, **nicht** im veröffentlichten `v0.4.0`-ZIP, und erscheint erstmals im nächsten Release. |
+| Windows PowerShell 5.1 stellte Umlaute in den Installerausgaben von **`v0.4.0`** falsch dar. | **Behoben in 0.4.1** ([Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5)). Das veröffentlichte `v0.4.0`-ZIP zeigt es weiterhin; nur die Anzeige war betroffen, Installation und Konfiguration waren korrekt. |
 | Ob Installation und Upgrade auch bei laufender und verbundener Sprecher-PC-Schnittstelle zuverlässig funktionieren, ist noch nicht geprüft. | Bis dahin gilt verbindlich: vorher **Trennen**, danach **Verbinden**. |
 
 ## Known prototype security limitation

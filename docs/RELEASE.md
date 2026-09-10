@@ -1,6 +1,6 @@
 # Sprecher-Web — Release-Prozess
 
-Aktuelle Version: `0.4.0`.
+Aktuelle Version: `0.4.1`.
 
 Ein Release wird ausschließlich aus einem Git-Tag im Format `vX.Y.Z` gebaut.
 Die Version im Root-POM und die Parent-Versionen aller dort aufgeführten Module
@@ -117,11 +117,11 @@ steht in [SMOKE_TESTS.md](SMOKE_TESTS.md#protokoll-installation-aus-dem-releasep
 | Linux amd64 | Fresh Installation auf Ubuntu 24.04.4 LTS ohne System-Java, ohne Maven und ohne Source-Checkout; gebündelte Runtime verwendet; reale WinLaufen-Verbindung, Web Viewer und Startliste geprüft |
 | Windows x64 | Clean Installation von Sprecher-Web auf einem Windows-11-PC in einer PowerShell als Administrator; gebündelte Runtime trotz vorhandenem System-Java verwendet; originales WinLaufen lief parallel weiter |
 
-Bekannt und in `v0.4.0` enthalten: Der Windows-Installer stellt in Windows
+Bekannt und in `v0.4.0` enthalten: Der Windows-Installer stellte in Windows
 PowerShell 5.1 deutsche Umlaute falsch dar
 ([Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5)). Nur die
-Konsolenausgabe ist betroffen. Der Fix liegt in `main` und wird erstmals mit dem
-nächsten Release ausgeliefert; `v0.4.0` bleibt unverändert.
+Konsolenausgabe war betroffen. **Behoben in 0.4.1**; `v0.4.0` bleibt unverändert
+und zeigt es weiterhin.
 
 ## Upgrade-Reihenfolge bei getrennten Rechnern
 
