@@ -148,6 +148,15 @@ Pfade:
   Administratorprüfung nur die profilabhängigen Private-/Domain-Regeln,
   Uninstall entfernt nur eigene Regeln.
 
+## 4.1 Modulverantwortung in einem Satz
+
+| Modul | Verantwortung |
+|---|---|
+| **contract** | gemeinsame Datenmodelle und Regeln: Snapshot, ACK, Startliste, `ClockSample`, `TimeReference`, Limits. Bibliothek ohne Laufzeit. |
+| **bridge** | WinLaufen read-only lesen, Clock-Samples erfassen, Startliste importieren und persistent halten, kanonischen Zustand an 0..n Ziele veröffentlichen, Bridge Control bereitstellen. |
+| **live-server** | Bridge-Ingest annehmen, eigenen Messpunkt zum Clock-Sample ergänzen, veröffentlichten Zustand halten, Read API und Web Viewer ausliefern, WebSocket-Fan-out an Browser. |
+| **Consumer** | interpretiert die gelieferten Daten selbst — Zeitkorrektur, Offsetwahl, Zielzeiten. **Nicht Teil von Sprecher-Web.** |
+
 ## 5. State Ownership
 
 | Ebene | Autoritativer Owner | Kopie/Revision | Persistenz | Neustart und Resync |

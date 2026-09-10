@@ -39,7 +39,32 @@ Startlisten-Dateiexport --Bridge Control---------->|
                                               Web Viewer
                                           Uhr / LIVE / Ergebnisse
                                           Startliste nach Klassen
+                                                   |
+                                                   |  HTTP Read API 44440
+                                                   v
+                                          externe Consumer
+                                          FSO, GFX Engine, Monitoring
 ```
+
+Der Zeitpfad läuft parallel dazu und ist eine eigene Kette von Messpunkten:
+
+```text
+WinLaufen Uhrtelegramm  UhrHH:MM:SS, Sekundenauflösung
+        |
+        v
+Bridge  Clock Sample:   Revision, Empfangszeit, Messdifferenz,
+                        Wettkampfzone + Herkunft, Referenzstatus
+        |
+        v
+Live Server  eigene Messung desselben Samples beim Eintreffen
+        |
+        v
+Read API  beide Messungen nebeneinander, ohne Auswahl und ohne Korrektur
+```
+
+Fünf Dinge bleiben dabei getrennt und werden nie ineinander gerechnet:
+**Zeitmessung**, **Verbindung/Freshness**, **Startliste**, **Ergebnisse** und
+**Präsentation**. Vollständig: [API.md](API.md).
 
 - Root-POM: reiner Aggregator, keine Runtime-Klassen
 - `winlaufen-web-contract`: kleine Bibliothek, kein Prozess
@@ -170,6 +195,21 @@ Details: [INSTALLATION.md](INSTALLATION.md).
 - Bridge-Konfigurationsort: `winlaufen.bridge.config` Systemproperty falls
   gesetzt (z. B. `/etc/winlaufen-web/bridge.properties`), sonst
   `${user.home}/.winlaufen-web/config.properties`
+
+## Genauigkeitsgrenze
+
+Sprecher-Web ist kein hochpräzises Zeitmess-, PTP- oder
+Broadcast-Timecode-System. Für die vorgesehenen On-Screen- und
+Broadcast-Anwendungen wird eine zeitliche Zuordnungsgenauigkeit in der
+Größenordnung von etwa 100 ms angestrebt. Rohzeitstempel werden trotzdem mit der
+jeweils verfügbaren höheren Auflösung erfasst und unverändert bereitgestellt.
+Zusätzliche Komplexität für deutlich höhere Präzision wird nur eingeführt, wenn
+sie für den Anwendungsfall tatsächlich erforderlich ist.
+
+Das ist eine **Architektur- und Designgrenze**, keine zugesagte Eigenschaft
+einer einzelnen API-Antwort. Die WinLaufen-Uhr liefert Sekundenauflösung, und
+ohne belegbare Zeitreferenz meldet die API `UNVERIFIED` — was in einem vom
+Internet getrennten Vereinsnetz der Normalfall und kein Fehlerzustand ist.
 
 ## Bekannte Prototyp-Einschränkung
 

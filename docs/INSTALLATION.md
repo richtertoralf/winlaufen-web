@@ -531,7 +531,11 @@ besonders auf einem Linux-System, dessen Systemzone UTC ist — sonst wäre jede
 Messdifferenz um den vollen UTC-Versatz daneben. Für Uhr, Ergebnisse, Startliste
 und Web Viewer ist die Angabe ohne Bedeutung; sie wird nicht bei der
 Installation abgefragt und ist nicht erforderlich, um Sprecher-Web zu betreiben.
-Details: [API.md](API.md).
+
+Es gibt **keine NTP- und keine Internetpflicht**: Sprecher-Web funktioniert
+vollständig in einem vom Internet getrennten Netz. Die API meldet dann bei den
+Zeitmessungen `UNVERIFIED`, was kein Fehlerzustand ist. Details:
+[API.md](API.md#5-zeitmodell).
 
 `startlist.properties` entsteht erst beim ersten erfolgreichen
 Startlistenimport in Bridge Control. Die Bridge schreibt sie über eine
@@ -608,6 +612,9 @@ Start-ScheduledTask   -TaskName 'WinLaufen Web Bridge'
 | Browser | Live Server | TCP 44441 | Live WebSocket auf `/live/v1` |
 | Bridge | Live Server | TCP 44441 | authentifizierter Bridge-Ingest auf `/bridge/v1/channels/<channel>` |
 | Admin | Bridge | TCP 44442 | Bridge Control |
+
+Welche Endpunkte auf welchem Port liegen — HTTP wie WebSocket —, steht
+vollständig in [API.md](API.md#2-ports-und-endpunkte).
 
 Typische URLs:
 

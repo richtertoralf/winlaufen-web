@@ -72,7 +72,8 @@ Die beiden sichtbaren Oberflächen heißen:
 * Im Web Viewer erscheint sie **klassenweise**: Vor-/Zurück-Navigation,
   direkte Klassenauswahl und die Reihenfolge genau wie im WinLaufen-Export.
 
-**Generische Read API**
+**Generische Read API** — *fertig auf dem Branch `feat/live-read-api`, noch
+nicht in `main` und nicht in Version 0.4.0.*
 
 * Der Live Server stellt seinen Zustand **maschinenlesbar** über HTTP bereit:
   `GET /api/v1/state` für den laufenden Zustand und `GET /api/v1/startlist`
@@ -83,19 +84,30 @@ Die beiden sichtbaren Oberflächen heißen:
 * **Jede Antwort** enthält die aktuelle WinLaufen-Wettkampfzeit **und** den
   Verbindungsstatus der Kette WinLaufen → Bridge → Live Server. Ein Consumer
   muss nie aus vorhandenen Daten raten, ob die Quelle noch hängt.
-* Bridge und Live Server arbeiten dabei als **Messstellen**: Zu jedem
-  WinLaufen-Uhrtelegramm liefern sie Empfangszeitpunkt, gemessene Differenz zur
-  Wettkampfzeit und den Status ihrer Zeitreferenz — zwei unabhängige Messungen
-  nebeneinander. Sie korrigieren nichts, wählen keinen Offset und kalibrieren
-  nicht; das entscheidet der Consumer. Die Differenz ist eine **Messdifferenz**
-  gegen die jeweilige Systemuhr, kein ermittelter Uhrenfehler.
-* Für die Differenz wird die **Wettkampf-Zeitzone** gebraucht. Sie steht in
-  `bridge.properties` unter `competition.timezone`; ohne Eintrag gilt die Zone
-  des Rechners, und die API kennzeichnet sie dann als bloßen Rückfall. Auf einem
-  Server mit Systemzone UTC sollte sie gesetzt werden.
 * Read-only und ohne Rückfrage bei WinLaufen: Jeder Request wird aus dem
   bereits veröffentlichten Zustand beantwortet.
-* Details: [docs/API.md](docs/API.md).
+* Vollständige Schnittstellenreferenz — auch für Web Viewer, Bridge-Ingest und
+  Bridge Control: **[docs/API.md](docs/API.md)**.
+
+**Zeitmodell: messen, nicht korrigieren**
+
+* Zu jedem WinLaufen-Uhrtelegramm liefern Bridge und Live Server als
+  **Messstellen** je einen Empfangszeitpunkt, eine gemessene Differenz zur
+  Wettkampfzeit und den Status ihrer Zeitreferenz — zwei unabhängige Messungen
+  nebeneinander.
+* Sie **korrigieren nichts**, wählen keinen Offset und kalibrieren nicht; das
+  entscheidet der Consumer. Die Differenz ist eine **Messdifferenz** gegen die
+  jeweilige Systemuhr, kein ermittelter Uhrenfehler.
+* Sprecher-Web ist **kein hochpräzises Zeitmess- oder Timecode-System**.
+  Angestrebt wird für die vorgesehenen On-Screen-Anwendungen eine Größenordnung
+  von etwa 100 ms — ein Architekturziel, keine zugesagte Eigenschaft.
+* Das funktioniert **vollständig offline**. Ohne belegbare Zeitreferenz meldet
+  die API `UNVERIFIED`; das ist kein Fehlerzustand, und ein Consumer kann
+  weiterhin einen manuell bestimmten Offset verwenden.
+* Für die Differenz wird die **Wettkampf-Zeitzone** gebraucht. Sie steht in
+  `bridge.properties` unter `competition.timezone`; ohne Eintrag gilt die Zone
+  des Rechners, und die API kennzeichnet das als bloßen Rückfall. Auf einem
+  Server mit Systemzone UTC sollte sie gesetzt werden.
 
 **Betrieb**
 
@@ -357,6 +369,9 @@ die eingehenden Firewallregeln.
 44440 und 44441 müssen für die vorgesehenen Zuschauergeräte erreichbar sein,
 44442 nur für die vorgesehenen Administrationsgeräte.
 
+Welche Endpunkte auf welchem Port liegen, steht vollständig in
+[docs/API.md](docs/API.md#2-ports-und-endpunkte).
+
 ## Die angezeigte Wettkampfzeit
 
 Die im Browser angezeigte Zeit ist die **Wettkampfzeit aus WinLaufen** — nicht
@@ -389,7 +404,7 @@ für Bediener: [Bedienerhandbuch, Kapitel 9](docs/BEDIENERHANDBUCH.md#9-die-ange
 | [docs/MODULAR_ARCHITECTURE.md](docs/MODULAR_ARCHITECTURE.md) | vollständige verbindliche Architekturentscheidungen |
 | [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) | Produktspezifikation |
 | [docs/WINLAUFEN_PROTOCOL.md](docs/WINLAUFEN_PROTOCOL.md) | WinLaufen-Protokoll und reale Evidenz |
-| [docs/API.md](docs/API.md) | Read API des Live Servers für externe Consumer |
+| [docs/API.md](docs/API.md) | **Schnittstellenreferenz**: Read API, Web Viewer, Bridge-Ingest, Bridge Control, Zeitmodell |
 | [docs/RELEASE.md](docs/RELEASE.md) | tag-basierter Release-Ablauf für Maintainer |
 
 ## Projektstatus
@@ -401,6 +416,10 @@ Ergebnissen wie bisher.
 
 Es ist zugleich die erste Version mit **fertigen Releasepaketen** für Linux
 amd64 und Windows x64, die ohne Git, Maven und JDK installiert werden können.
+
+**In Arbeit, noch nicht veröffentlicht:** Die generische Read API des Live
+Servers samt Zeitmodell liegt fertig auf dem Branch `feat/live-read-api` und ist
+für Version 0.4.1 vorgesehen. Weder `main` noch das Release 0.4.0 enthalten sie.
 
 Die Prototyp-Grenzen aus
 [Known prototype security limitation](#known-prototype-security-limitation)

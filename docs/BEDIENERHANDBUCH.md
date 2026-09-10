@@ -709,10 +709,31 @@ Die vollständigen und verbindlichen Einsatzgrenzen stehen in der
 
 ---
 
+## Andere Systeme anbinden
+
+Sprecher-Web kann seinen aktuellen Stand zusätzlich **maschinenlesbar**
+bereitstellen, damit andere Anwendungen ihn verwenden können — zum Beispiel eine
+Grafikeinblendung im Livestream. Für Sie als Veranstalter ändert sich dadurch
+nichts: Sie müssen nichts einschalten und nichts einstellen.
+
+Ein Punkt kann für Sie relevant werden, wenn ein solches System die Wettkampfzeit
+mit einer echten Uhrzeit in Beziehung setzen soll. Dann sollte in der
+Konfigurationsdatei der Bridge die Zeitzone der Veranstaltung stehen:
+
+```properties
+competition.timezone=Europe/Berlin
+```
+
+Das ist **optional** und nur für diesen Fall gedacht. Für Uhr, Ergebnisse,
+Startliste und die Anzeige im Browser spielt es keine Rolle. Wer das einrichtet,
+findet die Einzelheiten in [INSTALLATION.md](INSTALLATION.md) und
+[API.md](API.md).
+
 ## Weiterführende Dokumentation
 
 | Dokument | Inhalt |
 |---|---|
+| [API.md](API.md) | Schnittstellen für andere Systeme, für Entwickler |
 | [QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md) | Server im Internet Schritt für Schritt |
 | [INSTALLATION.md](INSTALLATION.md) | technische Installationsreferenz, Pfade, Dienste, Deinstallation |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Build und Entwicklungsbetrieb |
