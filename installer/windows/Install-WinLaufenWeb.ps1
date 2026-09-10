@@ -620,10 +620,18 @@ if ($installBridge) {
     } else {
         if ($Profile -eq 'AllInOne') {
             # All-in-One: lokaler Live Server als reguläres Output Target.
+            #
+            # Die Kommentare in dieser Datei sind bewusst reines ASCII. Eine
+            # Properties-Datei wird von Editoren, PowerShell und java.util.Properties
+            # unterschiedlich gelesen, und ein Umlaut darin ist genau die Stelle, an der
+            # eine falsche Codepage sichtbar wird - ohne dass er irgendetwas erklaeren
+            # wuerde, was ohne ihn unklar waere.
             $content = @"
 # $ProductName - Bridge (Profil: All-in-One)
-# Erzeugt bei der Erstinstallation. Änderungen bitte über Bridge Control
-# vornehmen: http://<bridge-ip>:$ControlPort/
+# Erstellt bei der Installation.
+# Konfiguration und Status: http://<bridge-ip>:$ControlPort/
+# Erweiterte Einstellungen koennen hier direkt vorgenommen werden, zum Beispiel
+# competition.timezone fuer eine Veranstaltung ausserhalb von Europe/Berlin.
 config.version=2
 source.type=WINLAUFEN
 source.host=$DefaultSourceHost
@@ -643,11 +651,14 @@ presentation.showShooting=true
 presentation.showMessages=false
 "@
         } else {
-            # Bridge only: gültig auch ohne Output Target.
+            # Bridge only: gültig auch ohne Output Target. Kommentare wieder ASCII-only,
+            # aus demselben Grund wie oben.
             $content = @"
 # $ProductName - Bridge (Profil: Bridge only)
-# Erzeugt bei der Erstinstallation. WinLaufen-Adresse und Output Targets
-# anschließend über Bridge Control pflegen: http://<bridge-ip>:$ControlPort/
+# Erstellt bei der Installation. Noch ohne Output Target - das ist gueltig.
+# Konfiguration und Status: http://<bridge-ip>:$ControlPort/
+# Erweiterte Einstellungen koennen hier direkt vorgenommen werden, zum Beispiel
+# competition.timezone fuer eine Veranstaltung ausserhalb von Europe/Berlin.
 config.version=2
 source.type=WINLAUFEN
 source.host=$DefaultSourceHost
@@ -674,7 +685,9 @@ if ($installLive) {
     } else {
         $content = @"
 # $ProductName - Live Server
+# Erstellt bei der Installation.
 # Rein technische Deployment-Parameter. Keine Veranstalter-Konfiguration.
+# Aenderungen hier wirken erst, wenn der Installer erneut ausgefuehrt wird.
 winlaufen.live.http.bind=$LiveHttpBind
 winlaufen.live.http.port=$LiveHttpPort
 winlaufen.live.websocket.bind=$LiveWsBind

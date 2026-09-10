@@ -464,6 +464,27 @@ if run_install all-in-one "$root"; then
         "Konfigurationsverzeichnis erlaubt atomare Updates durch die Dienstgruppe"
     assert_equals "$(stat -c '%a' "$config")" "640" \
         "Bridge-Konfiguration bleibt restriktiv"
+
+    # Eine frisch erzeugte Konfiguration darf keine kaputten Zeichen enthalten. Auf
+    # Windows entstanden sie, weil der Installer selbst in der falschen Codepage
+    # gelesen wurde; die Kommentare sind deshalb jetzt ASCII und damit unabhängig
+    # davon, wie irgendein Werkzeug die Datei liest.
+    if LC_ALL=C grep -q '[^\x00-\x7F]' "$config"; then
+        bad "Frische Bridge-Konfiguration ist reines ASCII" \
+            "$(LC_ALL=C grep -n '[^\x00-\x7F]' "$config" | head -3)"
+    else
+        ok "Frische Bridge-Konfiguration ist reines ASCII"
+    fi
+    assert_absent "$config" 'Ã' "Frische Bridge-Konfiguration enthält keine Mojibake-Sequenz Ã"
+    assert_absent "$config" 'Â' "Frische Bridge-Konfiguration enthält keine Mojibake-Sequenz Â"
+    assert_contains "$config" "# $WINLAUFEN_PRODUCT_NAME - Bridge (Profil: All-in-One)" \
+        "Frische Bridge-Konfiguration nennt Produkt und Profil"
+    assert_contains "$config" "# Erstellt bei der Installation." \
+        "Frische Bridge-Konfiguration nennt ihre Herkunft"
+    assert_contains "$config" "# Konfiguration und Status: http://<bridge-ip>:$WINLAUFEN_CONTROL_PORT/" \
+        "Frische Bridge-Konfiguration nennt Bridge Control"
+    assert_contains "$config" "competition.timezone" \
+        "Frische Bridge-Konfiguration nennt die erweiterte Einstellung für das Ausland"
     atomic_update=$(mktemp "$root/etc/winlaufen-web/config.properties.XXXXXX")
     cp -- "$config" "$atomic_update"
     printf 'presentation.showNation=true\n' >> "$atomic_update"
@@ -1071,6 +1092,44 @@ windows_java_resolve=$(sed -n '/^function Resolve-JavaExecutable {/,/^}$/p' "$in
 [[ "$windows_java_resolve" == *'Join-Path $InstalledPrefix "runtime\bin\$bundledLauncher"'* ]] \
     && ok "Gebündelte Runtime wird nach der Installation aus dem Zielpfad gestartet" \
     || bad "Gebündelte Runtime wird nach der Installation aus dem Zielpfad gestartet"
+echo
+echo "=== Erzeugte Konfigurationsdateien: ASCII-Kommentare ==="
+# Diese Prüfung läuft an den Vorlagen und nicht am Ergebnis eines Installerlaufs,
+# damit sie auch auf einem Rechner greift, auf dem die produktiven Ports belegt sind.
+# Ein Umlaut in einer Properties-Datei ist genau die Stelle, an der eine falsche
+# Codepage sichtbar wird -- und erklärt dabei nichts, was ohne ihn unklar wäre.
+if python3 - "$installer_windows" "$installer_linux" > "$work/config-templates.log" 2>&1 <<'TEMPLATES'
+import re
+import sys
+
+windows = open(sys.argv[1], encoding='utf-8-sig').read()
+linux = open(sys.argv[2], encoding='utf-8').read()
+
+templates = re.findall(r'\$content = @"\n(.*?)\n"@', windows, re.S)
+assert len(templates) == 3, f'Windows: erwartet 3 Vorlagen, gefunden {len(templates)}'
+templates += re.findall(r'cat > "\$\(staged "\$(?:bridge|live)_config"\)" <<EOF\n(.*?)\nEOF',
+                        linux, re.S)
+assert len(templates) == 6, f'Linux: erwartet 3 weitere Vorlagen, gefunden {len(templates) - 3}'
+
+for body in templates:
+    broken = sorted({character for character in body if ord(character) > 127})
+    assert not broken, f'Nicht-ASCII in Vorlage: {broken}\n{body.splitlines()[0]}'
+    assert 'Erstellt bei der Installation' in body, body.splitlines()[0]
+
+bridge = [body for body in templates if 'config.version=2' in body]
+assert len(bridge) == 4, f'erwartet 4 Bridge-Vorlagen, gefunden {len(bridge)}'
+for body in bridge:
+    assert 'Konfiguration und Status: http://<bridge-ip>:' in body, body.splitlines()[0]
+    assert 'competition.timezone' in body, body.splitlines()[0]
+    assert 'Bridge Control vornehmen' not in body, 'alter, nicht mehr zutreffender Kommentar'
+TEMPLATES
+then
+    ok "Beide Installer erzeugen Konfigurationsdateien mit ASCII-Kommentaren"
+else
+    bad "Beide Installer erzeugen Konfigurationsdateien mit ASCII-Kommentaren" \
+        "$(cat "$work/config-templates.log")"
+fi
+
 echo
 echo "=== Windows: die geplante Aufgabe besitzt den Java-Prozess ==="
 # Der eigentliche Nachweis kann nur auf Windows erbracht werden: Stop-ScheduledTask

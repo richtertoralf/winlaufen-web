@@ -470,8 +470,10 @@ if ((install_bridge)); then
             # ein entferntes Ziel.
             cat > "$(staged "$bridge_config")" <<EOF
 # $WINLAUFEN_PRODUCT_NAME - Bridge (Profil: All-in-One)
-# Erzeugt bei der Erstinstallation. Änderungen bitte über Bridge Control
-# vornehmen: http://<bridge-ip>:$WINLAUFEN_CONTROL_PORT/
+# Erstellt bei der Installation.
+# Konfiguration und Status: http://<bridge-ip>:$WINLAUFEN_CONTROL_PORT/
+# Erweiterte Einstellungen koennen hier direkt vorgenommen werden, zum Beispiel
+# competition.timezone fuer eine Veranstaltung ausserhalb von Europe/Berlin.
 config.version=2
 source.type=WINLAUFEN
 source.host=$WINLAUFEN_DEFAULT_SOURCE_HOST
@@ -495,8 +497,10 @@ EOF
             # Das ist ein gültiger Zustand, kein Installationsfehler.
             cat > "$(staged "$bridge_config")" <<EOF
 # $WINLAUFEN_PRODUCT_NAME - Bridge (Profil: Bridge only)
-# Erzeugt bei der Erstinstallation. WinLaufen-Adresse und Output Targets
-# anschließend über Bridge Control pflegen: http://<bridge-ip>:$WINLAUFEN_CONTROL_PORT/
+# Erstellt bei der Installation. Noch ohne Output Target - das ist gueltig.
+# Konfiguration und Status: http://<bridge-ip>:$WINLAUFEN_CONTROL_PORT/
+# Erweiterte Einstellungen koennen hier direkt vorgenommen werden, zum Beispiel
+# competition.timezone fuer eine Veranstaltung ausserhalb von Europe/Berlin.
 config.version=2
 source.type=WINLAUFEN
 source.host=$WINLAUFEN_DEFAULT_SOURCE_HOST
@@ -521,6 +525,7 @@ if ((install_live)); then
     else
         cat > "$(staged "$live_config")" <<EOF
 # $WINLAUFEN_PRODUCT_NAME - Live Server
+# Erstellt bei der Installation.
 # Rein technische Deployment-Parameter. Keine Veranstalter-Konfiguration.
 WINLAUFEN_LIVE_HTTP_BIND=$WINLAUFEN_LIVE_HTTP_BIND
 WINLAUFEN_LIVE_HTTP_PORT=$WINLAUFEN_LIVE_HTTP_PORT
