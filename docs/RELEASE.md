@@ -123,4 +123,36 @@ PowerShell 5.1 deutsche Umlaute falsch dar
 Konsolenausgabe ist betroffen. Der Fix liegt in `main` und wird erstmals mit dem
 nächsten Release ausgeliefert; `v0.4.0` bleibt unverändert.
 
+## Upgrade-Reihenfolge bei getrennten Rechnern
+
+Bridge und Live Server können auf verschiedenen Rechnern stehen (Profile
+**Bridge only** und **Presentation Node**). Dann laufen sie beim Upgrade
+zwangsläufig kurz in verschiedenen Versionen, und das ist nicht in jeder
+Richtung unkritisch.
+
+Der Bridge→Live-Server-Contract prüft beim Lesen streng: Ein unbekanntes Feld
+wird abgelehnt, nicht ignoriert. Additive Erweiterungen sind deshalb **vorwärts**
+kompatibel und nicht rückwärts.
+
+Gemessen zwischen dem Contract des Tags `v0.4.0` und dem Stand mit Zeitmodell:
+
+| Kombination | Ergebnis |
+| ----------- | -------- |
+| Bridge `0.4.0` → neuerer Live Server | **funktioniert.** Der Snapshot wird vollständig gelesen, die Zeitmessung fehlt einfach (`clockSample` ist `null`). |
+| neuere Bridge → Live Server `0.4.0` | **funktioniert nicht.** `UnrecognizedPropertyException: Unrecognized field "clockSample"`; der Live Server schließt die Verbindung, die Bridge verbindet neu, es wird nichts veröffentlicht. |
+
+**Verbindliche Reihenfolge: zuerst den Live Server aktualisieren, danach die
+Bridge.** Bei einer All-in-One-Installation ersetzt der Installer beide
+gemeinsam; dort stellt sich die Frage nicht.
+
+Die vorwärtskompatible Richtung ist im Repository festgehalten
+(`MixedVersionTest` im Contract-Modul) und prüft einen Snapshot in genau dem
+Format, das `v0.4.0` schreibt. Die andere Richtung lässt sich nur gegen den alten
+Contract zeigen und wurde einmalig gegen einen Build des Tags `v0.4.0` gemessen.
+
+Die `schemaVersion` bleibt dabei bewusst `1`. Eine Erhöhung würde die
+funktionierende Richtung ebenfalls zerstören, weil die Envelope-Prüfung auf
+Gleichheit vergleicht: Ein neuer Live Server würde dann jede `0.4.0`-Bridge
+ablehnen — genau die Paarung, auf der die Upgrade-Reihenfolge beruht.
+
 Build- oder Distributionsergebnisse werden nicht im Repository versioniert.

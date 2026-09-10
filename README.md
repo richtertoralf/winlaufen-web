@@ -72,8 +72,8 @@ Die beiden sichtbaren Oberflächen heißen:
 * Im Web Viewer erscheint sie **klassenweise**: Vor-/Zurück-Navigation,
   direkte Klassenauswahl und die Reihenfolge genau wie im WinLaufen-Export.
 
-**Generische Read API** — *fertig auf dem Branch `feat/live-read-api`, noch
-nicht in `main` und nicht in Version 0.4.0.*
+**Generische Read API** — *Entwicklungsstand, siehe
+[Projektstatus](#projektstatus). Nicht in Version 0.4.0 enthalten.*
 
 * Der Live Server stellt seinen Zustand **maschinenlesbar** über HTTP bereit:
   `GET /api/v1/state` für den laufenden Zustand und `GET /api/v1/startlist`
@@ -417,9 +417,14 @@ Ergebnissen wie bisher.
 Es ist zugleich die erste Version mit **fertigen Releasepaketen** für Linux
 amd64 und Windows x64, die ohne Git, Maven und JDK installiert werden können.
 
-**In Arbeit, noch nicht veröffentlicht:** Die generische Read API des Live
-Servers samt Zeitmodell liegt fertig auf dem Branch `feat/live-read-api` und ist
-für Version 0.4.1 vorgesehen. Weder `main` noch das Release 0.4.0 enthalten sie.
+### Entwicklungsstand
+
+**Aktuelles Release: `0.4.0`** — enthält MS1 und MS2, **nicht** die Read API.
+
+**In Arbeit für `0.4.1`:** Die generische Read API des Live Servers samt
+Zeitmodell ist vollständig implementiert und automatisiert getestet, liegt aber
+auf dem Feature-Branch `feat/live-read-api` und ist noch nicht veröffentlicht.
+Offen ist der abschließende manuelle Test mit der echten Anlage.
 
 Die Prototyp-Grenzen aus
 [Known prototype security limitation](#known-prototype-security-limitation)
@@ -516,6 +521,19 @@ gibt die Control-API nicht aus; das ersetzt jedoch keine Zugriffsbeschränkung.
 44442 darf deshalb nur in einem vertrauenswürdigen LAN erreichbar sein: nicht im
 Gäste-WLAN, nicht über unkontrollierte Portweiterleitungen, nicht direkt aus dem
 Internet.
+
+### Die Read API ist unauthentifiziert und zeigt Teilnehmerdaten
+
+Die Read API auf TCP 44440 ist **read-only** — niemand kann darüber etwas
+ändern. Das sagt aber nichts darüber, wer sie **lesen** darf, und
+`GET /api/v1/startlist` liefert reale Teilnehmerdaten: Vorname, Nachname,
+Jahrgang, Verein, Verband, Nation, Startnummer, Klasse, Startzeit und Strecke.
+
+Das ist ein vollständiger Teilnehmerbestand, nicht nur der öffentlich angezeigte
+Wettkampfstand — auf demselben unauthentifizierten Port wie der Web Viewer. Port
+44440 gehört deshalb nur in Netze oder hinter Zugänge, in denen diese Daten
+gelesen werden dürfen. Wer einen Presentation Node öffentlich betreibt,
+veröffentlicht damit auch die Startliste.
 
 ### Der Bridge-Ingest verwendet ein bekanntes Secret
 

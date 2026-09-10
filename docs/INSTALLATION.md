@@ -341,7 +341,23 @@ und dem Installer aus dem Checkout.
 Dieser Weg aktualisiert auf den ausgecheckten Git-Stand und nicht
 notwendigerweise auf einen veröffentlichten Release.
 
-### 3.3 Was das Upgrade erhält und was es ersetzt
+### 3.3 Getrennte Rechner: erst Live Server, dann Bridge
+
+Stehen Bridge und Live Server auf **verschiedenen** Rechnern — Profile
+**Bridge only** und **Presentation Node** —, laufen sie beim Upgrade kurz in
+verschiedenen Versionen. Das ist nur in einer Richtung unkritisch: Eine ältere
+Bridge kann an einen neueren Live Server liefern, umgekehrt nicht.
+
+**Deshalb zuerst den Live Server aktualisieren, danach die Bridge.** In der
+Zwischenzeit läuft alles weiter; es fehlen höchstens Angaben, die die ältere
+Bridge noch nicht liefert.
+
+Bei **All-in-One** ersetzt derselbe Installerlauf beide Prozesse gemeinsam; dort
+stellt sich die Frage nicht.
+
+Hintergrund und Nachweis: [RELEASE.md](RELEASE.md#upgrade-reihenfolge-bei-getrennten-rechnern).
+
+### 3.4 Was das Upgrade erhält und was es ersetzt
 
 Für beide Installationswege identisch. Die Pfade in der Tabelle sind die von
 Linux; unter Windows gilt dasselbe Verhalten für `C:\Program Files\WinLaufen Web\`
@@ -531,6 +547,12 @@ besonders auf einem Linux-System, dessen Systemzone UTC ist — sonst wäre jede
 Messdifferenz um den vollen UTC-Versatz daneben. Für Uhr, Ergebnisse, Startliste
 und Web Viewer ist die Angabe ohne Bedeutung; sie wird nicht bei der
 Installation abgefragt und ist nicht erforderlich, um Sprecher-Web zu betreiben.
+
+Ein **unbrauchbarer Wert** — ein Tippfehler wie `Europe/Berln` — bricht den Start
+nicht ab. Die Bridge verwendet dann die Zeitzone des Rechners und meldet den
+Fehler in **Bridge Control** im Abschnitt WinLaufen sowie unter
+`GET /api/v1/status`. Die Read API zeigt dann `competitionTimeZoneSource` als
+`SYSTEM_DEFAULT` und die tatsächlich verwendete Zone.
 
 Es gibt **keine NTP- und keine Internetpflicht**: Sprecher-Web funktioniert
 vollständig in einem vom Internet getrennten Netz. Die API meldet dann bei den

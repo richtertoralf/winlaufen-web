@@ -48,7 +48,7 @@ Vollständige Endpunktmatrix:
 |---|---|---|---|---|---|
 | Live Server | HTTP 44440 | GET | `/api/v1/state` | laufender Zustand, klein und pollbar | externe Consumer, Viewer-Start |
 | Live Server | HTTP 44440 | GET | `/api/v1/startlist` | vollständiger Startlistenbestand | externe Consumer |
-| Live Server | HTTP 44440 | GET | `/api/v1/runtime` | WebSocket-Endpunkt des Viewers | Web Viewer |
+| Live Server | HTTP 44440 | GET | `/api/v1/runtime` | Laufzeitkonfiguration des Web Viewers (nennt Port und Pfad des Browser-WebSockets) | Web Viewer |
 | Live Server | HTTP 44440 | GET | `/`, `/viewer` | HTML des Web Viewers | Browser |
 | Live Server | HTTP 44440 | GET | `/renderer` | Weiterleitung auf `/` | alte Lesezeichen |
 | Live Server | HTTP 44440 | GET | `/assets/viewer.css`, `/assets/viewer.js` | Viewer-Ressourcen | Browser |
@@ -61,7 +61,11 @@ Vollständige Endpunktmatrix:
 | Bridge Control | HTTP 44442 | POST | `/api/v1/config` | Konfiguration speichern | Veranstalter |
 | Bridge Control | HTTP 44442 | POST | `/api/v1/startlist?name=<datei>` | Startliste importieren | Veranstalter |
 
-Es gibt keine weiteren öffentlichen Routen. Alles andere antwortet mit `404`.
+Gezählt sind das **14 Pfade** (je Komponente; `/`, `/api/v1/startlist` und
+`/api/v1/config` kommen in beiden Komponenten oder mit beiden Methoden vor),
+**15 HTTP-Operationen** aus Methode und Pfad — `/api/v1/config` beantwortet `GET`
+und `POST` — und **2 WebSocket-Endpunkte**. Weitere öffentliche Routen gibt es
+nicht; alles andere antwortet mit `404`.
 
 ## 3. Grundsatz: messen, nicht entscheiden
 
@@ -835,7 +839,9 @@ dem kleinen `/api/v1/state`.
 
 ## 9. GET /api/v1/runtime
 
-Nennt dem Web Viewer den Browser-WebSocket, ohne dass er ihn erraten muss.
+Ein gewöhnlicher **HTTP-Endpunkt** mit der Laufzeitkonfiguration des Web
+Viewers. Er ist selbst **kein** WebSocket, sondern nennt dem Viewer Port und
+Pfad des Browser-WebSockets, damit dieser sie nicht erraten muss.
 
 ```json
 {"webSocketPort":44441,"webSocketPath":"/live/v1"}
@@ -1055,9 +1061,27 @@ ersetzen. Verbindliche Einsatzgrenzen: README.md, Abschnitt
 [Known prototype security limitation](../README.md#known-prototype-security-limitation).
 
 Die Read API ist nicht authentifiziert, weil sie auf demselben Port dieselben
-Daten liefert wie der öffentliche Web Viewer — also ohnehin die öffentlich
-angezeigten Wettkampfdaten. Port 44440 gehört trotzdem in ein kontrolliertes Netz
-oder auf einen bewusst öffentlich betriebenen Presentation Node.
+Daten liefert wie der öffentliche Web Viewer.
+
+### „Read-only" heißt nicht „beliebig freigeben"
+
+Read-only sagt nur, dass niemand über diese Schnittstelle etwas ändern kann. Es
+sagt nichts darüber, wer die Daten **lesen** darf — und `GET /api/v1/startlist`
+liefert reale Teilnehmerdaten:
+
+```text
+Vorname · Nachname · Jahrgang · Verein · Verband · Nation
+Startnummer · Klasse · Startzeit · Strecke
+```
+
+Das ist ein vollständiger Teilnehmerbestand, nicht nur der öffentlich
+angezeigte Wettkampfstand. Er liegt auf demselben unauthentifizierten Port wie
+der Web Viewer.
+
+**Empfehlung:** Port 44440 nur in Netzen oder über Zugänge bereitstellen, in
+denen diese Teilnehmerdaten gelesen werden dürfen. Wer einen Presentation Node
+öffentlich betreibt, veröffentlicht damit auch die Startliste. Diese Entscheidung
+trifft der Veranstalter bewusst; Sprecher-Web schränkt sie technisch nicht ein.
 
 ## 17. Versionierung
 
@@ -1072,6 +1096,22 @@ eine feste Feldreihenfolge bauen.
 
 Eine Umbenennung oder Entfernung eines Feldes wäre ein Bruch und erforderte
 `v2`. Ein solcher Schritt wird nicht auf Verdacht eingeführt.
+
+### Bridge und Live Server müssen zusammenpassen
+
+Der interne Bridge→Live-Server-Contract ist etwas anderes als diese HTTP-API. Er
+prüft beim Lesen **streng**: Ein unbekanntes Feld wird abgelehnt, nicht
+ignoriert. Für gemischte Versionen folgt daraus eine Richtung, die funktioniert,
+und eine, die es nicht tut:
+
+| Kombination | Verhalten |
+|---|---|
+| Bridge **0.4.0** → Live Server **neuer** | funktioniert. Die Zeitmessung fehlt schlicht: `time.clockSampleRevision`, `time.bridge` und `time.liveServer` sind `null`, alles andere ist vollständig. |
+| Bridge **neuer** → Live Server **0.4.0** | funktioniert **nicht**. Der ältere Live Server lehnt jeden Snapshot ab, schließt die Verbindung, die Bridge verbindet neu — und nichts wird veröffentlicht. |
+
+Daraus ergibt sich eine verbindliche **Upgrade-Reihenfolge: erst der Live
+Server, dann die Bridge.** Bei einer All-in-One-Installation werden ohnehin beide
+gemeinsam ersetzt. Details und Nachweis: [RELEASE.md](RELEASE.md).
 
 ## 18. Was diese API nicht tut
 

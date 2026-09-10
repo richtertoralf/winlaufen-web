@@ -24,6 +24,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * test holds the list from two sides: every route named here has to answer, and every route named
  * here has to appear in {@code docs/API.md}. The check is a plain containment test against the
  * documented endpoint table, not an attempt to parse prose.
+ *
+ * <p>The reach of that is limited and worth stating. For the live server the list is verified
+ * against the running server: a route that stops working fails here, and one that is added without
+ * being added to {@link #PUBLIC_ROUTES} is not covered until someone does. The bridge-control paths
+ * are only checked for presence in the documentation — this test lives in the live-server module
+ * and must not reach into the bridge. A new bridge-control route therefore does not fail this test
+ * on its own.
  */
 class PublicRouteContractTest {
 
