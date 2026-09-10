@@ -7,7 +7,9 @@ import de.winlaufen.web.contract.CompetitionClass;
 import de.winlaufen.web.contract.CurrentFinish;
 import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.StartListRow;
+import de.winlaufen.web.contract.ClockSample;
 import de.winlaufen.web.liveserver.state.ChainStatus;
+import de.winlaufen.web.liveserver.state.ClockMeasurement;
 import de.winlaufen.web.liveserver.state.PublishedStartList;
 import de.winlaufen.web.liveserver.state.PublishedState;
 
@@ -42,14 +44,14 @@ public final class PublicJson {
      * {@link #apiStartList} instead.
      */
     public static String apiState(String channelId, PublishedState published,
-                                  PublishedStartList startList) {
+                                  PublishedStartList startList, Instant generatedAt) {
         return "{\"apiVersion\":" + API_VERSION
                 + ",\"type\":\"snapshot\""
                 + ",\"channelId\":" + quote(channelId)
                 + ",\"streamId\":" + nullable(published.streamId())
                 + ",\"sourceRevision\":" + published.sourceRevision()
                 + ",\"publicationRevision\":" + published.publicationRevision()
-                + "," + clockFields(published)
+                + ",\"time\":" + time(published, generatedAt)
                 + ",\"connection\":" + connection(published)
                 + ",\"startList\":" + startListMetadata(startList)
                 + ",\"state\":" + canonical(published.state())
@@ -70,12 +72,12 @@ public final class PublicJson {
      * participant id is invented; the source has none.
      */
     public static String apiStartList(String channelId, PublishedState published,
-                                      PublishedStartList startList) {
+                                      PublishedStartList startList, Instant generatedAt) {
         return "{\"apiVersion\":" + API_VERSION
                 + ",\"type\":\"startlist\""
                 + ",\"channelId\":" + quote(channelId)
                 + ",\"streamId\":" + nullable(published.streamId())
-                + "," + clockFields(published)
+                + ",\"time\":" + time(published, generatedAt)
                 + ",\"connection\":" + connection(published)
                 + "," + startListFacts(startList)
                 + ",\"entries\":" + startListEntries(startList)
@@ -83,25 +85,71 @@ public final class PublicJson {
     }
 
     /**
-     * The competition time plus when it took on this value here.
+     * Everything about time, in one block, identical on both endpoints.
      *
-     * <p>{@code clock} is the WinLaufen competition time, carried through as the string WinLaufen
-     * sent. It is not a timestamp: it has no date and no time zone, and nothing here turns it into
-     * one or derives a finish time from it.
+     * <p>Six different questions live here and are deliberately not merged:
      *
-     * <p>{@code clockChangedAt} is an ordinary UTC instant of this machine: when this live server
-     * first saw the value above. It deliberately answers "since when is the competition time this"
-     * and not "when was it last delivered" — the second question cannot be answered from what the
-     * bridge sends, and a field must not claim more than can be proven. Its age is therefore **not**
-     * a staleness measure: a competition time may legitimately stand still while the source is
-     * perfectly healthy. Whether data is still arriving is what {@code connection} answers.
+     * <ul>
+     *   <li>{@code competitionTime} — what WinLaufen reports, carried through as the string it
+     *       sent. Not a timestamp: no date, no zone, and nothing turns it into one.
+     *   <li>{@code competitionTimeZone} — the zone in which that string was read as a time of day
+     *       to form the differences below, and nothing else.
+     *   <li>{@code clockChangedAt} — since when the competition time has this value. Not a
+     *       staleness measure: the value may legitimately stand still.
+     *   <li>{@code clockSampleRevision} — how many clock telegrams the bridge has processed on this
+     *       stream. This is what rises while a standing competition time does not.
+     *   <li>{@code bridge} and {@code liveServer} — two independent measurements of the same
+     *       sample, each with what is known about its own reference.
+     *   <li>{@code apiGeneratedAt} — the reading of this live server's clock while answering.
+     * </ul>
      *
-     * <p>Both are null until a clock has ever arrived; inventing one would be worse than saying
-     * nothing.
+     * <p>Nothing here is corrected, chosen or combined. Both differences stand side by side and the
+     * consumer decides what, if anything, to do with them.
      */
-    private static String clockFields(PublishedState published) {
-        return "\"clock\":" + nullable(published.state().clock())
-                + ",\"clockChangedAt\":" + instant(published.clockChangedAtEpochMilli());
+    private static String time(PublishedState published, Instant generatedAt) {
+        ClockSample sample = published.state().clockSample();
+        return "{\"competitionTime\":" + nullable(published.state().clock())
+                + ",\"competitionTimeZone\":" + (sample == null ? "null" : nullable(sample.competitionTimeZone()))
+                + ",\"clockChangedAt\":" + instant(published.clockChangedAtEpochMilli())
+                + ",\"clockSampleRevision\":" + (sample == null ? "null" : Long.toString(sample.revision()))
+                + ",\"bridge\":" + bridgeMeasurement(sample)
+                + ",\"liveServer\":" + liveServerMeasurement(published.liveServerMeasurement())
+                + ",\"apiGeneratedAt\":" + quote(generatedAt.toString())
+                + "}";
+    }
+
+    /**
+     * What the bridge measured when it processed the telegram.
+     *
+     * <p>{@code systemTimeAtReceipt} is the reading of the bridge machine's own clock, not a
+     * verified instant — that machine may be minutes off. {@code referenceStatus} says what is
+     * known about it, and an {@code UNVERIFIED} status is a normal, usable answer, not a fault.
+     */
+    private static String bridgeMeasurement(ClockSample sample) {
+        if (sample == null) {
+            return "null";
+        }
+        return "{\"systemTimeAtReceipt\":" + nullable(sample.systemTimeAtReceipt())
+                + ",\"competitionMinusReferenceMs\":" + number(sample.competitionMinusReferenceMs())
+                + ",\"referenceStatus\":" + quote(sample.referenceStatus().name())
+                + ",\"referenceSource\":" + quote(sample.referenceSource().name())
+                + "}";
+    }
+
+    /** The same measurement taken here, when that sample arrived. */
+    private static String liveServerMeasurement(ClockMeasurement measurement) {
+        if (!measurement.present()) {
+            return "null";
+        }
+        return "{\"systemTimeAtReceipt\":" + instant(measurement.systemTimeAtReceiptEpochMilli())
+                + ",\"competitionMinusReferenceMs\":" + number(measurement.competitionMinusReferenceMs())
+                + ",\"referenceStatus\":" + quote(measurement.referenceStatus().name())
+                + ",\"referenceSource\":" + quote(measurement.referenceSource().name())
+                + "}";
+    }
+
+    private static String number(Long value) {
+        return value == null ? "null" : Long.toString(value);
     }
 
     private static String instant(long epochMilli) {

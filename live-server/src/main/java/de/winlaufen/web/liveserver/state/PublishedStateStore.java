@@ -1,10 +1,14 @@
 package de.winlaufen.web.liveserver.state;
 
 import de.winlaufen.web.contract.CanonicalState;
+import de.winlaufen.web.contract.ClockSample;
+import de.winlaufen.web.contract.CompetitionTimeOffset;
 import de.winlaufen.web.contract.SnapshotEnvelope;
 import de.winlaufen.web.contract.SourceHealth;
+import de.winlaufen.web.contract.TimeReference;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,15 +35,26 @@ public final class PublishedStateStore {
      * or advances that competition time — that value stays exactly what WinLaufen sent.
      */
     private final Clock clock;
+    /**
+     * The time reference of this measuring point. It reads the same machine clock as {@link #clock}
+     * and additionally states what is known about its accuracy, which is what the read API has to
+     * publish alongside every measurement.
+     */
+    private final TimeReference reference;
 
     public PublishedStateStore(String channelId) {
         this(channelId, Clock.systemUTC());
     }
 
-    /** Test seam: makes freshness metadata deterministic without sleeping. */
+    /** Test seam: makes freshness metadata and measurements deterministic without sleeping. */
     public PublishedStateStore(String channelId, Clock clock) {
+        this(channelId, clock, TimeReference.systemClock(clock));
+    }
+
+    public PublishedStateStore(String channelId, Clock clock, TimeReference reference) {
         this.channelId = channelId;
         this.clock = clock;
+        this.reference = reference;
     }
 
     public String channelId() {
@@ -66,8 +81,11 @@ public final class PublishedStateStore {
      */
     public synchronized void ingestDisconnected() {
         PublishedState old = state.get();
+        // The sample has to travel with the degraded copy. Dropping it would make a source that
+        // was delivering a second ago look as if it had never sent a telegram at all.
         CanonicalState degraded = new CanonicalState(SourceHealth.DISCONNECTED, old.state().clock(),
-                old.state().competition(), old.state().currentFinish(), old.state().message());
+                old.state().competition(), old.state().currentFinish(), old.state().message(),
+                old.state().clockSample());
         if (old.streamId() == null && old.state().sourceHealth() == SourceHealth.DISCONNECTED) {
             // Nothing changes for a browser, but the link flag still has to become false: a
             // consumer must not be told the bridge is attached when it is not.
@@ -75,13 +93,14 @@ public final class PublishedStateStore {
                 state.set(new PublishedState(old.publicationRevision(), old.streamId(),
                         old.sourceRevision(), degraded, old.presentation(),
                         old.reportedSourceHealth(), false, old.clockChangedAtEpochMilli(),
-                        old.lastUpdateAtEpochMilli()));
+                        old.lastUpdateAtEpochMilli(), old.liveServerMeasurement()));
             }
             return;
         }
         PublishedState next = new PublishedState(old.publicationRevision() + 1, null,
                 old.sourceRevision(), degraded, old.presentation(), old.reportedSourceHealth(),
-                false, old.clockChangedAtEpochMilli(), old.lastUpdateAtEpochMilli());
+                false, old.clockChangedAtEpochMilli(), old.lastUpdateAtEpochMilli(),
+                old.liveServerMeasurement());
         state.set(next);
         listeners.forEach(listener -> listener.accept(next));
     }
@@ -101,7 +120,8 @@ public final class PublishedStateStore {
         }
         state.set(new PublishedState(old.publicationRevision(), old.streamId(), old.sourceRevision(),
                 old.state(), old.presentation(), old.reportedSourceHealth(), true,
-                old.clockChangedAtEpochMilli(), old.lastUpdateAtEpochMilli()));
+                old.clockChangedAtEpochMilli(), old.lastUpdateAtEpochMilli(),
+                old.liveServerMeasurement()));
     }
 
     /**
@@ -124,7 +144,7 @@ public final class PublishedStateStore {
             return value;
         }
         return new CanonicalState(value.sourceHealth(), value.clock(), old.competition(),
-                old.currentFinish(), value.message());
+                old.currentFinish(), value.message(), value.clockSample());
     }
 
     /**
@@ -153,6 +173,35 @@ public final class PublishedStateStore {
         return clock.millis();
     }
 
+    /**
+     * This live server's own reading of the clock sample that just arrived.
+     *
+     * <p>Measured only for a sample this live server has not seen before. A presentation change, a
+     * result block or a resync repeats the current sample, and taking a fresh reading then would
+     * time the republication rather than the telegram — the very confusion this model exists to
+     * avoid. A repeated clock <em>value</em> in a new sample does get measured: the bridge observed
+     * the source again, which is exactly what a new sample means.
+     *
+     * <p>The difference uses the zone the bridge put into the sample, so both measuring points
+     * subtract against the same interpretation of the competition time instead of each guessing its
+     * own.
+     */
+    private ClockMeasurement measure(PublishedState old, ClockSample sample) {
+        if (sample == null) {
+            return old.liveServerMeasurement();
+        }
+        ClockMeasurement previous = old.liveServerMeasurement();
+        if (previous.present() && previous.sampleRevision() == sample.revision()
+                && old.streamId() != null) {
+            return previous;
+        }
+        Instant at = reference.now();
+        return new ClockMeasurement(sample.revision(), at.toEpochMilli(),
+                CompetitionTimeOffset.differenceMillis(sample.competitionTime(),
+                        sample.competitionTimeZone(), at),
+                reference.status(), reference.source());
+    }
+
     /** @return {@code false} when the snapshot was rejected because its revision went backwards. */
     public synchronized boolean accept(SnapshotEnvelope value) {
         if (!channelId.equals(value.channelId())) {
@@ -170,13 +219,14 @@ public final class PublishedStateStore {
                 state.set(new PublishedState(old.publicationRevision(), old.streamId(),
                         old.sourceRevision(), old.state(), old.presentation(),
                         old.reportedSourceHealth(), true, old.clockChangedAtEpochMilli(),
-                        old.lastUpdateAtEpochMilli()));
+                        old.lastUpdateAtEpochMilli(), old.liveServerMeasurement()));
             }
             return true;
         }
         PublishedState next = new PublishedState(old.publicationRevision() + 1, value.streamId(),
                 value.sourceRevision(), merged(old.state(), value.state()), value.presentation(),
-                value.state().sourceHealth(), true, changedAt(old, value), clock.millis());
+                value.state().sourceHealth(), true, changedAt(old, value), clock.millis(),
+                measure(old, value.state().clockSample()));
         state.set(next);
         listeners.forEach(listener -> listener.accept(next));
         return true;

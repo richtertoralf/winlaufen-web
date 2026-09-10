@@ -64,13 +64,22 @@ Startlisten-Dateiexport --Bridge Control---------->|
   Browsernachricht neben dem Zustandssnapshot
 - Live Server: pro Channel memory-only Published State mit eigener
   `publicationRevision`
+- Bridge und Live Server sind zusätzlich **Messstellen**: Bei jedem erkannten
+  WinLaufen-Uhrtelegramm erzeugt die Bridge ein **Clock-Sample** mit eigener
+  Revision, ihrer Systemzeit beim Empfang, der Differenz zur Wettkampfzeit und
+  dem Status ihrer Zeitreferenz; der Live Server misst dasselbe Sample beim
+  Eintreffen erneut. Ein Sample entsteht auch bei unverändertem Uhrwert — nur so
+  ist „Uhr steht fachlich still" von „es kommen keine Telegramme mehr"
+  unterscheidbar. Snapshots ohne Uhrtelegramm führen das bestehende Sample
+  unverändert mit
 - Live Server zusätzlich: seit wann die Wettkampfzeit ihren aktuellen Wert hat,
   wann zuletzt irgendein Snapshot ankam und der Zustand der eigenen
-  Bridge-Ingest-Verbindung. Alles drei ist Metadatum der Read API und fließt nie
-  in die Wettkampfzeit ein. Bewusst kein Beobachtungszeitpunkt der Quelle: Die
-  Bridge erhöht ihre Revision für jede Art von Änderung und sagt nicht, welche
-  es war — mehr als „zu diesem Zeitpunkt kam ein Snapshot mit diesem Uhrwert an"
-  ist nicht belegbar, und kein Feld behauptet mehr.
+  Bridge-Ingest-Verbindung. Alles Metadaten der Read API; nichts davon fließt je
+  in die Wettkampfzeit ein
+- Keine Stufe korrigiert die Wettkampfzeit, wählt einen Offset aus, kalibriert
+  oder bewertet, welche Messstelle genauer ist. Ein Referenzstatus wird nur dann
+  als synchronisiert gemeldet, wenn das feststellbar ist — heute nirgends, also
+  durchgehend `UNVERIFIED`
   Damit lässt sich „WinLaufen getrennt" von „Bridge getrennt" unterscheiden —
   die browserseitige `SourceHealth` wird beim Bridge-Verlust bewusst abgewertet
   und kann das allein nicht ausdrücken
@@ -104,10 +113,10 @@ Vor-/Zurück-Navigation und direkter Klassenauswahl. Reihenfolge der Klassen und
 der Teilnehmer bleibt die des Imports.
 
 **Read API** — der Live Server stellt beides zusätzlich generisch über HTTP
-bereit: `GET /api/v1/state` mit Wettkampfzeit, Ergebnissen, Verbindungsstatus
-und Startlisten-**Metadaten**, `GET /api/v1/startlist` mit dem vollständigen
-Bestand. Beide Antworten führen die aktuelle Wettkampfzeit und den Zustand der
-Kette WinLaufen → Bridge → Live Server mit; die Startliste wird erst beim
+bereit: `GET /api/v1/state` mit Zeitblock, Ergebnissen, Verbindungsstatus und
+Startlisten-**Metadaten**, `GET /api/v1/startlist` mit dem vollständigen
+Bestand. Beide Antworten führen denselben aktuellen Zeitblock und den Zustand
+der Kette WinLaufen → Bridge → Live Server mit; die Startliste wird erst beim
 HTTP-Read mit dem laufenden State zusammengeführt, nie eingefroren
 mitgespeichert. Vollständig: [API.md](API.md).
 

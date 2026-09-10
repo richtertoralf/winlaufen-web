@@ -2,6 +2,7 @@ package de.winlaufen.web.liveserver.web;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import de.winlaufen.web.contract.TimeReference;
 import de.winlaufen.web.liveserver.state.PublishedStartList;
 import de.winlaufen.web.liveserver.state.PublishedStartListStore;
 import de.winlaufen.web.liveserver.state.PublishedState;
@@ -31,11 +32,25 @@ public final class PublicHttpServer implements AutoCloseable {
     private final PublishedStateStore store;
     private final PublishedStartListStore startLists;
     private final int webSocketPort;
+    /**
+     * Time reference of this measuring point, used only to stamp when a response was produced. Like
+     * every reading here it is this machine's clock and says so; it never touches the competition
+     * time.
+     */
+    private final TimeReference reference;
 
     public PublicHttpServer(String bind, int port, int webSocketPort, PublishedStateStore store,
                             PublishedStartListStore startLists) throws IOException {
+        this(bind, port, webSocketPort, store, startLists, TimeReference.systemClock());
+    }
+
+    /** Test seam: makes the generation timestamp deterministic. */
+    public PublicHttpServer(String bind, int port, int webSocketPort, PublishedStateStore store,
+                            PublishedStartListStore startLists, TimeReference reference)
+            throws IOException {
         this.store = store;
         this.startLists = startLists;
+        this.reference = reference;
         this.webSocketPort = webSocketPort;
         this.server = HttpServer.create(new InetSocketAddress(bind, port), 0);
         this.server.setExecutor(executor);
@@ -85,7 +100,7 @@ public final class PublicHttpServer implements AutoCloseable {
     private String apiState() {
         PublishedState published = store.get();
         PublishedStartList startList = startLists.get();
-        return PublicJson.apiState(store.channelId(), published, startList);
+        return PublicJson.apiState(store.channelId(), published, startList, reference.now());
     }
 
     /**
@@ -96,7 +111,7 @@ public final class PublicHttpServer implements AutoCloseable {
     private String apiStartList() {
         PublishedState published = store.get();
         PublishedStartList startList = startLists.get();
-        return PublicJson.apiStartList(store.channelId(), published, startList);
+        return PublicJson.apiStartList(store.channelId(), published, startList, reference.now());
     }
 
     private static void resource(HttpExchange exchange, String name, String type) throws IOException {

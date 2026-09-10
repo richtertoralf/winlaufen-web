@@ -32,6 +32,9 @@ import de.winlaufen.web.contract.SourceHealth;
  *   <li>{@code lastUpdateAtEpochMilli} — when the last snapshot was accepted from the bridge, no
  *       matter what it carried. This is the only thing that shows data still flowing when the
  *       competition time legitimately stands still.
+ *   <li>{@code liveServerMeasurement} — this live server's own reading of the clock sample the
+ *       bridge measured, taken when that sample arrived here. Updated only for a genuinely new
+ *       sample, never for a snapshot that merely repeats one.
  * </ul>
  *
  * <p>Neither is an observation timestamp of the source, and no field claims to be one. The bridge
@@ -42,11 +45,12 @@ import de.winlaufen.web.contract.SourceHealth;
 public record PublishedState(long publicationRevision, String streamId, long sourceRevision,
                              CanonicalState state, PresentationConfig presentation,
                              SourceHealth reportedSourceHealth, boolean bridgeLinkConnected,
-                             long clockChangedAtEpochMilli, long lastUpdateAtEpochMilli) {
+                             long clockChangedAtEpochMilli, long lastUpdateAtEpochMilli,
+                             ClockMeasurement liveServerMeasurement) {
 
     public static PublishedState empty() {
         return new PublishedState(0, null, -1, CanonicalState.empty(), PresentationConfig.defaults(),
-                SourceHealth.DISCONNECTED, false, 0, 0);
+                SourceHealth.DISCONNECTED, false, 0, 0, ClockMeasurement.none());
     }
 
     /**

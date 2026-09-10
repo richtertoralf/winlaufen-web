@@ -83,6 +83,11 @@ Die beiden sichtbaren Oberflächen heißen:
 * **Jede Antwort** enthält die aktuelle WinLaufen-Wettkampfzeit **und** den
   Verbindungsstatus der Kette WinLaufen → Bridge → Live Server. Ein Consumer
   muss nie aus vorhandenen Daten raten, ob die Quelle noch hängt.
+* Bridge und Live Server arbeiten dabei als **Messstellen**: Zu jedem
+  WinLaufen-Uhrtelegramm liefern sie Empfangszeitpunkt, gemessene Differenz zur
+  Wettkampfzeit und den Status ihrer Zeitreferenz — zwei unabhängige Messungen
+  nebeneinander. Sie korrigieren nichts, wählen keinen Offset und kalibrieren
+  nicht; das entscheidet der Consumer.
 * Read-only und ohne Rückfrage bei WinLaufen: Jeder Request wird aus dem
   bereits veröffentlichten Zustand beantwortet.
 * Details: [docs/API.md](docs/API.md).
