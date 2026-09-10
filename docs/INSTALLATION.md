@@ -747,8 +747,16 @@ Pfade, Browser-Originprüfung und Ingest-Authentifizierung getrennt.
 
 Vor dem Start prüft der Installer ausschließlich die Listenerports des gewählten
 Profils. Ein Konflikt nennt Port, Zweck und soweit ermittelbar Prozess/PID sowie
-den systemd-Dienst. Es wird kein Ersatzport gewählt. TCP 4444 wird nicht
-geprüft, weil die Bridge sich dorthin ausgehend verbindet.
+den systemd-Dienst; sind mehrere Ports belegt, werden **alle** in einem Lauf
+gemeldet. Es wird kein Ersatzport gewählt. TCP 4444 wird nicht geprüft, weil die
+Bridge sich dorthin ausgehend verbindet. Ports, die bereits der bestehenden
+Sprecher-Web-Installation gehören, sind kein Konflikt — sie werden übernommen.
+
+Ein Lauf mit `--staging-root` installiert in ein Testverzeichnis und startet
+nichts; dort wird die Portprüfung des Rechners übersprungen, weil kein Dienst
+entsteht, der einen Port binden könnte. Der Installer sagt das in seiner Ausgabe.
+Für eine produktive Installation bleibt die Prüfung unverändert. `--check-ports`
+erzwingt sie auch im Testmodus.
 
 Der bekannte Prototyp-Ingest-Secret bleibt eine Sicherheitsbegrenzung. Port
 44441 darf nicht unkontrolliert ins Internet weitergeleitet werden; Details

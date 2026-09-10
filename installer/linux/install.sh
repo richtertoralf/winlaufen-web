@@ -13,6 +13,10 @@
 #
 # Testmodus ohne root und ohne systemd:
 #   ./install.sh --profile all-in-one --staging-root /tmp/x --no-systemd
+#
+# In diesem Testmodus wird die Portpruefung des Rechners uebersprungen, weil nichts
+# gestartet wird, das einen Port binden koennte. --check-ports erzwingt sie trotzdem;
+# das braucht nur der Test, der die Preflight-Meldung selbst prueft.
 set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
@@ -23,6 +27,7 @@ PROFILE=""
 STAGING_ROOT=""
 USE_SYSTEMD=1
 DIST_DIR=""
+FORCE_PORT_CHECK=0
 ASSUME_YES=0
 
 INSTALL_PREFIX="/opt/winlaufen-web"
@@ -45,6 +50,7 @@ while (($#)); do
         --staging-root) STAGING_ROOT=$2; shift 2 ;;
         --no-systemd) USE_SYSTEMD=0; shift ;;
         --dist) DIST_DIR=$2; shift 2 ;;
+        --check-ports) FORCE_PORT_CHECK=1; shift ;;
         --yes|-y) ASSUME_YES=1; shift ;;
         -h|--help) usage 0 ;;
         *) echo "Unbekannte Option: $1" >&2; usage 2 ;;
@@ -264,12 +270,32 @@ check_listener_port() {
         echo "Dienst:" >&2
         echo "  $listener_service" >&2
     fi
-    echo >&2
-    echo "Die Installation wurde nicht erfolgreich abgeschlossen." >&2
-    exit 1
+    # Kein sofortiges Ende: Sind mehrere Ports belegt, soll ein Betreiber das in einem
+    # Lauf erfahren und nicht einen nach dem anderen entdecken muessen.
+    port_conflicts=$((port_conflicts + 1))
+    return 0
 }
 
+# Ein Staging-Lauf installiert in ein Testverzeichnis und startet dort nichts: Ohne
+# --staging-root gibt es keinen Fall, in dem use_systemd() ausserhalb eines Tests
+# greift, und ein Dienst, den niemand startet, bindet auch keinen Port. Die Belegung
+# des echten Rechners sagt ueber so einen Lauf also nichts aus.
+#
+# Fuer eine produktive Installation bleibt der Preflight unveraendert scharf: Dort ist
+# ein belegter Port ein echter Konflikt, und es wird ausdruecklich kein Ersatzport
+# gewaehlt. --check-ports erzwingt die Pruefung auch im Staging-Lauf; das braucht nur
+# der Test, der die Preflight-Meldung selbst prueft.
+staging_only_run() {
+    ((FORCE_PORT_CHECK == 0)) && [[ -n "$STAGING_ROOT" ]]
+}
+
+port_conflicts=0
+
 preflight_ports() {
+    if staging_only_run; then
+        note "Staging-Lauf ohne systemd: Portprüfung des Rechners übersprungen"
+        return 0
+    fi
     if ((install_live)); then
         check_listener_port "$WINLAUFEN_LIVE_HTTP_PORT" "WinLaufen Web View / HTTP"
         check_listener_port "$WINLAUFEN_LIVE_WS_PORT" "Live WebSocket / Bridge Ingest"
@@ -277,6 +303,12 @@ preflight_ports() {
     if ((install_bridge)); then
         check_listener_port "$WINLAUFEN_CONTROL_PORT" "Bridge Control"
     fi
+    if ((port_conflicts > 0)); then
+        echo >&2
+        echo "Die Installation wurde nicht erfolgreich abgeschlossen." >&2
+        exit 1
+    fi
+    return 0
 }
 
 # ------------------------------------------------------------ Profilauswahl

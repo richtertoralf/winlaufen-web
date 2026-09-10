@@ -124,8 +124,10 @@ assert_port_conflict() {
     local root="$work/conflict-$port"
     start_listener "$port" || { bad "$label" "Test-Listener auf TCP $port konnte nicht starten"; return; }
     local pid=$started_listener_pid log="$work/conflict-$port.log"
+    # --check-ports erzwingt den Preflight auch im Staging-Lauf. Genau dieser Test
+    # prueft die Meldung, die eine produktive Installation ausgibt.
     bash "$installer_linux" --profile "$profile" --staging-root "$root" --no-systemd \
-        --dist "$fake_dist" > "$log" 2>&1
+        --check-ports --dist "$fake_dist" > "$log" 2>&1
     local status=$?
     stop_listener "$pid"
 
@@ -307,7 +309,7 @@ EOF
 
     ((status == 0)) && ok "$label: Exit-Code 0" \
         || bad "$label: Exit-Code 0" "Exitcode $status"
-    assert_contains "$log" "Installation erfolgreich" "$label: Erfolgsmeldung"
+    assert_contains "$log" "Erstinstallation erfolgreich" "$label: Erfolgsmeldung"
     assert_absent "$log" "Die Installation wurde nicht erfolgreich abgeschlossen" \
         "$label: Verbindungsstatus erzeugt keinen Installationsfehler"
     diagnostic_log=$log
@@ -469,11 +471,11 @@ if run_install all-in-one "$root"; then
     # Windows entstanden sie, weil der Installer selbst in der falschen Codepage
     # gelesen wurde; die Kommentare sind deshalb jetzt ASCII und damit unabhängig
     # davon, wie irgendein Werkzeug die Datei liest.
-    if LC_ALL=C grep -q '[^\x00-\x7F]' "$config"; then
-        bad "Frische Bridge-Konfiguration ist reines ASCII" \
-            "$(LC_ALL=C grep -n '[^\x00-\x7F]' "$config" | head -3)"
-    else
+    if iconv -f ASCII -t ASCII "$config" >/dev/null 2>&1; then
         ok "Frische Bridge-Konfiguration ist reines ASCII"
+    else
+        bad "Frische Bridge-Konfiguration ist reines ASCII" \
+            "$(iconv -f ASCII -t ASCII "$config" 2>&1 | tail -1)"
     fi
     assert_absent "$config" 'Ã' "Frische Bridge-Konfiguration enthält keine Mojibake-Sequenz Ã"
     assert_absent "$config" 'Â' "Frische Bridge-Konfiguration enthält keine Mojibake-Sequenz Â"
@@ -614,7 +616,7 @@ if run_install all-in-one "$root"; then
         "Upgrade nennt die erhaltene Startliste"
     assert_contains "$config" "source.host=10.77.0.1" "Gepflegte WinLaufen-Adresse überlebt den Reinstall"
     assert_contains "$config" "outputs.1.id=club" "Gepflegte Target-Liste überlebt den Reinstall"
-    assert_contains "$install_log" "Bestehende Bridge-Konfiguration beibehalten" \
+    assert_contains "$install_log" "BEIBEHALTEN: bestehende bridge.properties" \
         "Reinstall meldet den Schutz der bestehenden Konfiguration"
 fi
 
