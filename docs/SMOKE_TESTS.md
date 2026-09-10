@@ -143,6 +143,88 @@ für den nächsten Arbeitsblock": belegter TCP-Port 4444 im `WinLaufenClient`-Te
 Umlautdarstellung des Installers unter Windows PowerShell 5.1 und die Frage, ob
 ein Upgrade bei aktiver Sprecher-PC-Verbindung zuverlässig funktioniert.
 
+### Protokoll: Installation aus dem Releasepaket v0.4.0
+
+Anders als die beiden Protokolle oben ist dies **keine** Developer-/Source-
+Installation, sondern die Installation der veröffentlichten Binary
+Distributions. Weder `git clone` noch `./mvnw clean package` waren beteiligt.
+Beide Archive wurden direkt vom GitHub Release geladen und ihre SHA256-Summe
+gegen das veröffentlichte `SHA256SUMS` geprüft.
+
+**Linux amd64 — Fresh Installation**
+
+```text
+Ubuntu 24.04.4 LTS, 10.77.0.132
+winlaufen-web-0.4.0-linux-amd64.tar.gz
+Profil all-in-one
+```
+
+Ausgangszustand: Eine frühere Installation war mit
+`sudo ./installer/linux/uninstall.sh --purge` entfernt, ebenso `/opt/winlaufen-web`,
+`/etc/winlaufen-web`, `/var/lib/winlaufen-web`, beide systemd-Units und das
+Dienstkonto `winlaufen`. Zusätzlich entfernt waren OpenJDK 25, Maven, der
+Source-Checkout `~/winlaufen-web` und `~/.m2`. Git blieb auf der VM installiert,
+wurde für diese Installation aber nicht verwendet. Die Ports 44440–44442 waren
+frei.
+
+| # | Nachweis |
+|---|---|
+| 1 | SHA256 stimmt mit dem veröffentlichten `SHA256SUMS` überein |
+| 2 | `tar -xzf`, dann `sudo ./installer/linux/install.sh --profile all-in-one` läuft erfolgreich durch |
+| 3 | kein System-Java, kein Maven, kein Source-Checkout nötig |
+| 4 | der Installer verwendet `/opt/winlaufen-web/runtime/bin/java`, also die gebündelte Runtime |
+| 5 | Bridge-Dienst läuft |
+| 6 | Bridge Control auf TCP 44442 erreichbar |
+| 7 | Live Server läuft, Web View auf TCP 44440 |
+| 8 | Live-WebSocket auf TCP 44441 |
+| 9 | Output Target `local` ist `CONNECTED` |
+| 10 | nach Eintragen von `192.168.95.198:4444` in Bridge Control: WinLaufen verbunden |
+| 11 | im Web Viewer auf `http://10.77.0.132:44440/` erscheinen reale Live-Daten |
+| 12 | die Startliste mit 46 Klassen wird korrekt angezeigt |
+
+**Windows x64 — Clean Installation von Sprecher-Web**
+
+```text
+Windows 11, realer WinLaufen-PC
+winlaufen-web-0.4.0-windows-x64.zip
+Profil AllInOne
+```
+
+Ausgangszustand: Entfernt war ausschließlich Sprecher-Web selbst —
+`C:\Program Files\WinLaufen Web`, `C:\ProgramData\WinLaufen Web`, die geplanten
+Aufgaben `WinLaufen Web Bridge` und `WinLaufen Web Live Server`, die
+`WinLaufenWeb-*`-Firewallregeln und die Listener auf 44440, 44441 und 44442.
+
+Dies ist damit **keine** Fresh Installation eines neu aufgesetzten Windows:
+Das originale WinLaufen lief auf demselben PC unverändert weiter und stellte
+TCP 4444 mit eigenem Java-Prozess bereit, und **System-Java wurde bewusst nicht
+entfernt**, weil andere Anwendungen auf diesem Rechner es benötigen. Genau
+daraus folgt der eigentliche Nachweis: Die Sprecher-Web-Dienste verwendeten
+trotz vorhandenem System-Java die mitgelieferte Runtime.
+
+| # | Nachweis |
+|---|---|
+| 1 | SHA256 stimmt mit dem veröffentlichten `SHA256SUMS` überein |
+| 2 | im entpackten ZIP vorhanden: `lib/winlaufen-web-bridge.jar`, `lib/winlaufen-web-live-server.jar`, `runtime/bin/java.exe`, `installer/windows/Install-WinLaufenWeb.ps1` |
+| 3 | PowerShell als Administrator, `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` |
+| 4 | `.\installer\windows\Install-WinLaufenWeb.ps1 -Profile AllInOne` läuft erfolgreich durch |
+| 5 | geplante Aufgabe `WinLaufen Web Bridge` läuft |
+| 6 | geplante Aufgabe `WinLaufen Web Live Server` läuft |
+| 7 | die Prozesse verwenden `C:\Program Files\WinLaufen Web\runtime\bin\javaw.exe`, **nicht** das System-Java |
+| 8 | TCP 44440, 44441 und 44442 lauschen; TCP 4444 gehört unverändert dem originalen WinLaufen |
+| 9 | Bridge Control auf `http://localhost:44442/` erreichbar |
+| 10 | Web Viewer auf `http://localhost:44440/` erreichbar |
+| 11 | die Bridge ist mit dem lokalen WinLaufen auf `127.0.0.1:4444` `CONNECTED` |
+| 12 | die Startliste mit 46 Klassen wird korrekt angezeigt |
+
+Offen aus diesem Testlauf: die Installation aus dem Releasepaket auf einem
+völlig neu aufgesetzten Windows-PC ohne jedes vorhandene Java. Ebenfalls in
+diesem Lauf erneut aufgetreten und inzwischen behoben ist die falsche
+Umlautdarstellung des Windows-Installers,
+[Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5); der Fix
+liegt in `main` und ist im veröffentlichten `v0.4.0`-ZIP **noch nicht**
+enthalten.
+
 ### Windows-Reinstall, Legacy-Migration und Fehlerfall (manuell offen)
 
 Diese Prüfung muss auf einem echten Windows-11-System mit Windows PowerShell

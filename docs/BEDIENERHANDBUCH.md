@@ -256,6 +256,12 @@ Der Installer fragt nur nach dem Profil. Wählen Sie **[1] All-in-One**. Er
 fragt **keine** IP-Adresse, keinen Hostnamen und keine Internetadresse ab —
 das kommt später in Bridge Control.
 
+> **Falsche Umlaute in der Installerausgabe (Version 0.4.0).** In der
+> Windows-PowerShell erscheinen deutsche Umlaute des Installers verstümmelt,
+> zum Beispiel „lÃ¤uft" statt „läuft". Das ist eine reine Anzeigefrage: Die
+> Installation, die Dienste und Ihre Konfiguration sind davon nicht betroffen.
+> Der Fehler ist behoben und verschwindet mit der nächsten Version.
+
 ### Schritt 5 — WinLaufen wieder verbinden
 
 Nach erfolgreicher Installation in WinLaufen:

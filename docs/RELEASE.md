@@ -107,4 +107,20 @@ Raspberry Pi wird derzeit nicht gebaut; dort gilt der Weg über den Quellcode.
 Die beiden Installationswege für Anwender und Entwickler sind in
 [INSTALLATION.md](INSTALLATION.md) beschrieben.
 
+### Abnahmestand der Pakete von `v0.4.0`
+
+Beide Archive wurden nach der Veröffentlichung real installiert; das Protokoll
+steht in [SMOKE_TESTS.md](SMOKE_TESTS.md#protokoll-installation-aus-dem-releasepaket-v040).
+
+| Paket | Abnahme |
+| ----- | ------- |
+| Linux amd64 | Fresh Installation auf Ubuntu 24.04.4 LTS ohne System-Java, ohne Maven und ohne Source-Checkout; gebündelte Runtime verwendet; reale WinLaufen-Verbindung, Web Viewer und Startliste geprüft |
+| Windows x64 | Clean Installation von Sprecher-Web auf einem Windows-11-PC in einer PowerShell als Administrator; gebündelte Runtime trotz vorhandenem System-Java verwendet; originales WinLaufen lief parallel weiter |
+
+Bekannt und in `v0.4.0` enthalten: Der Windows-Installer stellt in Windows
+PowerShell 5.1 deutsche Umlaute falsch dar
+([Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5)). Nur die
+Konsolenausgabe ist betroffen. Der Fix liegt in `main` und wird erstmals mit dem
+nächsten Release ausgeliefert; `v0.4.0` bleibt unverändert.
+
 Build- oder Distributionsergebnisse werden nicht im Repository versioniert.
