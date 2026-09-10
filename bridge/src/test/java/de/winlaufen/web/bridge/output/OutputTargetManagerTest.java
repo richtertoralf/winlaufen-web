@@ -42,7 +42,7 @@ class OutputTargetManagerTest {
 
     @Test
     void unchangedTargetsSurviveReconfigurationWhileOthersAreAddedAndRemoved() {
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         Factory factory = new Factory();
         try (OutputTargetManager manager = new OutputTargetManager(
                 List.of(target("alpha", 9001), target("beta", 9002)), "stream", store, startLists(), factory)) {
@@ -75,7 +75,7 @@ class OutputTargetManagerTest {
 
     @Test
     void changingOneTargetReplacesOnlyThatTarget() {
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         Factory factory = new Factory();
         try (OutputTargetManager manager = new OutputTargetManager(
                 List.of(target("alpha", 9001), target("beta", 9002)), "stream", store, startLists(), factory)) {
@@ -95,7 +95,7 @@ class OutputTargetManagerTest {
 
     @Test
     void closingTheManagerDetachesItsListenerAndAllAdapters() {
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         Factory factory = new Factory();
         OutputTargetManager manager = new OutputTargetManager(
                 List.of(target("alpha", 9001)), "stream", store, startLists(), factory);

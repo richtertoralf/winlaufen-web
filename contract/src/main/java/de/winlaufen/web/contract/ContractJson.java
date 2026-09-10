@@ -141,8 +141,32 @@ public final class ContractJson {
         if (state.message() != null && state.message().length() > ContractLimits.MAX_MESSAGE_CHARS) {
             throw new ContractViolationException("Message exceeds size limit");
         }
+        validateClockSample(state.clockSample());
         validateCompetition(state.competition());
         validateCurrentFinish(state.currentFinish(), state.competition());
+    }
+
+    /**
+     * Structural only, like everything else here. The measured values themselves are never judged:
+     * a difference of two minutes is a legitimate measurement on a machine whose clock is off, and
+     * deciding what it means is not this layer's business.
+     */
+    private static void validateClockSample(ClockSample sample) {
+        if (sample == null) {
+            return;
+        }
+        if (sample.revision() < 0
+                || sample.referenceStatus() == null
+                || sample.referenceSource() == null
+                || sample.competitionTimeZoneSource() == null) {
+            throw new ContractViolationException("Invalid clock sample");
+        }
+        for (String value : List.of(sample.competitionTime(), sample.competitionTimeZone(),
+                sample.systemTimeAtReceipt())) {
+            if (value != null && value.length() > ContractLimits.MAX_IDENTIFIER_CHARS) {
+                throw new ContractViolationException("Clock sample value exceeds size limit");
+            }
+        }
     }
 
     private static void validate(SnapshotEnvelope value) {

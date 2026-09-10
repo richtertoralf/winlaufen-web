@@ -445,6 +445,8 @@ function showStatus(status) {
   sourceStatus.className = stateClass(status.sourceHealth);
   document.querySelector('#source-help').hidden = status.sourceHealth !== 'DISCONNECTED';
 
+  showCompetitionTimeZone(status.competitionTimeZone);
+  showConfigNotices(status.notices);
   showStartList(status.startList);
 
   targetNodes().forEach(node => {
@@ -466,6 +468,34 @@ function showStatus(status) {
  * Der aktuell geladene Startlistenbestand. Generation 0 heißt "noch keine importiert";
  * die Teilnehmerzahl ist dafür kein Kriterium, weil ein erfolgreicher Import nie leer ist.
  */
+/**
+ * Die Wettkampf-Zeitzone. Ohne Eintrag gilt der WinLaufen-Standard, und dann ist hier
+ * nichts zu tun - deshalb steht das als schlichte Information da und nicht als Warnung.
+ * Sichtbar bleibt sie trotzdem, damit ein Auslandseinsatz nachvollziehbar ist.
+ */
+function showCompetitionTimeZone(zone) {
+  const node = document.querySelector('#competition-timezone');
+  if (!zone || !zone.zone) {
+    node.textContent = '';
+    return;
+  }
+  const herkunft = zone.source === 'CONFIGURED' ? 'eingestellt' : 'Standard für WinLaufen';
+  node.textContent = `Wettkampf-Zeitzone: ${zone.zone} · ${herkunft}`;
+}
+
+/**
+ * Hinweise der Konfigurationsdatei, aktuell vor allem eine unbrauchbare
+ * Wettkampf-Zeitzone. Der Fehler bricht den Start bewusst nicht ab, verschiebt aber
+ * jede Zeitmessung um den Versatz zwischen gemeinter und ersatzweise verwendeter
+ * Zone. Nur im Journal waere er fuer einen Veranstalter unsichtbar.
+ */
+function showConfigNotices(notices) {
+  const node = document.querySelector('#config-notices');
+  const lines = Array.isArray(notices) ? notices : [];
+  node.textContent = lines.join(' ');
+  node.hidden = lines.length === 0;
+}
+
 function showStartList(startList) {
   const status = document.querySelector('#startlist-status');
   status.replaceChildren();

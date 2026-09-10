@@ -9,6 +9,7 @@ import de.winlaufen.web.bridge.output.OutputTargetRuntime;
 import de.winlaufen.web.bridge.startlist.CanonicalStartList;
 import de.winlaufen.web.bridge.startlist.StartListEntry;
 import de.winlaufen.web.bridge.state.CanonicalSnapshot;
+import de.winlaufen.web.contract.CompetitionTimeZoneSource;
 import de.winlaufen.web.contract.ContractJson;
 import de.winlaufen.web.contract.PresentationConfig;
 
@@ -59,7 +60,17 @@ public final class BridgeControlJson {
                                 int entryCount, int classCount) { }
 
     public record StatusView(long sourceRevision, String sourceHealth, String clock,
-                             List<OutputView> outputs, StartListView startList) { }
+                             List<OutputView> outputs, StartListView startList,
+                             TimeZoneView competitionTimeZone, List<String> notices) { }
+
+    /**
+     * The zone the bridge actually reads the competition time in, and where it came from.
+     *
+     * <p>Without configuration this is Sprecher-Web's own default for WinLaufen, which is the
+     * normal case and needs no action. A mistyped {@code competition.timezone} lands in the same
+     * place, and then {@code notices} names the unusable value.
+     */
+    public record TimeZoneView(String zone, String source) { }
 
     public record ErrorView(String error) { }
 
@@ -76,14 +87,18 @@ public final class BridgeControlJson {
     }
 
     public static String status(CanonicalSnapshot snapshot, List<OutputTargetRuntime> runtimes,
-                                CanonicalStartList startList) {
+                                CanonicalStartList startList, String competitionTimeZone,
+                                CompetitionTimeZoneSource competitionTimeZoneSource,
+                                List<String> notices) {
         List<OutputView> outputs = runtimes.stream()
                 .map(runtime -> new OutputView(runtime.targetId(), runtime.state().name(),
                         runtime.lastAckedSourceRevision(), runtime.retryAttempt(), runtime.lastError()))
                 .toList();
         return ContractJson.write(new StatusView(snapshot.sourceRevision(),
                 snapshot.state().sourceHealth().name(), snapshot.state().clock(), outputs,
-                startList(startList)));
+                startList(startList),
+                new TimeZoneView(competitionTimeZone, competitionTimeZoneSource.name()),
+                List.copyOf(notices)));
     }
 
     /** The result of one accepted import, shown to the operator right after the upload. */

@@ -1,9 +1,14 @@
 package de.winlaufen.web.liveserver.state;
 
 import de.winlaufen.web.contract.CanonicalState;
+import de.winlaufen.web.contract.ClockSample;
+import de.winlaufen.web.contract.CompetitionTimeOffset;
 import de.winlaufen.web.contract.SnapshotEnvelope;
 import de.winlaufen.web.contract.SourceHealth;
+import de.winlaufen.web.contract.TimeReference;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,9 +29,32 @@ public final class PublishedStateStore {
     private final String channelId;
     private final AtomicReference<PublishedState> state = new AtomicReference<>(PublishedState.empty());
     private final List<Consumer<PublishedState>> listeners = new CopyOnWriteArrayList<>();
+    /**
+     * Wall clock for freshness metadata only. It records when a snapshot was accepted here, which
+     * is what a consumer needs to judge how old the carried competition time is. It never produces
+     * or advances that competition time — that value stays exactly what WinLaufen sent.
+     */
+    private final Clock clock;
+    /**
+     * The time reference of this measuring point. It reads the same machine clock as {@link #clock}
+     * and additionally states what is known about its accuracy, which is what the read API has to
+     * publish alongside every measurement.
+     */
+    private final TimeReference reference;
 
     public PublishedStateStore(String channelId) {
+        this(channelId, Clock.systemUTC());
+    }
+
+    /** Test seam: makes freshness metadata and measurements deterministic without sleeping. */
+    public PublishedStateStore(String channelId, Clock clock) {
+        this(channelId, clock, TimeReference.systemClock(clock));
+    }
+
+    public PublishedStateStore(String channelId, Clock clock, TimeReference reference) {
         this.channelId = channelId;
+        this.clock = clock;
+        this.reference = reference;
     }
 
     public String channelId() {
@@ -53,15 +81,47 @@ public final class PublishedStateStore {
      */
     public synchronized void ingestDisconnected() {
         PublishedState old = state.get();
+        // The sample has to travel with the degraded copy. Dropping it would make a source that
+        // was delivering a second ago look as if it had never sent a telegram at all.
+        CanonicalState degraded = new CanonicalState(SourceHealth.DISCONNECTED, old.state().clock(),
+                old.state().competition(), old.state().currentFinish(), old.state().message(),
+                old.state().clockSample());
         if (old.streamId() == null && old.state().sourceHealth() == SourceHealth.DISCONNECTED) {
+            // Nothing changes for a browser, but the link flag still has to become false: a
+            // consumer must not be told the bridge is attached when it is not.
+            if (old.bridgeLinkConnected()) {
+                state.set(new PublishedState(old.publicationRevision(), old.streamId(),
+                        old.sourceRevision(), degraded, old.presentation(),
+                        old.reportedSourceHealth(), false, old.clockChangedAtEpochMilli(),
+                        old.lastUpdateAtEpochMilli(), old.liveServerMeasurement()));
+            }
             return;
         }
-        CanonicalState degraded = new CanonicalState(SourceHealth.DISCONNECTED, old.state().clock(),
-                old.state().competition(), old.state().currentFinish(), old.state().message());
         PublishedState next = new PublishedState(old.publicationRevision() + 1, null,
-                old.sourceRevision(), degraded, old.presentation());
+                old.sourceRevision(), degraded, old.presentation(), old.reportedSourceHealth(),
+                false, old.clockChangedAtEpochMilli(), old.lastUpdateAtEpochMilli(),
+                old.liveServerMeasurement());
         state.set(next);
         listeners.forEach(listener -> listener.accept(next));
+    }
+
+    /**
+     * A bridge ingest connection was opened. This only records the link; it publishes nothing and
+     * changes no revision, because an open socket is not yet a state. The first accepted snapshot
+     * does the publishing.
+     *
+     * <p>The reported source health stays what the previous bridge said until the new one speaks:
+     * inventing {@code CONNECTED} here would claim a WinLaufen connection nobody has observed.
+     */
+    public synchronized void ingestConnected() {
+        PublishedState old = state.get();
+        if (old.bridgeLinkConnected()) {
+            return;
+        }
+        state.set(new PublishedState(old.publicationRevision(), old.streamId(), old.sourceRevision(),
+                old.state(), old.presentation(), old.reportedSourceHealth(), true,
+                old.clockChangedAtEpochMilli(), old.lastUpdateAtEpochMilli(),
+                old.liveServerMeasurement()));
     }
 
     /**
@@ -84,7 +144,62 @@ public final class PublishedStateStore {
             return value;
         }
         return new CanonicalState(value.sourceHealth(), value.clock(), old.competition(),
-                old.currentFinish(), value.message());
+                old.currentFinish(), value.message(), value.clockSample());
+    }
+
+    /**
+     * When the competition time carried by this snapshot first appeared here.
+     *
+     * <p>Only a changed value gets a new timestamp. A snapshot repeating the clock this live server
+     * already holds — a presentation change, a message, a result block, a resync after a reconnect —
+     * keeps the earlier one. That is deliberate twice over: a clock frozen since the source vanished
+     * must not be re-stamped as current by the next unrelated publication, and for a consumer that
+     * later wants to relate the competition time to real time, the moment the value appeared is the
+     * closest anchor there is.
+     *
+     * <p>This is explicitly not "when the source last delivered this value". The bridge bumps its
+     * revision for every kind of change and the envelope does not say which occurred, so that
+     * stronger statement cannot be proven here — and no field claims it. Whether data is still
+     * arriving at all is answered by {@code lastUpdateAt} and by the reported source health.
+     */
+    private long changedAt(PublishedState old, SnapshotEnvelope value) {
+        String clockValue = value.state().clock();
+        if (clockValue == null) {
+            return old.clockChangedAtEpochMilli();
+        }
+        if (clockValue.equals(old.state().clock()) && old.clockChangedAtEpochMilli() > 0) {
+            return old.clockChangedAtEpochMilli();
+        }
+        return clock.millis();
+    }
+
+    /**
+     * This live server's own reading of the clock sample that just arrived.
+     *
+     * <p>Measured only for a sample this live server has not seen before. A presentation change, a
+     * result block or a resync repeats the current sample, and taking a fresh reading then would
+     * time the republication rather than the telegram — the very confusion this model exists to
+     * avoid. A repeated clock <em>value</em> in a new sample does get measured: the bridge observed
+     * the source again, which is exactly what a new sample means.
+     *
+     * <p>The difference uses the zone the bridge put into the sample, so both measuring points
+     * subtract against the same interpretation of the competition time instead of each guessing its
+     * own.
+     */
+    private ClockMeasurement measure(PublishedState old, ClockSample sample) {
+        if (sample == null) {
+            return old.liveServerMeasurement();
+        }
+        ClockMeasurement previous = old.liveServerMeasurement();
+        if (previous.present() && previous.sampleRevision() == sample.revision()
+                && old.streamId() != null) {
+            return previous;
+        }
+        Instant at = reference.now();
+        return new ClockMeasurement(sample.revision(), at.toEpochMilli(),
+                CompetitionTimeOffset.differenceMillis(sample.competitionTime(),
+                        sample.competitionTimeZone(), at),
+                reference.status(), reference.source());
     }
 
     /** @return {@code false} when the snapshot was rejected because its revision went backwards. */
@@ -98,10 +213,20 @@ public final class PublishedStateStore {
             return false;
         }
         if (sameStream && value.sourceRevision() == old.sourceRevision()) {
+            // Same revision, same state: no publication. The link is demonstrably alive though,
+            // and a resend after a reconnect must not leave it flagged as broken.
+            if (!old.bridgeLinkConnected()) {
+                state.set(new PublishedState(old.publicationRevision(), old.streamId(),
+                        old.sourceRevision(), old.state(), old.presentation(),
+                        old.reportedSourceHealth(), true, old.clockChangedAtEpochMilli(),
+                        old.lastUpdateAtEpochMilli(), old.liveServerMeasurement()));
+            }
             return true;
         }
         PublishedState next = new PublishedState(old.publicationRevision() + 1, value.streamId(),
-                value.sourceRevision(), merged(old.state(), value.state()), value.presentation());
+                value.sourceRevision(), merged(old.state(), value.state()), value.presentation(),
+                value.state().sourceHealth(), true, changedAt(old, value), clock.millis(),
+                measure(old, value.state().clockSample()));
         state.set(next);
         listeners.forEach(listener -> listener.accept(next));
         return true;

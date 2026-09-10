@@ -39,7 +39,32 @@ Startlisten-Dateiexport --Bridge Control---------->|
                                               Web Viewer
                                           Uhr / LIVE / Ergebnisse
                                           Startliste nach Klassen
+                                                   |
+                                                   |  HTTP Read API 44440
+                                                   v
+                                          externe Consumer
+                                          FSO, GFX Engine, Monitoring
 ```
+
+Der Zeitpfad läuft parallel dazu und ist eine eigene Kette von Messpunkten:
+
+```text
+WinLaufen Uhrtelegramm  UhrHH:MM:SS, Sekundenauflösung
+        |
+        v
+Bridge  Clock Sample:   Revision, Empfangszeit, Messdifferenz,
+                        Wettkampfzone + Herkunft, Referenzstatus
+        |
+        v
+Live Server  eigene Messung desselben Samples beim Eintreffen
+        |
+        v
+Read API  beide Messungen nebeneinander, ohne Auswahl und ohne Korrektur
+```
+
+Fünf Dinge bleiben dabei getrennt und werden nie ineinander gerechnet:
+**Zeitmessung**, **Verbindung/Freshness**, **Startliste**, **Ergebnisse** und
+**Präsentation**. Vollständig: [API.md](API.md).
 
 - Root-POM: reiner Aggregator, keine Runtime-Klassen
 - `winlaufen-web-contract`: kleine Bibliothek, kein Prozess
@@ -64,6 +89,35 @@ Startlisten-Dateiexport --Bridge Control---------->|
   Browsernachricht neben dem Zustandssnapshot
 - Live Server: pro Channel memory-only Published State mit eigener
   `publicationRevision`
+- Bridge und Live Server sind zusätzlich **Messstellen**: Bei jedem erkannten
+  WinLaufen-Uhrtelegramm erzeugt die Bridge ein **Clock-Sample** mit eigener
+  Revision, ihrer Systemzeit beim Empfang, der Differenz zur Wettkampfzeit, der
+  verwendeten Wettkampf-Zeitzone samt deren Herkunft und dem Status ihrer
+  Zeitreferenz; der Live Server misst dasselbe Sample beim Eintreffen erneut und
+  rechnet dabei mit der Zone aus dem Sample, nie mit seiner eigenen. Die
+  gemessene Differenz ist eine Messdifferenz gegen die jeweilige Systemuhr und
+  ausdrücklich kein ermittelter Uhrenfehler: WinLaufen liefert Sekundenauflösung,
+  und Umschaltmoment, Sendezeitpunkt und Transportdauer sind unbekannt. Ein Sample entsteht auch bei unverändertem Uhrwert — nur so
+  ist „Uhr steht fachlich still" von „es kommen keine Telegramme mehr"
+  unterscheidbar. Snapshots ohne Uhrtelegramm führen das bestehende Sample
+  unverändert mit
+- Live Server zusätzlich: seit wann die Wettkampfzeit ihren aktuellen Wert hat,
+  wann zuletzt irgendein Snapshot ankam und der Zustand der eigenen
+  Bridge-Ingest-Verbindung. Alles Metadaten der Read API; nichts davon fließt je
+  in die Wettkampfzeit ein
+- Keine Stufe korrigiert die Wettkampfzeit, wählt einen Offset aus, kalibriert
+  oder bewertet, welche Messstelle genauer ist. Ein Referenzstatus wird nur dann
+  als synchronisiert gemeldet, wenn das feststellbar ist — heute nirgends, also
+  durchgehend `UNVERIFIED`
+- Die Wettkampf-Zeitzone ist ohne Eintrag `Europe/Berlin`, der fachliche Standard
+  für WinLaufen; das Sample kennzeichnet sie dann als `APPLICATION_DEFAULT`. Die
+  Zone des Rechners bestimmt sie bewusst **nicht** — sie ist ein Zufall der
+  Einrichtung und würde auf einem UTC-Host jede Differenz verschieben. Für das
+  Ausland wird `competition.timezone` in `bridge.properties` gesetzt.
+  Zeitzonenherkunft und Uhrqualität sind getrennte Angaben
+  Damit lässt sich „WinLaufen getrennt" von „Bridge getrennt" unterscheiden —
+  die browserseitige `SourceHealth` wird beim Bridge-Verlust bewusst abgewertet
+  und kann das allein nicht ausdrücken
 - Browser: nur flüchtige öffentliche Kopie
 - `BridgeConfig`: Source, 0..n Targets, Presentation Config
 - Live Server kennt nur technische Bind-/Channel-/Ingest-Credential-Config
@@ -93,8 +147,13 @@ liefert sie den Bestand beim Reconnect von selbst erneut, ohne erneuten Import.
 Vor-/Zurück-Navigation und direkter Klassenauswahl. Reihenfolge der Klassen und
 der Teilnehmer bleibt die des Imports.
 
-Eine generische Read-API für externe Consumer gehört **nicht** zu diesem Stand;
-siehe [README, Geplant](../README.md#geplant-noch-nicht-vorhanden).
+**Read API** — der Live Server stellt beides zusätzlich generisch über HTTP
+bereit: `GET /api/v1/state` mit Zeitblock, Ergebnissen, Verbindungsstatus und
+Startlisten-**Metadaten**, `GET /api/v1/startlist` mit dem vollständigen
+Bestand. Beide Antworten führen denselben aktuellen Zeitblock und den Zustand
+der Kette WinLaufen → Bridge → Live Server mit; die Startliste wird erst beim
+HTTP-Read mit dem laufenden State zusammengeführt, nie eingefroren
+mitgespeichert. Vollständig: [API.md](API.md).
 
 Details: MODULAR_ARCHITECTURE.md §5 (State Ownership), §5.1 (Startliste), §6
 (Contract inkl. Startlistennachricht), §9 (Konfigurationsbesitz).
@@ -114,7 +173,7 @@ Kurzreferenz:
 | Port  | Dienst                                             |
 | ----- | --------------------------------------------------- |
 | 4444  | WinLaufen (Bridge → WinLaufen, nur ausgehend)        |
-| 44440 | Live Server: Web View / Public HTTP/API              |
+| 44440 | Live Server: Web View / Public HTTP / Read API       |
 | 44441 | Live Server: Browser-WebSocket + Bridge-Ingest       |
 | 44442 | Bridge Control (nur vertrauenswürdiges LAN, v0.1 ohne Auth) |
 
@@ -137,6 +196,21 @@ Details: [INSTALLATION.md](INSTALLATION.md).
 - Bridge-Konfigurationsort: `winlaufen.bridge.config` Systemproperty falls
   gesetzt (z. B. `/etc/winlaufen-web/bridge.properties`), sonst
   `${user.home}/.winlaufen-web/config.properties`
+
+## Genauigkeitsgrenze
+
+Sprecher-Web ist kein hochpräzises Zeitmess-, PTP- oder
+Broadcast-Timecode-System. Für die vorgesehenen On-Screen- und
+Broadcast-Anwendungen wird eine zeitliche Zuordnungsgenauigkeit in der
+Größenordnung von etwa 100 ms angestrebt. Rohzeitstempel werden trotzdem mit der
+jeweils verfügbaren höheren Auflösung erfasst und unverändert bereitgestellt.
+Zusätzliche Komplexität für deutlich höhere Präzision wird nur eingeführt, wenn
+sie für den Anwendungsfall tatsächlich erforderlich ist.
+
+Das ist eine **Architektur- und Designgrenze**, keine zugesagte Eigenschaft
+einer einzelnen API-Antwort. Die WinLaufen-Uhr liefert Sekundenauflösung, und
+ohne belegbare Zeitreferenz meldet die API `UNVERIFIED` — was in einem vom
+Internet getrennten Vereinsnetz der Normalfall und kein Fehlerzustand ist.
 
 ## Bekannte Prototyp-Einschränkung
 

@@ -78,9 +78,9 @@ class BridgeControlStartListTest {
 
     private BridgeControlServer newServer(StartListStore store) throws Exception {
         return new BridgeControlServer("127.0.0.1", 0, new CanonicalStateStore(
-                PresentationConfig.defaults()),
+                PresentationConfig.defaults(), null),
                 new BridgeConfigStore(temp.resolve("bridge.properties")), store,
-                BridgeControlStartListTest::config, List::of, ignored -> { });
+                BridgeControlStartListTest::config, List::of, ignored -> { }, List::of);
     }
 
     private static BridgeConfig config() {

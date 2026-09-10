@@ -47,18 +47,31 @@ public final class BridgeControlServer implements AutoCloseable {
     private final Supplier<BridgeConfig> config;
     private final Supplier<List<OutputTargetRuntime>> runtimes;
     private final Consumer<BridgeConfig> changed;
+    /**
+     * What the configuration reader had to say when it loaded the file — an unusable competition
+     * time zone above all.
+     *
+     * <p>A mistyped zone is not a startup failure and must not be one: the bridge's job is to
+     * deliver results, and every other function works. But it silently shifts every time
+     * measurement by the whole offset between the intended and the fallback zone, which on a UTC
+     * host is two hours. A line in the journal is not where an organiser looks, so it belongs on
+     * the surface they do look at.
+     */
+    private final Supplier<List<String>> configNotices;
 
     public BridgeControlServer(String bind, int port, CanonicalStateStore state,
                                BridgeConfigStore store, StartListStore startLists,
                                Supplier<BridgeConfig> config,
                                Supplier<List<OutputTargetRuntime>> runtimes,
-                               Consumer<BridgeConfig> changed) throws IOException {
+                               Consumer<BridgeConfig> changed,
+                               Supplier<List<String>> configNotices) throws IOException {
         this.state = state;
         this.store = store;
         this.startLists = startLists;
         this.config = config;
         this.runtimes = runtimes;
         this.changed = changed;
+        this.configNotices = configNotices;
         this.server = HttpServer.create(new InetSocketAddress(bind, port), 0);
         this.server.setExecutor(executor);
         this.server.createContext("/", this::handle);
@@ -101,7 +114,9 @@ public final class BridgeControlServer implements AutoCloseable {
             case "/assets/control.js" -> resource(exchange, "/bridge-control/control.js", "text/javascript; charset=utf-8");
             case "/api/v1/config" -> json(exchange, 200, BridgeControlJson.config(config.get()));
             case "/api/v1/status" -> json(exchange, 200,
-                    BridgeControlJson.status(state.get(), runtimes.get(), startLists.current()));
+                    BridgeControlJson.status(state.get(), runtimes.get(), startLists.current(),
+                            state.competitionTimeZone(), state.competitionTimeZoneSource(),
+                            configNotices.get()));
             default -> text(exchange, 404, "Nicht gefunden");
         }
     }
@@ -131,7 +146,10 @@ public final class BridgeControlServer implements AutoCloseable {
                 targets(form, old),
                 new PresentationConfig(on(form, "showClub"), on(form, "showAssociation"),
                         on(form, "showNation"), on(form, "showShooting"),
-                        on(form, "showPublicMessages")));
+                        on(form, "showPublicMessages")),
+                // Not on this form, and it still has to survive a save: the whole configuration is
+                // rewritten from what is passed here, so a value left out would silently vanish.
+                old.competitionTimeZone());
         store.save(next);
         changed.accept(next);
         logWarnings(next);

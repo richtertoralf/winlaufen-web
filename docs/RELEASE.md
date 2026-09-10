@@ -1,6 +1,6 @@
 # Sprecher-Web — Release-Prozess
 
-Aktuelle Version: `0.4.0`.
+Aktuelle Version: `0.4.1`.
 
 Ein Release wird ausschließlich aus einem Git-Tag im Format `vX.Y.Z` gebaut.
 Die Version im Root-POM und die Parent-Versionen aller dort aufgeführten Module
@@ -117,10 +117,42 @@ steht in [SMOKE_TESTS.md](SMOKE_TESTS.md#protokoll-installation-aus-dem-releasep
 | Linux amd64 | Fresh Installation auf Ubuntu 24.04.4 LTS ohne System-Java, ohne Maven und ohne Source-Checkout; gebündelte Runtime verwendet; reale WinLaufen-Verbindung, Web Viewer und Startliste geprüft |
 | Windows x64 | Clean Installation von Sprecher-Web auf einem Windows-11-PC in einer PowerShell als Administrator; gebündelte Runtime trotz vorhandenem System-Java verwendet; originales WinLaufen lief parallel weiter |
 
-Bekannt und in `v0.4.0` enthalten: Der Windows-Installer stellt in Windows
+Bekannt und in `v0.4.0` enthalten: Der Windows-Installer stellte in Windows
 PowerShell 5.1 deutsche Umlaute falsch dar
 ([Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5)). Nur die
-Konsolenausgabe ist betroffen. Der Fix liegt in `main` und wird erstmals mit dem
-nächsten Release ausgeliefert; `v0.4.0` bleibt unverändert.
+Konsolenausgabe war betroffen. **Behoben in 0.4.1**; `v0.4.0` bleibt unverändert
+und zeigt es weiterhin.
+
+## Upgrade-Reihenfolge bei getrennten Rechnern
+
+Bridge und Live Server können auf verschiedenen Rechnern stehen (Profile
+**Bridge only** und **Presentation Node**). Dann laufen sie beim Upgrade
+zwangsläufig kurz in verschiedenen Versionen, und das ist nicht in jeder
+Richtung unkritisch.
+
+Der Bridge→Live-Server-Contract prüft beim Lesen streng: Ein unbekanntes Feld
+wird abgelehnt, nicht ignoriert. Additive Erweiterungen sind deshalb **vorwärts**
+kompatibel und nicht rückwärts.
+
+Gemessen zwischen dem Contract des Tags `v0.4.0` und dem Stand mit Zeitmodell:
+
+| Kombination | Ergebnis |
+| ----------- | -------- |
+| Bridge `0.4.0` → neuerer Live Server | **funktioniert.** Der Snapshot wird vollständig gelesen, die Zeitmessung fehlt einfach (`clockSample` ist `null`). |
+| neuere Bridge → Live Server `0.4.0` | **funktioniert nicht.** `UnrecognizedPropertyException: Unrecognized field "clockSample"`; der Live Server schließt die Verbindung, die Bridge verbindet neu, es wird nichts veröffentlicht. |
+
+**Verbindliche Reihenfolge: zuerst den Live Server aktualisieren, danach die
+Bridge.** Bei einer All-in-One-Installation ersetzt der Installer beide
+gemeinsam; dort stellt sich die Frage nicht.
+
+Die vorwärtskompatible Richtung ist im Repository festgehalten
+(`MixedVersionTest` im Contract-Modul) und prüft einen Snapshot in genau dem
+Format, das `v0.4.0` schreibt. Die andere Richtung lässt sich nur gegen den alten
+Contract zeigen und wurde einmalig gegen einen Build des Tags `v0.4.0` gemessen.
+
+Die `schemaVersion` bleibt dabei bewusst `1`. Eine Erhöhung würde die
+funktionierende Richtung ebenfalls zerstören, weil die Envelope-Prüfung auf
+Gleichheit vergleicht: Ein neuer Live Server würde dann jede `0.4.0`-Bridge
+ablehnen — genau die Paarung, auf der die Upgrade-Reihenfolge beruht.
 
 Build- oder Distributionsergebnisse werden nicht im Repository versioniert.

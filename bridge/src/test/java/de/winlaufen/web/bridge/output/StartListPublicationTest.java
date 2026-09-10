@@ -68,7 +68,7 @@ class StartListPublicationTest {
     void aPersistedStartListIsPublishedWhenTheTargetConnects() throws Exception {
         StartListStore startLists = startLists();
         importInto(startLists, PROLOGUE);
-        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
 
         try (Fake target = new Fake();
              OutputTargetManager manager = new OutputTargetManager(
@@ -94,7 +94,7 @@ class StartListPublicationTest {
     @Test
     void aBridgeWithoutAStartListPublishesItsAbsence() throws Exception {
         StartListStore startLists = startLists();
-        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
 
         try (Fake target = new Fake();
              OutputTargetManager manager = new OutputTargetManager(
@@ -113,7 +113,7 @@ class StartListPublicationTest {
     void anImportOnAnOpenConnectionIsPublishedImmediately() throws Exception {
         StartListStore startLists = startLists();
         importInto(startLists, PROLOGUE);
-        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
 
         try (Fake target = new Fake();
              OutputTargetManager manager = new OutputTargetManager(
@@ -135,7 +135,7 @@ class StartListPublicationTest {
     void aRejectedImportPublishesNothing() throws Exception {
         StartListStore startLists = startLists();
         importInto(startLists, PROLOGUE);
-        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
 
         try (Fake target = new Fake();
              OutputTargetManager manager = new OutputTargetManager(
@@ -163,7 +163,7 @@ class StartListPublicationTest {
     void clockAndResultUpdatesNeverResendTheStartList() throws Exception {
         StartListStore startLists = startLists();
         importInto(startLists, PROLOGUE);
-        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
 
         try (Fake target = new Fake();
              OutputTargetManager manager = new OutputTargetManager(
@@ -195,7 +195,7 @@ class StartListPublicationTest {
         StartListStore startLists = startLists();
         importInto(startLists, PROLOGUE);
         importInto(startLists, HEAT);
-        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
         int port = freePort();
 
         Fake first = new Fake(port);
@@ -225,7 +225,7 @@ class StartListPublicationTest {
     void everyConfiguredTargetGetsItsOwnStartListSync() throws Exception {
         StartListStore startLists = startLists();
         importInto(startLists, PROLOGUE);
-        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
 
         try (Fake one = new Fake(); Fake two = new Fake(); Fake three = new Fake();
              OutputTargetManager manager = new OutputTargetManager(
@@ -254,7 +254,7 @@ class StartListPublicationTest {
     void aTargetAddedLaterStillReceivesTheCurrentStartList() throws Exception {
         StartListStore startLists = startLists();
         importInto(startLists, PROLOGUE);
-        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
 
         try (Fake one = new Fake(); Fake later = new Fake();
              OutputTargetManager manager = new OutputTargetManager(

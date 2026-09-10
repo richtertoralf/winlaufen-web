@@ -124,8 +124,10 @@ assert_port_conflict() {
     local root="$work/conflict-$port"
     start_listener "$port" || { bad "$label" "Test-Listener auf TCP $port konnte nicht starten"; return; }
     local pid=$started_listener_pid log="$work/conflict-$port.log"
+    # --check-ports erzwingt den Preflight auch im Staging-Lauf. Genau dieser Test
+    # prueft die Meldung, die eine produktive Installation ausgibt.
     bash "$installer_linux" --profile "$profile" --staging-root "$root" --no-systemd \
-        --dist "$fake_dist" > "$log" 2>&1
+        --check-ports --dist "$fake_dist" > "$log" 2>&1
     local status=$?
     stop_listener "$pid"
 
@@ -307,7 +309,7 @@ EOF
 
     ((status == 0)) && ok "$label: Exit-Code 0" \
         || bad "$label: Exit-Code 0" "Exitcode $status"
-    assert_contains "$log" "Installation erfolgreich" "$label: Erfolgsmeldung"
+    assert_contains "$log" "Erstinstallation erfolgreich" "$label: Erfolgsmeldung"
     assert_absent "$log" "Die Installation wurde nicht erfolgreich abgeschlossen" \
         "$label: Verbindungsstatus erzeugt keinen Installationsfehler"
     diagnostic_log=$log
@@ -464,6 +466,38 @@ if run_install all-in-one "$root"; then
         "Konfigurationsverzeichnis erlaubt atomare Updates durch die Dienstgruppe"
     assert_equals "$(stat -c '%a' "$config")" "640" \
         "Bridge-Konfiguration bleibt restriktiv"
+
+    # Eine frisch erzeugte Konfiguration darf keine kaputten Zeichen enthalten. Auf
+    # Windows entstanden sie, weil der Installer selbst in der falschen Codepage
+    # gelesen wurde; die Kommentare sind deshalb jetzt ASCII und damit unabhängig
+    # davon, wie irgendein Werkzeug die Datei liest.
+    if iconv -f ASCII -t ASCII "$config" >/dev/null 2>&1; then
+        ok "Frische Bridge-Konfiguration ist reines ASCII"
+    else
+        bad "Frische Bridge-Konfiguration ist reines ASCII" \
+            "$(iconv -f ASCII -t ASCII "$config" 2>&1 | tail -1)"
+    fi
+    assert_absent "$config" 'Ã' "Frische Bridge-Konfiguration enthält keine Mojibake-Sequenz Ã"
+    assert_absent "$config" 'Â' "Frische Bridge-Konfiguration enthält keine Mojibake-Sequenz Â"
+    assert_contains "$config" "# $WINLAUFEN_PRODUCT_NAME - Bridge (Profil: All-in-One)" \
+        "Frische Bridge-Konfiguration nennt Produkt und Profil"
+    assert_contains "$config" "# Erstellt bei der Installation." \
+        "Frische Bridge-Konfiguration nennt ihre Herkunft"
+    assert_contains "$config" "# Konfiguration und Status: http://<bridge-ip>:$WINLAUFEN_CONTROL_PORT/" \
+        "Frische Bridge-Konfiguration nennt Bridge Control"
+    assert_contains "$config" "competition.timezone" \
+        "Frische Bridge-Konfiguration nennt die erweiterte Einstellung für das Ausland"
+
+    # Der erste Lauf auf einem leeren Ziel muss sich als Erstinstallation zu erkennen
+    # geben und nichts als "beibehalten" ausgeben, was es vorher nicht gab.
+    assert_contains "$install_log" "Erstinstallation" "Erster Lauf meldet eine Erstinstallation"
+    assert_contains "$install_log" "NEU: Bridge-Programm" "Erster Lauf legt die Bridge neu an"
+    assert_contains "$install_log" "NEU: bridge.properties" \
+        "Erster Lauf legt die Bridge-Konfiguration neu an"
+    assert_contains "$install_log" "NEU ANGELEGT" "Erster Lauf fasst als Erstinstallation zusammen"
+    assert_absent "$install_log" "BEIBEHALTEN" "Erster Lauf behauptet nichts beibehalten zu haben"
+    assert_contains "$install_log" "Die vorhandene WinLaufen-Installation wird nicht verändert" \
+        "Erster Lauf nennt WinLaufen ausdrücklich als unverändert"
     atomic_update=$(mktemp "$root/etc/winlaufen-web/config.properties.XXXXXX")
     cp -- "$config" "$atomic_update"
     printf 'presentation.showNation=true\n' >> "$atomic_update"
@@ -557,9 +591,32 @@ if run_install all-in-one "$root"; then
     run_install all-in-one "$root"
     after=$(sha256sum "$config" | cut -d' ' -f1)
     assert_equals "$after" "$before" "Reinstall lässt bestehende Bridge-Konfiguration unverändert"
+
+    # Derselbe Lauf muss sich jetzt als Upgrade zu erkennen geben und sagen, was er
+    # ersetzt und was er stehen lässt.
+    assert_contains "$install_log" "Upgrade" "Zweiter Lauf meldet ein Upgrade"
+    assert_contains "$install_log" "AKTUALISIERT: Bridge-Programm" \
+        "Upgrade ersetzt das Bridge-Programm und sagt es"
+    assert_contains "$install_log" "AKTUALISIERT: Live-Server-Programm" \
+        "Upgrade ersetzt das Live-Server-Programm und sagt es"
+    assert_contains "$install_log" "BEIBEHALTEN: bestehende bridge.properties" \
+        "Upgrade nennt die erhaltene Bridge-Konfiguration"
+    assert_contains "$install_log" "BEIBEHALTEN: bestehende live-server.env" \
+        "Upgrade nennt die erhaltene Live-Server-Konfiguration"
+    assert_absent "$install_log" "Erstinstallation" \
+        "Upgrade behauptet nicht, eine Erstinstallation zu sein"
+
+    # Eine importierte Startliste gehört dem Veranstalter und überlebt.
+    printf 'startlist.version=1\n' > "$root/etc/winlaufen-web/startlist.properties"
+    startlist_before=$(sha256sum "$root/etc/winlaufen-web/startlist.properties" | cut -d' ' -f1)
+    run_install all-in-one "$root"
+    assert_equals "$(sha256sum "$root/etc/winlaufen-web/startlist.properties" | cut -d' ' -f1)" \
+        "$startlist_before" "Upgrade lässt die importierte Startliste unverändert"
+    assert_contains "$install_log" "BEIBEHALTEN: importierte Startliste" \
+        "Upgrade nennt die erhaltene Startliste"
     assert_contains "$config" "source.host=10.77.0.1" "Gepflegte WinLaufen-Adresse überlebt den Reinstall"
     assert_contains "$config" "outputs.1.id=club" "Gepflegte Target-Liste überlebt den Reinstall"
-    assert_contains "$install_log" "Bestehende Bridge-Konfiguration beibehalten" \
+    assert_contains "$install_log" "BEIBEHALTEN: bestehende bridge.properties" \
         "Reinstall meldet den Schutz der bestehenden Konfiguration"
 fi
 
@@ -738,7 +795,7 @@ assert_contains "$installer_windows" "New-ScheduledTaskTrigger -AtStartup" \
 assert_contains "$installer_windows" "Unregister-ScheduledTask -TaskName \$TaskName -Confirm:\$false -ErrorAction SilentlyContinue" \
     "Windows-Aufgaben werden idempotent ersetzt statt dupliziert"
 assert_contains "$installer_windows" "javaw.exe" "Windows startet ohne Konsolenfenster"
-assert_contains "$installer_windows" "Bestehende Bridge-Konfiguration beibehalten" \
+assert_contains "$installer_windows" "BEIBEHALTEN: bestehende bridge.properties" \
     "Windows schützt bestehende Konfiguration"
 assert_contains "$installer_windows" "outputs.0.endpoint=ws://127.0.0.1:\$LiveWsPort\$IngestPathPrefix\$LiveChannel" \
     "Windows All-in-One nutzt den regulären Bridge->Live-Server-Pfad"
@@ -1071,88 +1128,125 @@ windows_java_resolve=$(sed -n '/^function Resolve-JavaExecutable {/,/^}$/p' "$in
 [[ "$windows_java_resolve" == *'Join-Path $InstalledPrefix "runtime\bin\$bundledLauncher"'* ]] \
     && ok "Gebündelte Runtime wird nach der Installation aus dem Zielpfad gestartet" \
     || bad "Gebündelte Runtime wird nach der Installation aus dem Zielpfad gestartet"
-assert_contains "$installer_windows" '"$javaExe" "-D$BridgeConfigProperty=$bridgeConfig"' \
-    "Der Bridge-Starter zitiert den Java-Pfad, damit Leerzeichen zulässig bleiben"
-assert_contains "$installer_windows" "\`\$startInfo.FileName = '\$javaExe'" \
-    "Der Live-Server-Starter übergibt den Java-Pfad als eigenständigen Dateinamen"
+echo
+echo "=== Erstinstallation und Upgrade als Bedienkonzept ==="
+# Beide Installer laufen hier nicht durch (die produktiven Ports sind auf einem
+# Entwicklerrechner oft belegt), deshalb wird die Bedienlogik an den Skripten selbst
+# festgehalten. Die reale Ausgabe prüft weiter unten der Installerlauf.
+for installer in "$installer_linux" "$installer_windows"; do
+    name=$(basename "$installer")
+    assert_contains "$installer" "Erstinstallation" "$name kennt den Modus Erstinstallation"
+    assert_contains "$installer" "Upgrade" "$name kennt den Modus Upgrade"
+    assert_contains "$installer" "Die vorhandene WinLaufen-Installation wird nicht verändert" \
+        "$name sagt ausdrücklich, dass WinLaufen unangetastet bleibt"
+    assert_contains "$installer" "AKTUALISIERT" "$name kennzeichnet aktualisierte Bestandteile"
+    assert_contains "$installer" "BEIBEHALTEN" "$name kennzeichnet beibehaltene Bestandteile"
+    assert_contains "$installer" "NEU ANGELEGT" "$name fasst eine Erstinstallation zusammen"
+    assert_contains "$installer" "UNVERÄNDERT" "$name nennt WinLaufen als unverändert"
+    assert_contains "$installer" "BEIBEHALTEN: bestehende bridge.properties" \
+        "$name benennt die erhaltene Bridge-Konfiguration konkret"
+    assert_contains "$installer" "BEIBEHALTEN: importierte Startliste" \
+        "$name benennt die erhaltene Startliste konkret"
+done
+# Die Erkennung darf nicht an einem einzelnen Verzeichnis hängen.
+assert_contains "$installer_linux" 'existing_installation()' \
+    "Linux erkennt eine bestehende Installation über eine eigene Prüfung"
+assert_contains "$installer_windows" 'function Test-ExistingInstallation' \
+    "Windows erkennt eine bestehende Installation über eine eigene Prüfung"
 
 echo
-echo "=== Windows: Live-Server-Starter bleibt am Java-Prozess ==="
-# Der erzeugte Starter wird aus der Installer-Vorlage gerendert und als
-# PowerShell-Quelltext geprüft. Das deckt zugleich Escaping-Fehler in der
-# Here-String-Vorlage auf, die sonst erst auf Windows sichtbar würden.
-live_launcher_rendered="$work/start-live-server.ps1"
-python3 - "$installer_windows" "$live_launcher_rendered" <<'PY'
+echo "=== Erzeugte Konfigurationsdateien: ASCII-Kommentare ==="
+# Diese Prüfung läuft an den Vorlagen und nicht am Ergebnis eines Installerlaufs,
+# damit sie auch auf einem Rechner greift, auf dem die produktiven Ports belegt sind.
+# Ein Umlaut in einer Properties-Datei ist genau die Stelle, an der eine falsche
+# Codepage sichtbar wird -- und erklärt dabei nichts, was ohne ihn unklar wäre.
+if python3 - "$installer_windows" "$installer_linux" > "$work/config-templates.log" 2>&1 <<'TEMPLATES'
 import re
 import sys
 
-source = open(sys.argv[1], encoding='utf-8').read()
-block = re.search(r'\$launcherScript = @"\n(.*?)\n"@\n', source, re.S).group(1)
-values = {
-    'ProductName': 'WinLaufen Web',
-    'liveConfig': r'C:\ProgramData\WinLaufen Web\live-server.properties',
-    'InstallPrefix': r'C:\Program Files\WinLaufen Web',
-    'LiveJar': 'winlaufen-web-live-server.jar',
-    'javaExe': r'C:\Program Files\Eclipse Adoptium\jdk-25\bin\javaw.exe',
-}
-out, index = [], 0
-while index < len(block):
-    if block[index] == '`' and index + 1 < len(block) and block[index + 1] == '$':
-        out.append('$')
-        index += 2
-        continue
-    if block[index] == '$':
-        name = re.match(r'\$([A-Za-z_][A-Za-z0-9_]*)', block[index:])
-        if name and name.group(1) in values:
-            out.append(values[name.group(1)])
-            index += name.end()
-            continue
-    out.append(block[index])
-    index += 1
-open(sys.argv[2], 'w', encoding='utf-8').write(''.join(out))
-PY
-assert_file "$live_launcher_rendered" "Live-Server-Starter lässt sich aus der Vorlage rendern"
-assert_contains "$live_launcher_rendered" '[System.Diagnostics.Process]::Start($startInfo)' \
-    "Der Starter startet den Java-Prozess selbst"
-assert_contains "$live_launcher_rendered" '$process.WaitForExit()' \
-    "Der Starter wartet explizit auf das Ende des Java-Prozesses"
-assert_contains "$live_launcher_rendered" 'exit $process.ExitCode' \
-    "Der Starter reicht den Exit-Code des Java-Prozesses weiter"
-assert_contains "$live_launcher_rendered" '$startInfo.UseShellExecute = $false' \
-    "Der Starter läuft ohne Shell"
-assert_contains "$live_launcher_rendered" '$startInfo.CreateNoWindow = $true' \
-    "Der Starter zeigt keine zusätzliche Konsole"
-assert_contains "$live_launcher_rendered" \
-    "\$startInfo.FileName = 'C:\Program Files\Eclipse Adoptium\jdk-25\bin\javaw.exe'" \
-    "javaw.exe bleibt der Launcher und sein Pfad mit Leerzeichen bleibt unversehrt"
-assert_contains "$live_launcher_rendered" \
-    "\$arguments += 'C:\Program Files\WinLaufen Web\lib\winlaufen-web-live-server.jar'" \
-    "Der JAR-Pfad mit Leerzeichen wird als eigenes Argument übergeben"
-assert_contains "$live_launcher_rendered" 'ConvertTo-CommandLineArgument $_' \
-    "Jedes Argument läuft einzeln durch die Quotierung"
-assert_contains "$live_launcher_rendered" '$arguments += "-D$key=$($config[$key])"' \
-    "Die -D-Argumente entstehen weiterhin einzeln aus der Properties-Datei"
-# Regression: genau dieser fire-and-forget-Aufruf liess die geplante Aufgabe
-# auf Ready zurückfallen, obwohl javaw.exe weiterlief.
-assert_absent "$live_launcher_rendered" '@arguments' \
-    "Der alte fire-and-forget-Aufruf mit @arguments ist entfernt"
-assert_absent "$live_launcher_rendered" 'exit $LASTEXITCODE' \
-    "Der Starter verlässt sich nicht mehr auf LASTEXITCODE eines nicht abgewarteten Prozesses"
-assert_absent "$live_launcher_rendered" '`$' \
-    "Die gerenderte Vorlage enthält keine unaufgelösten Escapes"
-for unresolved in '$ProductName' '$liveConfig' '$InstallPrefix' '$LiveJar' '$javaExe'; do
-    assert_absent "$live_launcher_rendered" "$unresolved" \
-        "Die gerenderte Vorlage enthält keine unaufgelöste Installer-Variable $unresolved"
+windows = open(sys.argv[1], encoding='utf-8-sig').read()
+linux = open(sys.argv[2], encoding='utf-8').read()
+
+templates = re.findall(r'\$content = @"\n(.*?)\n"@', windows, re.S)
+assert len(templates) == 3, f'Windows: erwartet 3 Vorlagen, gefunden {len(templates)}'
+templates += re.findall(r'cat > "\$\(staged "\$(?:bridge|live)_config"\)" <<EOF\n(.*?)\nEOF',
+                        linux, re.S)
+assert len(templates) == 6, f'Linux: erwartet 3 weitere Vorlagen, gefunden {len(templates) - 3}'
+
+for body in templates:
+    broken = sorted({character for character in body if ord(character) > 127})
+    assert not broken, f'Nicht-ASCII in Vorlage: {broken}\n{body.splitlines()[0]}'
+    assert 'Erstellt bei der Installation' in body, body.splitlines()[0]
+
+bridge = [body for body in templates if 'config.version=2' in body]
+assert len(bridge) == 4, f'erwartet 4 Bridge-Vorlagen, gefunden {len(bridge)}'
+for body in bridge:
+    assert 'Konfiguration und Status: http://<bridge-ip>:' in body, body.splitlines()[0]
+    assert 'competition.timezone' in body, body.splitlines()[0]
+    assert 'Bridge Control vornehmen' not in body, 'alter, nicht mehr zutreffender Kommentar'
+TEMPLATES
+then
+    ok "Beide Installer erzeugen Konfigurationsdateien mit ASCII-Kommentaren"
+else
+    bad "Beide Installer erzeugen Konfigurationsdateien mit ASCII-Kommentaren" \
+        "$(cat "$work/config-templates.log")"
+fi
+
+echo
+echo "=== Windows: die geplante Aufgabe besitzt den Java-Prozess ==="
+# Der eigentliche Nachweis kann nur auf Windows erbracht werden: Stop-ScheduledTask
+# beendet den Dienst wirklich. Hier wird das geprüft, was diesen Nachweis überhaupt
+# erst möglich macht — dass zwischen Aufgabe und Java-Prozess nichts mehr steht.
+# Vorher rief die Aufgabe cmd.exe mit einer Batchdatei auf; cmd wartet nicht auf
+# javaw.exe, war sofort fertig, und der Dienst lief losgelöst weiter.
+assert_contains "$installer_windows" '$action = New-ScheduledTaskAction -Execute $Executable' \
+    "Die Aufgabe startet den Java-Prozess direkt"
+assert_absent "$installer_windows" "New-ScheduledTaskAction -Execute 'cmd.exe'" \
+    "Zwischen Aufgabe und Dienst steht kein cmd.exe mehr"
+assert_absent "$installer_windows" "New-ScheduledTaskAction -Execute 'powershell.exe'" \
+    "Zwischen Aufgabe und Dienst steht kein PowerShell mehr"
+assert_contains "$installer_windows" \
+    'Register-BackgroundTask -TaskName $BridgeTaskName -Executable $javaExe -Arguments $bridgeArguments' \
+    "Die Bridge-Aufgabe führt Java mit den Bridge-Argumenten aus"
+assert_contains "$installer_windows" \
+    'Register-BackgroundTask -TaskName $LiveTaskName -Executable $javaExe -Arguments $liveArguments' \
+    "Die Live-Server-Aufgabe führt Java mit den Live-Server-Argumenten aus"
+
+# Es darf keine Startskripte mehr geben, die den Prozess wieder entkoppeln könnten.
+for stale in 'start-bridge.cmd' 'start-live-server.cmd' 'start-live-server.ps1'; do
+    assert_absent "$installer_windows" "Set-Content -LiteralPath (Get-StagedPath \$$(printf '%s' "${stale%%.*}")Launcher)" \
+        "Kein Startskript mehr erzeugt: $stale"
 done
-assert_contains "$installer_windows" 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$ps1"' \
-    "Die geplante Aufgabe ruft den Starter weiterhin ohne Konsolenfenster auf"
-assert_contains "$installer_windows" 'exit /b %errorlevel%' \
-    "Die cmd-Hülle reicht den Exit-Code an die geplante Aufgabe weiter"
+assert_contains "$installer_windows" \
+    "foreach (\$stale in @('start-bridge.cmd', 'start-live-server.cmd', 'start-live-server.ps1'))" \
+    "Startskripte früherer Installationen werden beim Upgrade entfernt"
+
+# Argumente gehen ungequotet verloren, sobald ein Pfad ein Leerzeichen enthält —
+# und der Standardpfad enthält eines.
+assert_contains "$installer_windows" 'ConvertTo-CommandLineArgument $_' \
+    "Die Argumente der Aufgabe werden nach den Regeln von CommandLineToArgvW zitiert"
+assert_contains "$installer_windows" '$bridgeArguments = @("-D$BridgeConfigProperty=$bridgeConfig", '"'"'-jar'"'"',' \
+    "Die Bridge bekommt ihren Konfigurationspfad als Systemproperty"
+assert_contains "$installer_windows" '$liveArguments += "-D$key=$($liveProperties[$key])"' \
+    "Die Live-Server-Properties werden zu Systemproperties expandiert"
+
+# Ein Upgrade darf keinen alten Java-Prozess auf den Ports zurücklassen.
+assert_contains "$installer_windows" \
+    'Where-Object { $_.CommandLine -and $_.CommandLine -like "*$InstallPrefix*" }' \
+    "Das Upgrade erkennt laufende Prozesse dieser Installation an ihrer Befehlszeile"
+assert_contains "$installer_windows" 'Stop-Process -Id $_.ProcessId -Force' \
+    "Das Upgrade beendet sie wirklich, statt sich auf die Aufgabe zu verlassen"
+# Regression: Der frühere Starter startete javaw.exe und war sofort fertig. Genau
+# diese Konstruktion darf nicht zurückkehren.
+assert_absent "$installer_windows" '$launcherScript = @"' \
+    "Es wird keine Startskript-Vorlage mehr erzeugt"
+assert_absent "$installer_windows" 'exit /b %errorlevel%' \
+    "Es gibt keine cmd-Hülle mehr, die einen Exit-Code weiterreichen müsste"
 
 # Die Quotierungsregeln von CommandLineToArgvW werden hier als Vertrag geprüft.
 # Die PowerShell-Umsetzung wird zusätzlich strukturell festgenagelt, damit eine
 # Änderung dort nicht unbemerkt an diesem Modell vorbeigeht.
-if python3 - "$live_launcher_rendered" > "$work/argument-quoting.log" 2>&1 <<'PY'
+if python3 - "$installer_windows" > "$work/argument-quoting.log" 2>&1 <<'PY'
 import re
 import sys
 
@@ -1233,10 +1327,10 @@ for case in cases:
 joined = ' '.join(quote(case) for case in cases if case != '')
 assert parse(joined) == [case for case in cases if case != ''], joined
 
-rendered = open(sys.argv[1], encoding='utf-8').read()
+installer = open(sys.argv[1], encoding='utf-8').read()
 for marker in ("[char]'\\'", "[char]'\"'", '$backslashes * 2', '$backslashes * 2 + 1',
                "-notmatch '[\\s\"]'"):
-    assert marker in rendered, marker
+    assert marker in installer, marker
 PY
 then
     ok "Argumentquotierung überlebt Leerzeichen, Backslashes und Anführungszeichen"
@@ -1262,9 +1356,6 @@ assert_contains "$installer_windows" '-Ports @($LiveHttpPort, $LiveWsPort) -Http
     "Live Server wird weiterhin auf 44440 und 44441 plus HTTP geprüft"
 assert_contains "$installer_windows" '-Ports @($ControlPort) -HttpPort $ControlPort' \
     "Bridge wird weiterhin auf 44442 plus HTTP geprüft"
-assert_contains "$installer_windows" \
-    '"$javaExe" "-D$BridgeConfigProperty=$bridgeConfig" -jar "$InstallPrefix\lib\$BridgeJar"' \
-    "Der Bridge-Starter bleibt unverändert; cmd wartet dort bereits auf javaw.exe"
 
 echo
 echo "=== Kenngrößen stimmen mit dem Anwendungscode überein ==="
@@ -1360,7 +1451,7 @@ while IFS= read -r relative; do
     fi
 done < <(cd "$repository_root" && git ls-files '*.ps1')
 
-assert_contains "$installer_windows" "Gebündelte Java-Runtime installiert" \
+assert_contains "$installer_windows" "gebündelte Java-Runtime" \
     "Umlaute im Windows-Installer sind unversehrt"
 assert_contains "$uninstaller_windows" "Bitte PowerShell als Administrator ausführen." \
     "Umlaute im Windows-Uninstaller sind unversehrt"

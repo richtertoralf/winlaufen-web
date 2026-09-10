@@ -13,6 +13,7 @@ import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -251,5 +252,52 @@ class BridgeConfigStoreTest {
         properties.setProperty("outputs.0.channelId", "local");
         properties.setProperty("outputs.0.secret", "local-development-secret");
         return properties;
+    }
+
+    @Test
+    void anExplicitCompetitionTimeZoneIsLoadedAndKept() throws Exception {
+        Path file = temp.resolve("bridge.properties");
+        Files.writeString(file, """
+                source.host=127.0.0.1
+                competition.timezone=Europe/Berlin
+                outputs.count=0
+                """);
+
+        BridgeConfigStore store = new BridgeConfigStore(file);
+        assertEquals("Europe/Berlin", store.load().competitionTimeZone());
+
+        // A save rewrites the whole file; the zone must not disappear because no form carries it.
+        store.save(store.load());
+        assertTrue(Files.readString(file).contains("competition.timezone=Europe/Berlin"));
+        assertEquals("Europe/Berlin", store.load().competitionTimeZone());
+    }
+
+    @Test
+    void withoutAnEntryThereIsNoConfiguredZone() throws Exception {
+        Path file = temp.resolve("bridge.properties");
+        Files.writeString(file, "source.host=127.0.0.1\noutputs.count=0\n");
+
+        BridgeConfigStore store = new BridgeConfigStore(file);
+        assertNull(store.load().competitionTimeZone());
+        store.save(store.load());
+        assertFalse(Files.readString(file).contains("competition.timezone"));
+    }
+
+    /**
+     * An unusable zone must not stop a competition. It is reported and treated as unset, which the
+     * read API then shows as the fallback it is.
+     */
+    @Test
+    void anUnknownZoneIsReportedAndTreatedAsUnset() throws Exception {
+        Path file = temp.resolve("bridge.properties");
+        Files.writeString(file, """
+                source.host=127.0.0.1
+                competition.timezone=Mars/Olympus
+                outputs.count=0
+                """);
+
+        BridgeConfigStore.LoadResult result = new BridgeConfigStore(file).loadWithNotices();
+        assertNull(result.config().competitionTimeZone());
+        assertTrue(result.notices().stream().anyMatch(n -> n.contains("Mars/Olympus")));
     }
 }

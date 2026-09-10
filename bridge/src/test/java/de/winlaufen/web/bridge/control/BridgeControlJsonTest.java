@@ -14,6 +14,7 @@ import de.winlaufen.web.bridge.startlist.StartListEntry;
 import de.winlaufen.web.bridge.startlist.StartListSource;
 import de.winlaufen.web.bridge.state.CanonicalSnapshot;
 import de.winlaufen.web.contract.CanonicalState;
+import de.winlaufen.web.contract.CompetitionTimeZoneSource;
 import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.SourceHealth;
 import org.junit.jupiter.api.Test;
@@ -76,7 +77,7 @@ class BridgeControlJsonTest {
                 "Zeile1\r\n\tTab \"quote\" \\ backslash " + (char) 1 + " control");
 
         String json = BridgeControlJson.status(snapshot, List.of(runtime),
-                CanonicalStartList.empty());
+                CanonicalStartList.empty(), "Europe/Berlin", CompetitionTimeZoneSource.CONFIGURED, List.of());
         JsonNode parsed = MAPPER.readTree(json);
 
         assertEquals(7, parsed.get("sourceRevision").asLong());
@@ -96,7 +97,7 @@ class BridgeControlJsonTest {
         var runtime = OutputTargetRuntime.initial("local", true);
 
         JsonNode parsed = MAPPER.readTree(BridgeControlJson.status(snapshot, List.of(runtime),
-                CanonicalStartList.empty()));
+                CanonicalStartList.empty(), "Europe/Berlin", CompetitionTimeZoneSource.CONFIGURED, List.of()));
         assertTrue(parsed.get("clock").isNull());
         assertTrue(parsed.get("outputs").get(0).get("lastError").isNull());
     }
@@ -109,7 +110,7 @@ class BridgeControlJsonTest {
         var startList = new CanonicalStartList(4, StartListSource.IMPORT_XLSX, "Startliste.xlsx",
                 entries);
 
-        JsonNode parsed = MAPPER.readTree(BridgeControlJson.status(snapshot, List.of(), startList))
+        JsonNode parsed = MAPPER.readTree(BridgeControlJson.status(snapshot, List.of(), startList, "Europe/Berlin", CompetitionTimeZoneSource.CONFIGURED, List.of()))
                 .get("startList");
 
         assertEquals(4, parsed.get("generation").asLong());
@@ -124,7 +125,7 @@ class BridgeControlJsonTest {
         var snapshot = new CanonicalSnapshot(0, CanonicalState.empty(), PresentationConfig.defaults());
 
         JsonNode parsed = MAPPER.readTree(
-                        BridgeControlJson.status(snapshot, List.of(), CanonicalStartList.empty()))
+                        BridgeControlJson.status(snapshot, List.of(), CanonicalStartList.empty(), "Europe/Berlin", CompetitionTimeZoneSource.CONFIGURED, List.of()))
                 .get("startList");
 
         assertEquals(0, parsed.get("generation").asLong());
@@ -139,7 +140,7 @@ class BridgeControlJsonTest {
         var startList = new CanonicalStartList(1, StartListSource.IMPORT_CSV,
                 "Start \"liste\"\\2026.csv", List.of(entry("12", "Schüler <U16>")));
 
-        JsonNode parsed = MAPPER.readTree(BridgeControlJson.status(snapshot, List.of(), startList))
+        JsonNode parsed = MAPPER.readTree(BridgeControlJson.status(snapshot, List.of(), startList, "Europe/Berlin", CompetitionTimeZoneSource.CONFIGURED, List.of()))
                 .get("startList");
 
         assertEquals("Start \"liste\"\\2026.csv", parsed.get("sourceLabel").asText());

@@ -9,6 +9,7 @@ import de.winlaufen.web.contract.CompetitionClass;
 import de.winlaufen.web.contract.CurrentFinish;
 import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.SourceHealth;
+import de.winlaufen.web.liveserver.state.ClockMeasurement;
 import de.winlaufen.web.liveserver.state.PublishedState;
 import org.junit.jupiter.api.Test;
 
@@ -366,7 +367,8 @@ class WebViewerContractTest {
     private static String clockOfPublished(String clock) throws Exception {
         PublishedState published = new PublishedState(1, "stream", 1,
                 new CanonicalState(SourceHealth.CONNECTED, clock, null, null, null),
-                PresentationConfig.defaults());
+                PresentationConfig.defaults(), SourceHealth.CONNECTED, true, 1_000, 1_000,
+                ClockMeasurement.none());
         return MAPPER.readTree(PublicJson.state(published)).get("state").get("clock").asText();
     }
 
@@ -376,7 +378,8 @@ class WebViewerContractTest {
         JsonNode state;
         try {
             state = MAPPER.readTree(PublicJson.state(new PublishedState(1, "stream", 1,
-                    biathlonState(), presentation)));
+                    biathlonState(), presentation, SourceHealth.CONNECTED, true, 1_000, 1_000,
+                ClockMeasurement.none())));
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
@@ -421,7 +424,9 @@ class WebViewerContractTest {
         var competition = new Competition("Standardwettkampf", 1, 2, 0, 0, classes);
         var state = new CanonicalState(SourceHealth.CONNECTED, "12:00:00", competition,
                 new CurrentFinish(reportingClass, 0, revision), null);
-        return new PublishedState(revision, "stream", revision, state, PresentationConfig.defaults());
+        return new PublishedState(revision, "stream", revision, state,
+                PresentationConfig.defaults(), SourceHealth.CONNECTED, true, 1_000, 1_000,
+                ClockMeasurement.none());
     }
 
     private static CanonicalState biathlonState() {

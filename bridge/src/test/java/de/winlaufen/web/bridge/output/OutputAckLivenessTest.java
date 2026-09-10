@@ -57,7 +57,7 @@ class OutputAckLivenessTest {
     void silentTargetBecomesStaleAndRecoversWhenAcksResume() throws Exception {
         Silent server = new Silent();
         server.startReady();
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         WebSocketOutputAdapter adapter = new WebSocketOutputAdapter(target(server.getPort()),
                 "stream", store.get(), STALE_AFTER_NANOS);
         AutoCloseable subscription = store.addListener(adapter::publish);
@@ -92,7 +92,7 @@ class OutputAckLivenessTest {
     void keepsOnlyTheNewestSnapshotWhileNoConnectionExists() throws Exception {
         Silent server = new Silent();
         server.startReady();
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         WebSocketOutputAdapter adapter = new WebSocketOutputAdapter(target(server.getPort()),
                 "stream", store.get(), WebSocketOutputAdapter.ACK_STALE_NANOS);
         AutoCloseable subscription = store.addListener(adapter::publish);
@@ -127,7 +127,7 @@ class OutputAckLivenessTest {
     void burstDeliversRevisionsInOrderAndEndsOnTheNewestOne() throws Exception {
         Silent server = new Silent();
         server.startReady();
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         WebSocketOutputAdapter adapter = new WebSocketOutputAdapter(target(server.getPort()),
                 "stream", store.get(), WebSocketOutputAdapter.ACK_STALE_NANOS);
         AutoCloseable subscription = store.addListener(adapter::publish);
@@ -170,7 +170,7 @@ class OutputAckLivenessTest {
     void doesNotResendTheSameRevisionWhileAcksAreMissing() throws Exception {
         Silent server = new Silent();
         server.startReady();
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         WebSocketOutputAdapter adapter = new WebSocketOutputAdapter(target(server.getPort()),
                 "stream", store.get(), STALE_AFTER_NANOS);
         AutoCloseable subscription = store.addListener(adapter::publish);

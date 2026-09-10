@@ -28,6 +28,14 @@
     <p id="source-status"></p>
     <p id="source-help" class="hint" hidden>Läuft WinLaufen und wurde unter
     Abwicklung → Sprecher-PC… → Verbinden die Sprecher-PC-Verbindung aktiviert?</p>
+    <!-- Die Wettkampf-Zeitzone ist im Normalfall nichts zu tun: Ohne Eintrag gilt
+         der WinLaufen-Standard. Angezeigt wird sie trotzdem, damit sie nachvollziehbar
+         ist und ein Auslandseinsatz erkennbar bleibt. -->
+    <p id="competition-timezone" class="hint"></p>
+    <!-- Hinweise aus der Konfigurationsdatei, vor allem eine unbrauchbare
+         Wettkampf-Zeitzone. Sie steht in keinem Formularfeld, also ist dies die
+         einzige Stelle, an der ein Bediener den Fehler bemerken kann. -->
+    <p id="config-notices" class="warn" hidden></p>
   </section>
   <section id="browser-view" hidden>
     <h2>Live-Ergebnisse im Browser</h2>

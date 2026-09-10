@@ -294,6 +294,83 @@ deshalb enthalten sie immer eine Runtime.
 
 ## 3. Upgrade
 
+### 3.0 Zwei unabhängige Fragen
+
+Zwei Begriffspaare werden leicht verwechselt, sind aber unabhängig voneinander:
+
+| Frage | Antworten |
+|---|---|
+| **Woher** kommen die Dateien? | Releasepaket oder Source-Build |
+| **Was** wird daraus gemacht? | Erstinstallation oder Upgrade |
+
+Jede Kombination ist möglich. Ein Installer aus dem Source-Tree kann eine
+bestehende Release-Installation aktualisieren, und ein Releasepaket kann auf
+einem leeren Rechner eine Erstinstallation durchführen.
+
+**Erstinstallation** heißt: Sprecher-Web ist auf dem Rechner noch nicht
+vorhanden. Neu eingerichtet werden Programmdateien, Konfiguration,
+Datenverzeichnis, Hintergrunddienste und — unter Windows — die Firewallregeln.
+
+**Upgrade** heißt: Eine bestehende Installation wurde gefunden. Programmdateien
+und die technischen Installationsbestandteile werden aktualisiert; die
+Benutzerkonfiguration und die Veranstaltungsdaten bleiben erhalten.
+
+### 3.1 Wie der Installer den Fall erkennt
+
+Beide Installer prüfen **drei unabhängige Spuren**. Trifft eine davon zu, gilt
+der Lauf als Upgrade:
+
+1. ein installiertes Programmartefakt (`winlaufen-web-bridge.jar` oder
+   `winlaufen-web-live-server.jar` im Programmverzeichnis),
+2. eine vorhandene Konfigurationsdatei (`bridge.properties` bzw.
+   `live-server.env` / `live-server.properties`),
+3. eine registrierte `systemd`-Unit bzw. geplante Aufgabe.
+
+Ein leeres Verzeichnis allein zählt bewusst **nicht**: Es entsteht auch durch
+eine abgebrochene Deinstallation und wäre kein Beleg für eine Installation.
+
+### 3.2 Was der Installer anzeigt
+
+Vor der ersten Änderung nennt er den erkannten Modus:
+
+```text
+============================================================
+Sprecher-Web – Upgrade
+============================================================
+
+Bestehende Sprecher-Web-Installation gefunden.
+
+  Profil:        all-in-one
+  Java:          /opt/winlaufen-web/runtime/bin/java
+  Programm:      /opt/winlaufen-web
+  Konfiguration: /etc/winlaufen-web
+
+Programmdateien werden aktualisiert.
+Bestehende Konfiguration und Veranstaltungsdaten bleiben erhalten.
+Die vorhandene WinLaufen-Installation wird nicht verändert.
+```
+
+Während des Laufs ist jeder Schritt gekennzeichnet:
+
+```text
+  AKTUALISIERT: Bridge-Programm
+  AKTUALISIERT: Live-Server-Programm
+  BEIBEHALTEN: bestehende bridge.properties (/etc/winlaufen-web/bridge.properties)
+  BEIBEHALTEN: importierte Startliste (/etc/winlaufen-web/startlist.properties)
+  AKTUALISIERT: systemd-Unit winlaufen-bridge.service
+```
+
+Am Ende steht eine Zusammenfassung mit `AKTUALISIERT`, `BEIBEHALTEN` und
+`UNVERÄNDERT` — Letzteres nennt ausdrücklich WinLaufen — gefolgt vom
+Betriebsbereitschaftsbericht. Bei einer Erstinstallation lautet der Block
+`NEU ANGELEGT`; das Wort „beibehalten" kommt dort nicht vor, weil es nichts zu
+behalten gab.
+
+Das ist auf Linux und Windows dieselbe Bedienlogik, auch wenn die technische
+Umsetzung sich unterscheidet.
+
+### 3.3 Der eigentliche Ablauf
+
 Es gibt keinen separaten Upgrade-Pfad: **derselbe Installer** führt auch das
 Upgrade durch. Der Weg bleibt dabei derselbe wie bei der Installation — eine
 aus einem Releasepaket installierte Anlage wird mit dem nächsten Releasepaket
@@ -304,7 +381,7 @@ bewusster Profilwechsel. Läuft auf diesem Rechner WinLaufen mit aktiver
 Sprecher-PC-Verbindung, diese vorher **trennen** und danach wieder
 **verbinden**.
 
-### 3.1 Upgrade einer Installation aus dem Releasepaket
+### 3.4 Upgrade einer Installation aus dem Releasepaket
 
 Linux:
 
@@ -325,7 +402,7 @@ Eine Git-Arbeitskopie wird dafür nicht benötigt. Das alte entpackte Paket kann
 nach erfolgreichem Upgrade gelöscht werden; die installierten Dateien liegen
 unter `/opt/winlaufen-web` bzw. `C:\Program Files\WinLaufen Web`.
 
-### 3.2 Upgrade einer Entwicklerinstallation
+### 3.5 Upgrade einer Entwicklerinstallation
 
 ```sh
 cd ~/winlaufen-web
@@ -341,7 +418,23 @@ und dem Installer aus dem Checkout.
 Dieser Weg aktualisiert auf den ausgecheckten Git-Stand und nicht
 notwendigerweise auf einen veröffentlichten Release.
 
-### 3.3 Was das Upgrade erhält und was es ersetzt
+### 3.6 Getrennte Rechner: erst Live Server, dann Bridge
+
+Stehen Bridge und Live Server auf **verschiedenen** Rechnern — Profile
+**Bridge only** und **Presentation Node** —, laufen sie beim Upgrade kurz in
+verschiedenen Versionen. Das ist nur in einer Richtung unkritisch: Eine ältere
+Bridge kann an einen neueren Live Server liefern, umgekehrt nicht.
+
+**Deshalb zuerst den Live Server aktualisieren, danach die Bridge.** In der
+Zwischenzeit läuft alles weiter; es fehlen höchstens Angaben, die die ältere
+Bridge noch nicht liefert.
+
+Bei **All-in-One** ersetzt derselbe Installerlauf beide Prozesse gemeinsam; dort
+stellt sich die Frage nicht.
+
+Hintergrund und Nachweis: [RELEASE.md](RELEASE.md#upgrade-reihenfolge-bei-getrennten-rechnern).
+
+### 3.7 Was das Upgrade erhält und was es ersetzt
 
 Für beide Installationswege identisch. Die Pfade in der Tabelle sind die von
 Linux; unter Windows gilt dasselbe Verhalten für `C:\Program Files\WinLaufen Web\`
@@ -496,6 +589,7 @@ Windows x64. Raspberry Pi OS auf ARM wird über den Source-Weg installiert.
 /opt/winlaufen-web/runtime/      gebündelte Java-Runtime, falls die Quelle eine mitbringt
 /etc/winlaufen-web/              Konfiguration und persistente Veranstalterdaten
     bridge.properties            Veranstalter-Konfiguration der Bridge
+                                 (competition.timezone nur für das Ausland)
     startlist.properties         importierte Startliste (nur bei Profilen mit Bridge)
     live-server.env              technische Live-Server-Parameter
 /var/lib/winlaufen-web/          Arbeitsverzeichnis des Dienstkontos
@@ -510,6 +604,52 @@ C:\ProgramData\WinLaufen Web\
     bridge.properties                      Veranstalter-Konfiguration
     live-server.properties                 technische Live-Server-Parameter
 ```
+
+### Wettkampf-Zeitzone
+
+**Für Veranstaltungen in Deutschland ist hier nichts zu tun.** Sprecher-Web
+verwendet standardmäßig `Europe/Berlin`; die Zeitzone des Rechners spielt keine
+Rolle, auch nicht auf einem Server, der auf UTC steht.
+
+Die Angabe betrifft ausschließlich die Zeitmessungen der Read API: Sie legt fest,
+in welcher Zone die WinLaufen-Wettkampfzeit gelesen wird, wenn die Differenz zur
+Systemzeit bestimmt wird. Für Uhr, Ergebnisse, Startliste und Web Viewer ist sie
+ohne Bedeutung. Bridge Control zeigt die verwendete Zone im Abschnitt WinLaufen
+an.
+
+**Nur für eine Veranstaltung in einer anderen Zeitzone** wird sie in
+`bridge.properties` eingetragen:
+
+Linux:
+
+```sh
+sudo nano /etc/winlaufen-web/bridge.properties
+```
+
+Windows:
+
+```powershell
+notepad "C:\ProgramData\WinLaufen Web\bridge.properties"
+```
+
+Eintrag:
+
+```properties
+competition.timezone=America/New_York
+```
+
+Weitere Beispiele: `Europe/Prague`, `Australia/Sydney`. Nach der Änderung die
+Bridge neu starten.
+
+Ist der Wert **unbrauchbar** — etwa `America/New_Yrok` —, startet die Bridge
+trotzdem, verwendet wieder `Europe/Berlin` und zeigt in Bridge Control eine
+Warnung mit dem falschen Wert und beiden Konfigurationspfaden. Es wird **nicht**
+auf die Zeitzone des Rechners zurückgefallen.
+
+Es gibt **keine NTP- und keine Internetpflicht**: Sprecher-Web funktioniert
+vollständig in einem vom Internet getrennten Netz. Die API meldet dann bei den
+Zeitmessungen `UNVERIFIED`, was kein Fehlerzustand ist. Details:
+[API.md](API.md#5-zeitmodell).
 
 `startlist.properties` entsteht erst beim ersten erfolgreichen
 Startlistenimport in Bridge Control. Die Bridge schreibt sie über eine
@@ -587,6 +727,9 @@ Start-ScheduledTask   -TaskName 'WinLaufen Web Bridge'
 | Bridge | Live Server | TCP 44441 | authentifizierter Bridge-Ingest auf `/bridge/v1/channels/<channel>` |
 | Admin | Bridge | TCP 44442 | Bridge Control |
 
+Welche Endpunkte auf welchem Port liegen — HTTP wie WebSocket —, steht
+vollständig in [API.md](API.md#2-ports-und-endpunkte).
+
 Typische URLs:
 
 - Live-Ergebnisse: `http://<live-server-ip>:44440/`, lokal `http://localhost:44440/`
@@ -604,8 +747,16 @@ Pfade, Browser-Originprüfung und Ingest-Authentifizierung getrennt.
 
 Vor dem Start prüft der Installer ausschließlich die Listenerports des gewählten
 Profils. Ein Konflikt nennt Port, Zweck und soweit ermittelbar Prozess/PID sowie
-den systemd-Dienst. Es wird kein Ersatzport gewählt. TCP 4444 wird nicht
-geprüft, weil die Bridge sich dorthin ausgehend verbindet.
+den systemd-Dienst; sind mehrere Ports belegt, werden **alle** in einem Lauf
+gemeldet. Es wird kein Ersatzport gewählt. TCP 4444 wird nicht geprüft, weil die
+Bridge sich dorthin ausgehend verbindet. Ports, die bereits der bestehenden
+Sprecher-Web-Installation gehören, sind kein Konflikt — sie werden übernommen.
+
+Ein Lauf mit `--staging-root` installiert in ein Testverzeichnis und startet
+nichts; dort wird die Portprüfung des Rechners übersprungen, weil kein Dienst
+entsteht, der einen Port binden könnte. Der Installer sagt das in seiner Ausgabe.
+Für eine produktive Installation bleibt die Prüfung unverändert. `--check-ports`
+erzwingt sie auch im Testmodus.
 
 Der bekannte Prototyp-Ingest-Secret bleibt eine Sicherheitsbegrenzung. Port
 44441 darf nicht unkontrolliert ins Internet weitergeleitet werden; Details

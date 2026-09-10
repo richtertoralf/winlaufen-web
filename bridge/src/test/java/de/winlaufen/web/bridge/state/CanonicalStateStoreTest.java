@@ -11,7 +11,7 @@ class CanonicalStateStoreTest {
     private static final List<String> HEADERS = List.of("Rang", "StNr");
 
     @Test void revisionsAndSnapshotReplacementAreAtomic() {
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         store.clock("12:00:00");
         assertEquals(1, store.get().sourceRevision());
         store.result(TestBlocks.block(0, 0, List.of(List.of("1", "101")), HEADERS));
@@ -26,7 +26,7 @@ class CanonicalStateStoreTest {
     }
 
     @Test void disconnectedStatePreservesCompetitionAndClock() {
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         store.clock("12:00:00");
         store.result(TestBlocks.block(1, 0, List.of(List.of("1", "120")), HEADERS));
         store.health(SourceHealth.STALE);
@@ -38,7 +38,7 @@ class CanonicalStateStoreTest {
     }
 
     @Test void clockValuesRemainAuthoritativeAcrossEqualBackwardLargeAndMidnightSequences() {
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         for (String value : List.of("01:23:45", "01:23:45", "08:00:10", "07:15:00",
                 "01:00:00", "20:00:00", "23:59:59", "00:00:00", "99:99:99")) {
             store.clock(value);
@@ -48,7 +48,7 @@ class CanonicalStateStoreTest {
     }
 
     @Test void serverMessageRemainsAvailableWithoutChangingCompetitionData() {
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         store.result(TestBlocks.block(0, 0, List.of(List.of("1", "101")), HEADERS));
         var competition = store.get().state().competition();
         store.message("Start verschiebt sich");

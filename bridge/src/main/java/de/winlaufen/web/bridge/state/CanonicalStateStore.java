@@ -2,6 +2,10 @@ package de.winlaufen.web.bridge.state;
 
 import de.winlaufen.web.bridge.source.winlaufen.ResultBlock;
 import de.winlaufen.web.contract.CanonicalState;
+import de.winlaufen.web.contract.ClockSample;
+import de.winlaufen.web.contract.CompetitionTimeOffset;
+import de.winlaufen.web.contract.CompetitionTimeZoneSource;
+import de.winlaufen.web.contract.TimeReference;
 import de.winlaufen.web.contract.ClassSnapshot;
 import de.winlaufen.web.contract.Competition;
 import de.winlaufen.web.contract.CompetitionClass;
@@ -10,6 +14,7 @@ import de.winlaufen.web.contract.CurrentFinish;
 import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.SourceHealth;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -28,13 +33,43 @@ public final class CanonicalStateStore {
 
     private final AtomicReference<CanonicalSnapshot> current;
     private final List<Consumer<CanonicalSnapshot>> listeners = new CopyOnWriteArrayList<>();
+    private final TimeReference reference;
+    private final String competitionZoneId;
+    private final CompetitionTimeZoneSource competitionZoneSource;
+    private long clockSampleRevision;
 
-    public CanonicalStateStore(PresentationConfig presentation) {
+    /**
+     * @param configuredZoneId the organiser's competition time zone, or {@code null} when none was
+     *                         configured — then Sprecher-Web's own default for WinLaufen applies
+     *                         and every sample says so
+     */
+    public CanonicalStateStore(PresentationConfig presentation, String configuredZoneId) {
+        this(presentation, TimeReference.systemClock(), configuredZoneId);
+    }
+
+    /** Test seam: makes the measurement deterministic without touching the machine's clock. */
+    public CanonicalStateStore(PresentationConfig presentation, TimeReference reference,
+                               String configuredZoneId) {
+        this.reference = reference;
+        this.competitionZoneId = configuredZoneId != null
+                ? configuredZoneId : CompetitionTimeZoneSource.APPLICATION_DEFAULT_ZONE;
+        this.competitionZoneSource = configuredZoneId != null
+                ? CompetitionTimeZoneSource.CONFIGURED : CompetitionTimeZoneSource.APPLICATION_DEFAULT;
         current = new AtomicReference<>(new CanonicalSnapshot(0, CanonicalState.empty(), presentation));
     }
 
     public CanonicalSnapshot get() {
         return current.get();
+    }
+
+    /** The zone in which the competition time is read, as it is actually being used right now. */
+    public String competitionTimeZone() {
+        return competitionZoneId;
+    }
+
+    /** Whether that zone was configured or only taken from this machine. */
+    public CompetitionTimeZoneSource competitionTimeZoneSource() {
+        return competitionZoneSource;
     }
 
     /** @return a handle that removes the listener again; used by the output target manager. */
@@ -55,15 +90,32 @@ public final class CanonicalStateStore {
         }
         publish(old.sourceRevision() + 1,
                 new CanonicalState(value, old.state().clock(), old.state().competition(),
-                        old.state().currentFinish(), old.state().message()),
+                        old.state().currentFinish(), old.state().message(), old.state().clockSample()),
                 old.presentation());
     }
 
-    public synchronized void clock(String value) {
+    /**
+     * A recognised WinLaufen clock telegram, and the only place a clock sample is created.
+     *
+     * <p>The instant is read before the lock is taken, so the measurement belongs to the moment the
+     * telegram arrived and not to whenever this store happened to become free. Every telegram
+     * produces a sample, including one that repeats the current value: that repetition is a real
+     * observation of the source even though the competition time did not move.
+     */
+    public void clock(String value) {
+        Instant at = reference.now();
+        applyClock(value, at);
+    }
+
+    private synchronized void applyClock(String value, Instant at) {
         CanonicalSnapshot old = current.get();
+        ClockSample sample = new ClockSample(++clockSampleRevision, value, competitionZoneId,
+                competitionZoneSource, at.toString(),
+                CompetitionTimeOffset.differenceMillis(value, competitionZoneId, at),
+                reference.status(), reference.source());
         publish(old.sourceRevision() + 1,
                 new CanonicalState(SourceHealth.CONNECTED, value, old.state().competition(),
-                        old.state().currentFinish(), old.state().message()),
+                        old.state().currentFinish(), old.state().message(), sample),
                 old.presentation());
     }
 
@@ -71,7 +123,8 @@ public final class CanonicalStateStore {
         CanonicalSnapshot old = current.get();
         publish(old.sourceRevision() + 1,
                 new CanonicalState(old.state().sourceHealth(), old.state().clock(),
-                        old.state().competition(), old.state().currentFinish(), value),
+                        old.state().competition(), old.state().currentFinish(), value,
+                        old.state().clockSample()),
                 old.presentation());
     }
 
@@ -105,7 +158,7 @@ public final class CanonicalStateStore {
         publish(revision,
                 new CanonicalState(old.state().sourceHealth(), old.state().clock(), competition,
                         new CurrentFinish(block.classIndex(), block.currentFinishIndex(), revision),
-                        old.state().message()),
+                        old.state().message(), old.state().clockSample()),
                 old.presentation());
     }
 

@@ -506,12 +506,56 @@ try {
     # Jetzt müssen auch die vorher eigenen Listener tatsächlich freigegeben sein.
     Invoke-PortPreflight
 
+# ------------------------------------------------ Erstinstallation oder Upgrade
+#
+# Ein Bediener soll nicht aus Logzeilen erraten müssen, ob gerade etwas neu
+# angelegt oder eine bestehende Installation aktualisiert wird. Erkannt wird an
+# drei unabhängigen Spuren, nicht an einem einzelnen Verzeichnis: ein
+# installiertes Programmartefakt, eine vorhandene Konfiguration oder eine
+# registrierte geplante Aufgabe. Ein leeres Verzeichnis allein zählt bewusst nicht.
+function Test-ExistingInstallation {
+    foreach ($artefact in @($BridgeJar, $LiveJar)) {
+        if (Test-Path -LiteralPath (Get-StagedPath (Join-Path $InstallPrefix "lib\$artefact"))) {
+            return $true
+        }
+    }
+    foreach ($file in @('bridge.properties', 'live-server.properties')) {
+        if (Test-Path -LiteralPath (Get-StagedPath (Join-Path $ConfigDir $file))) { return $true }
+    }
+    if ([string]::IsNullOrWhiteSpace($StagingRoot)) {
+        foreach ($taskName in @($BridgeTaskName, $LiveTaskName)) {
+            if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) { return $true }
+        }
+    }
+    return $false
+}
+
+$installMode = if (Test-ExistingInstallation) { 'Upgrade' } else { 'Erstinstallation' }
+
 Write-Host ""
-Write-Host "== Installiere Profil: $Profile =="
+Write-Host "============================================================"
+Write-Host "$ProductName - $installMode"
+Write-Host "============================================================"
+Write-Host ""
+if ($installMode -eq 'Upgrade') {
+    Write-Host "Bestehende $ProductName-Installation gefunden."
+} else {
+    Write-Host "Es wurde keine bestehende $ProductName-Installation gefunden."
+}
+Write-Host ""
+Write-Note "Profil:        $Profile"
 Write-Note "Quelle:        $DistPath ($($layout.Kind))"
 Write-Note "Java:          $javaExe"
 Write-Note "Programm:      $(Get-StagedPath $InstallPrefix)"
 Write-Note "Konfiguration: $(Get-StagedPath $ConfigDir)"
+Write-Host ""
+if ($installMode -eq 'Upgrade') {
+    Write-Host "Programmdateien werden aktualisiert."
+    Write-Host "Bestehende Konfiguration und Veranstaltungsdaten bleiben erhalten."
+} else {
+    Write-Host "$ProductName wird neu eingerichtet."
+}
+Write-Host "Die vorhandene WinLaufen-Installation wird nicht verändert."
 
 # ------------------------------------------------------------ Dateien
 
@@ -520,20 +564,23 @@ foreach ($dir in @((Join-Path $InstallPrefix 'lib'), $ConfigDir, $StateDir, $Log
 }
 
 if ($installBridge) {
+    $bridgeExisted = Test-Path -LiteralPath (Get-StagedPath (Join-Path $InstallPrefix "lib\$BridgeJar"))
     Copy-Item -LiteralPath $bridgeSource -Destination (Get-StagedPath (Join-Path $InstallPrefix "lib\$BridgeJar")) -Force
-    Write-Note "Bridge-Artefakt installiert"
+    Write-Note "$(if ($bridgeExisted) { 'AKTUALISIERT' } else { 'NEU' }): Bridge-Programm"
 }
 if ($installLive) {
+    $liveExisted = Test-Path -LiteralPath (Get-StagedPath (Join-Path $InstallPrefix "lib\$LiveJar"))
     Copy-Item -LiteralPath $liveSource -Destination (Get-StagedPath (Join-Path $InstallPrefix "lib\$LiveJar")) -Force
-    Write-Note "Live-Server-Artefakt installiert"
+    Write-Note "$(if ($liveExisted) { 'AKTUALISIERT' } else { 'NEU' }): Live-Server-Programm"
 }
 
 $runtimeSource = Join-Path $DistPath 'runtime'
 if (Test-Path -LiteralPath $runtimeSource) {
     $runtimeTarget = Get-StagedPath (Join-Path $InstallPrefix 'runtime')
-    if (Test-Path -LiteralPath $runtimeTarget) { Remove-Item -LiteralPath $runtimeTarget -Recurse -Force }
+    $runtimeExisted = Test-Path -LiteralPath $runtimeTarget
+    if ($runtimeExisted) { Remove-Item -LiteralPath $runtimeTarget -Recurse -Force }
     Copy-Item -LiteralPath $runtimeSource -Destination $runtimeTarget -Recurse -Force
-    Write-Note "Gebündelte Java-Runtime installiert"
+    Write-Note "$(if ($runtimeExisted) { 'AKTUALISIERT' } else { 'NEU' }): gebündelte Java-Runtime"
 }
 
 # ------------------------------------------------------------ Konfiguration
@@ -616,14 +663,22 @@ if ($installBridge) {
     $stagedBridgeConfig = Get-StagedPath $bridgeConfig
     if (Test-Path -LiteralPath $stagedBridgeConfig) {
         Update-BridgeNetworkDefaults -Path $stagedBridgeConfig
-        Write-Note "Bestehende Bridge-Konfiguration beibehalten: $bridgeConfig"
+        Write-Note "BEIBEHALTEN: bestehende bridge.properties ($bridgeConfig)"
     } else {
         if ($Profile -eq 'AllInOne') {
             # All-in-One: lokaler Live Server als reguläres Output Target.
+            #
+            # Die Kommentare in dieser Datei sind bewusst reines ASCII. Eine
+            # Properties-Datei wird von Editoren, PowerShell und java.util.Properties
+            # unterschiedlich gelesen, und ein Umlaut darin ist genau die Stelle, an der
+            # eine falsche Codepage sichtbar wird - ohne dass er irgendetwas erklaeren
+            # wuerde, was ohne ihn unklar waere.
             $content = @"
 # $ProductName - Bridge (Profil: All-in-One)
-# Erzeugt bei der Erstinstallation. Änderungen bitte über Bridge Control
-# vornehmen: http://<bridge-ip>:$ControlPort/
+# Erstellt bei der Installation.
+# Konfiguration und Status: http://<bridge-ip>:$ControlPort/
+# Erweiterte Einstellungen koennen hier direkt vorgenommen werden, zum Beispiel
+# competition.timezone fuer eine Veranstaltung ausserhalb von Europe/Berlin.
 config.version=2
 source.type=WINLAUFEN
 source.host=$DefaultSourceHost
@@ -643,11 +698,14 @@ presentation.showShooting=true
 presentation.showMessages=false
 "@
         } else {
-            # Bridge only: gültig auch ohne Output Target.
+            # Bridge only: gültig auch ohne Output Target. Kommentare wieder ASCII-only,
+            # aus demselben Grund wie oben.
             $content = @"
 # $ProductName - Bridge (Profil: Bridge only)
-# Erzeugt bei der Erstinstallation. WinLaufen-Adresse und Output Targets
-# anschließend über Bridge Control pflegen: http://<bridge-ip>:$ControlPort/
+# Erstellt bei der Installation. Noch ohne Output Target - das ist gueltig.
+# Konfiguration und Status: http://<bridge-ip>:$ControlPort/
+# Erweiterte Einstellungen koennen hier direkt vorgenommen werden, zum Beispiel
+# competition.timezone fuer eine Veranstaltung ausserhalb von Europe/Berlin.
 config.version=2
 source.type=WINLAUFEN
 source.host=$DefaultSourceHost
@@ -662,7 +720,7 @@ presentation.showMessages=false
 "@
         }
         Set-Content -LiteralPath $stagedBridgeConfig -Value $content -Encoding UTF8
-        Write-Note "Bridge-Standardkonfiguration erzeugt: $bridgeConfig"
+        Write-Note "NEU: bridge.properties ($bridgeConfig)"
     }
 }
 
@@ -670,11 +728,13 @@ if ($installLive) {
     $stagedLiveConfig = Get-StagedPath $liveConfig
     if (Test-Path -LiteralPath $stagedLiveConfig) {
         Update-LiveNetworkDefaults -Path $stagedLiveConfig
-        Write-Note "Bestehende Live-Server-Konfiguration beibehalten: $liveConfig"
+        Write-Note "BEIBEHALTEN: bestehende live-server.properties ($liveConfig)"
     } else {
         $content = @"
 # $ProductName - Live Server
+# Erstellt bei der Installation.
 # Rein technische Deployment-Parameter. Keine Veranstalter-Konfiguration.
+# Aenderungen hier wirken erst, wenn der Installer erneut ausgefuehrt wird.
 winlaufen.live.http.bind=$LiveHttpBind
 winlaufen.live.http.port=$LiveHttpPort
 winlaufen.live.websocket.bind=$LiveWsBind
@@ -683,111 +743,103 @@ winlaufen.live.channel=$LiveChannel
 winlaufen.live.secret=$DefaultSecret
 "@
         Set-Content -LiteralPath $stagedLiveConfig -Value $content -Encoding UTF8
-        Write-Note "Live-Server-Standardkonfiguration erzeugt: $liveConfig"
+        Write-Note "NEU: live-server.properties ($liveConfig)"
     }
 }
 
-# ------------------------------------------------------------ Startskripte
+# Die Startliste gehört dem Veranstalter und wird nie angefasst. Sie hier zu
+# nennen, erspart die Frage, ob sie das Upgrade überlebt hat.
+if (Test-Path -LiteralPath (Get-StagedPath (Join-Path $ConfigDir 'startlist.properties'))) {
+    Write-Note "BEIBEHALTEN: importierte Startliste ($ConfigDir\startlist.properties)"
+}
+
+# ------------------------------------------------------------ Startargumente
 #
-# Die geplanten Aufgaben rufen diese Skripte auf. Sie lesen die Konfiguration und
-# setzen daraus die Systemproperties der Anwendung.
+# Die geplanten Aufgaben starten die Java-Prozesse DIREKT. Frueher lag dazwischen
+# cmd.exe mit einer Batchdatei, und genau das war der Fehler: javaw.exe ist ein
+# GUI-Subsystem-Programm, auf das cmd.exe nicht wartet. cmd war sofort fertig, die
+# Aufgabe fiel auf Ready zurueck, und der Java-Prozess lief losgeloest weiter.
+# Stop-ScheduledTask beendete danach nur noch eine Huelle, die es gar nicht mehr
+# gab - der Dienst lief unbeirrt weiter und musste von Hand erschlagen werden.
+#
+# Startet die Aufgabe javaw.exe selbst, ist der verfolgte Prozess der Dienst.
+# Stop beendet ihn wirklich, Start erzeugt eine neue PID, und Aufgabenzustand,
+# Prozess und Portbelegung sagen dasselbe aus.
 
-$bridgeLauncher = Join-Path $InstallPrefix 'start-bridge.cmd'
-$liveLauncher   = Join-Path $InstallPrefix 'start-live-server.cmd'
-
+$bridgeArguments = @()
 if ($installBridge) {
-    $cmd = @"
-@echo off
-rem $ProductName - Bridge. Wird von der geplanten Aufgaben-Instanz aufgerufen.
-"$javaExe" "-D$BridgeConfigProperty=$bridgeConfig" -jar "$InstallPrefix\lib\$BridgeJar"
-exit /b %errorlevel%
-"@
-    Set-Content -LiteralPath (Get-StagedPath $bridgeLauncher) -Value $cmd -Encoding ASCII
+    $bridgeArguments = @("-D$BridgeConfigProperty=$bridgeConfig", '-jar',
+        (Join-Path $InstallPrefix "lib\$BridgeJar"))
 }
 
+$liveArguments = @()
 if ($installLive) {
-    # Der Live Server wird ausschließlich über Systemproperties konfiguriert.
-    # Die Properties-Datei wird hier zu -D-Argumenten expandiert.
-    $ps1 = Join-Path $InstallPrefix 'start-live-server.ps1'
-    $launcherScript = @"
-# $ProductName - Live Server Starter
-#
-# Die geplante Aufgabe muss so lange Running bleiben, wie der Live Server laeuft.
-# Der PowerShell-Aufrufoperator "&" kehrt bei javaw.exe sofort zurueck, weil das
-# ein GUI-Subsystem-Programm ohne umgeleitete Stroeme ist; PowerShell und cmd
-# beendeten sich dann sofort und die Aufgabe fiel auf Ready zurueck, obwohl der
-# Java-Prozess weiterlief. Deshalb wird der Prozess hier explizit gestartet und
-# auf sein Ende gewartet.
-
-# Windows uebergibt Argumente als eine einzige Zeichenkette, die der Zielprozess
-# mit CommandLineToArgvW wieder zerlegt. Diese Funktion setzt genau dessen Regeln
-# um, damit Leerzeichen, Backslashes und Anfuehrungszeichen in Pfaden und Secrets
-# unveraendert ankommen.
-function ConvertTo-CommandLineArgument {
-    param([string]`$Value)
-
-    if (`$Value.Length -gt 0 -and `$Value -notmatch '[\s"]') { return `$Value }
-    `$builder = New-Object System.Text.StringBuilder
-    [void]`$builder.Append('"')
-    `$index = 0
-    while (`$index -lt `$Value.Length) {
-        `$backslashes = 0
-        while (`$index -lt `$Value.Length -and `$Value[`$index] -eq [char]'\') {
-            `$backslashes++
-            `$index++
-        }
-        if (`$index -eq `$Value.Length) {
-            [void]`$builder.Append('\' * (`$backslashes * 2))
-        } elseif (`$Value[`$index] -eq [char]'"') {
-            [void]`$builder.Append('\' * (`$backslashes * 2 + 1))
-            [void]`$builder.Append('"')
-            `$index++
-        } else {
-            [void]`$builder.Append('\' * `$backslashes)
-            [void]`$builder.Append(`$Value[`$index])
-            `$index++
+    # Der Live Server wird ausschliesslich ueber Systemproperties konfiguriert.
+    # Die Properties-Datei wird hier einmal zu -D-Argumenten expandiert, weil die
+    # Aufgabe keinen Zwischenprozess mehr hat, der sie beim Start lesen koennte.
+    # Wer live-server.properties spaeter von Hand aendert, muss den Installer
+    # erneut ausfuehren; darauf weist die Installation am Ende hin.
+    $liveProperties = [ordered]@{}
+    foreach ($line in Get-Content -LiteralPath (Get-StagedPath $liveConfig)) {
+        if ($line -match '^\s*([^#=]+)=(.*)$') {
+            $liveProperties[$Matches[1].Trim()] = $Matches[2].Trim()
         }
     }
-    [void]`$builder.Append('"')
-    return `$builder.ToString()
+    foreach ($key in $liveProperties.Keys) { $liveArguments += "-D$key=$($liveProperties[$key])" }
+    $liveArguments += '-jar'
+    $liveArguments += (Join-Path $InstallPrefix "lib\$LiveJar")
 }
 
-`$config = @{}
-Get-Content -LiteralPath '$liveConfig' | ForEach-Object {
-    if (`$_ -match '^\s*([^#=]+)=(.*)$') { `$config[`$Matches[1].Trim()] = `$Matches[2].Trim() }
-}
-`$arguments = @()
-foreach (`$key in `$config.Keys) { `$arguments += "-D`$key=`$(`$config[`$key])" }
-`$arguments += '-jar'
-`$arguments += '$InstallPrefix\lib\$LiveJar'
-
-`$startInfo = New-Object System.Diagnostics.ProcessStartInfo
-`$startInfo.FileName = '$javaExe'
-`$startInfo.Arguments = ((`$arguments | ForEach-Object { ConvertTo-CommandLineArgument `$_ }) -join ' ')
-`$startInfo.UseShellExecute = `$false
-`$startInfo.CreateNoWindow = `$true
-
-`$process = [System.Diagnostics.Process]::Start(`$startInfo)
-`$process.WaitForExit()
-exit `$process.ExitCode
-"@
-    Set-Content -LiteralPath (Get-StagedPath $ps1) -Value $launcherScript -Encoding UTF8
-
-    $cmd = @"
-@echo off
-rem $ProductName - Live Server. Wird von der geplanten Aufgaben-Instanz aufgerufen.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$ps1"
-exit /b %errorlevel%
-"@
-    Set-Content -LiteralPath (Get-StagedPath $liveLauncher) -Value $cmd -Encoding ASCII
+# Aus fruheren Installationen: die Startskripte werden nicht mehr verwendet.
+foreach ($stale in @('start-bridge.cmd', 'start-live-server.cmd', 'start-live-server.ps1')) {
+    $stalePath = Get-StagedPath (Join-Path $InstallPrefix $stale)
+    if (Test-Path -LiteralPath $stalePath) {
+        Remove-Item -LiteralPath $stalePath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # ------------------------------------------------------------ Geplante Aufgaben
 
-function Register-BackgroundTask {
-    param([string]$TaskName, [string]$Launcher)
+function ConvertTo-CommandLineArgument {
+    param([string]$Value)
 
-    $action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"$Launcher`""
+    # Windows uebergibt Argumente als eine einzige Zeichenkette, die der Zielprozess
+    # mit CommandLineToArgvW wieder zerlegt. Diese Funktion setzt genau dessen Regeln
+    # um, damit Leerzeichen, Backslashes und Anfuehrungszeichen in Pfaden und Secrets
+    # unveraendert beim Java-Prozess ankommen.
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
+    $builder = New-Object System.Text.StringBuilder
+    [void]$builder.Append('"')
+    $index = 0
+    while ($index -lt $Value.Length) {
+        $backslashes = 0
+        while ($index -lt $Value.Length -and $Value[$index] -eq [char]'\') {
+            $backslashes++
+            $index++
+        }
+        if ($index -eq $Value.Length) {
+            [void]$builder.Append('\' * ($backslashes * 2))
+        } elseif ($Value[$index] -eq [char]'"') {
+            [void]$builder.Append('\' * ($backslashes * 2 + 1))
+            [void]$builder.Append('"')
+            $index++
+        } else {
+            [void]$builder.Append('\' * $backslashes)
+            [void]$builder.Append($Value[$index])
+            $index++
+        }
+    }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+
+function Register-BackgroundTask {
+    param([string]$TaskName, [string]$Executable, [string[]]$Arguments)
+
+    # Kein cmd.exe und kein PowerShell dazwischen: Der Prozess, den die Aufgabe
+    # startet, ist der Dienst selbst. Nur so beendet Stop-ScheduledTask ihn auch.
+    $action = New-ScheduledTaskAction -Execute $Executable `
+        -Argument (($Arguments | ForEach-Object { ConvertTo-CommandLineArgument $_ }) -join ' ')
     $trigger = New-ScheduledTaskTrigger -AtStartup
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
@@ -795,11 +847,12 @@ function Register-BackgroundTask {
         -ExecutionTimeLimit ([TimeSpan]::Zero)
 
     # Idempotent: eine vorhandene Aufgabe wird ersetzt, nicht dupliziert.
+    $taskExisted = [bool](Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
         -Principal $principal -Settings $settings -Description "$ProductName" | Out-Null
     Start-ScheduledTask -TaskName $TaskName
-    Write-Note "Hintergrunddienst eingerichtet und gestartet: $TaskName"
+    Write-Note "$(if ($taskExisted) { 'AKTUALISIERT' } else { 'NEU' }): geplante Aufgabe $TaskName"
 }
 
 function Remove-BackgroundTask {
@@ -902,10 +955,10 @@ function Get-BridgeOperationalDiagnostic {
 
 if ([string]::IsNullOrWhiteSpace($StagingRoot) -and -not $SkipTasks) {
     if ($installLive) {
-        Register-BackgroundTask -TaskName $LiveTaskName -Launcher $liveLauncher
+        Register-BackgroundTask -TaskName $LiveTaskName -Executable $javaExe -Arguments $liveArguments
     }
     if ($installBridge) {
-        Register-BackgroundTask -TaskName $BridgeTaskName -Launcher $bridgeLauncher
+        Register-BackgroundTask -TaskName $BridgeTaskName -Executable $javaExe -Arguments $bridgeArguments
     }
 
     if ($installLive) {
@@ -1037,8 +1090,34 @@ function Write-BridgeOperationalDiagnostic {
 function Write-InstallationReport {
     Write-Host ""
     Write-Host "============================================================"
-    Write-Host "$ProductName - Installation erfolgreich"
+    Write-Host "$ProductName - $installMode erfolgreich"
     Write-Host "============================================================"
+    if ($installMode -eq 'Upgrade') {
+        Write-Host ""
+        Write-Host "AKTUALISIERT"
+        if ($installBridge) { Write-Host "  Bridge" }
+        if ($installLive) { Write-Host "  Live Server" }
+        Write-Host "  Geplante Aufgaben"
+        Write-Host ""
+        Write-Host "BEIBEHALTEN"
+        Write-Host "  Konfiguration in $ConfigDir"
+        if (Test-Path -LiteralPath (Get-StagedPath (Join-Path $ConfigDir 'startlist.properties'))) {
+            Write-Host "  importierte Startliste"
+        }
+        Write-Host "  Veranstaltungsdaten in $StateDir"
+    } else {
+        Write-Host ""
+        Write-Host "NEU ANGELEGT"
+        if ($installBridge) { Write-Host "  Bridge" }
+        if ($installLive) { Write-Host "  Live Server" }
+        Write-Host "  Konfiguration in $ConfigDir"
+        Write-Host "  Datenverzeichnis $StateDir"
+        Write-Host "  Geplante Aufgaben"
+        Write-Host "  Firewallregeln"
+    }
+    Write-Host ""
+    Write-Host "UNVERÄNDERT"
+    Write-Host "  WinLaufen"
     Write-Host ""
     Write-Host "Lokale Komponenten:"
     if ($localRuntimeValidated) {

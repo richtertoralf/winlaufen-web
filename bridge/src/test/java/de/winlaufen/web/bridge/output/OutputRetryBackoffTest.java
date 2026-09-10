@@ -30,7 +30,7 @@ class OutputRetryBackoffTest {
 
     @Test
     void sourceUpdatesDoNotShortenAPendingRetryWait() throws Exception {
-        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults());
+        CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
         WebSocketOutputAdapter adapter = new WebSocketOutputAdapter(unreachableTarget(),
                 "stream", store.get());
         AutoCloseable subscription = store.addListener(adapter::publish);
@@ -59,7 +59,7 @@ class OutputRetryBackoffTest {
     @Test
     void closeInterruptsAPendingRetryWaitImmediately() throws Exception {
         WebSocketOutputAdapter adapter = new WebSocketOutputAdapter(unreachableTarget(),
-                "stream", new CanonicalStateStore(PresentationConfig.defaults()).get());
+                "stream", new CanonicalStateStore(PresentationConfig.defaults(), null).get());
         adapter.start();
         awaitRetryAttempt(adapter, 1, 4_000);
         long started = System.nanoTime();

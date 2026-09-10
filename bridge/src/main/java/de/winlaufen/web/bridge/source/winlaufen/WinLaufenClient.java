@@ -11,14 +11,32 @@ import java.net.SocketTimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class WinLaufenClient implements AutoCloseable {
+    /** The port WinLaufen serves its Sprecher-PC interface on. Never configurable. */
     private static final int WINLAUFEN_PORT = 4444;
+
     private final CanonicalStateStore store;
     private final AtomicBoolean running = new AtomicBoolean();
+    private final int port;
     private volatile String host;
     private volatile Socket socket;
     private Thread thread;
 
-    public WinLaufenClient(String host, CanonicalStateStore store) { this.host = host; this.store = store; }
+    public WinLaufenClient(String host, CanonicalStateStore store) {
+        this(host, WINLAUFEN_PORT, store);
+    }
+
+    /**
+     * Test seam for the protocol integration tests, which need a real listening socket.
+     *
+     * <p>They must not claim TCP 4444: on a real Sprecher-PC that port belongs to WinLaufen, and a
+     * build there would fail for a reason that has nothing to do with the code. Production always
+     * uses {@link #WINLAUFEN_PORT} through the constructor above.
+     */
+    WinLaufenClient(String host, int port, CanonicalStateStore store) {
+        this.host = host;
+        this.port = port;
+        this.store = store;
+    }
 
     public void start() {
         if (!running.compareAndSet(false, true)) return;
@@ -51,7 +69,7 @@ public final class WinLaufenClient implements AutoCloseable {
     private void consumeConnection(String targetHost) throws Exception {
         Socket connection = new Socket();
         socket = connection;
-        connection.connect(new InetSocketAddress(targetHost, WINLAUFEN_PORT), 5_000);
+        connection.connect(new InetSocketAddress(targetHost, port), 5_000);
         connection.setSoTimeout(500);
         ObjectInputStream objects = new ObjectInputStream(connection.getInputStream());
         Heartbeat heartbeat = new Heartbeat(System.nanoTime());

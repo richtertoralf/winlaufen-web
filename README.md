@@ -1,6 +1,6 @@
 # Sprecher-Web
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
+[![Version](https://img.shields.io/badge/version-0.4.1-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
 [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
 
 Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
@@ -30,7 +30,7 @@ Die beiden sichtbaren Oberflächen heißen:
 - **Sprecher-Web – Bridge Control** — die Veranstalter-Oberfläche
 - **Sprecher-Web – Live-Ergebnisse** — die Ansicht für alle Zuschauer
 
-> **Status: Version 0.4.0, Prototype Baseline.** Für ausgewählte Vereine in
+> **Status: Version 0.4.1, Prototype Baseline.** Für ausgewählte Vereine in
 > **kontrollierten Netzen** gedacht, nicht für offenen Internetbetrieb. Vor dem
 > Einsatz den Abschnitt
 > [Known prototype security limitation](#known-prototype-security-limitation)
@@ -72,6 +72,42 @@ Die beiden sichtbaren Oberflächen heißen:
 * Im Web Viewer erscheint sie **klassenweise**: Vor-/Zurück-Navigation,
   direkte Klassenauswahl und die Reihenfolge genau wie im WinLaufen-Export.
 
+**Generische Read API** — *neu in 0.4.1.*
+
+* Der Live Server stellt seinen Zustand **maschinenlesbar** über HTTP bereit:
+  `GET /api/v1/state` für den laufenden Zustand und `GET /api/v1/startlist`
+  für den vollständigen Startlistenbestand.
+* Bewusst **generisch** und auf keinen einzelnen Consumer zugeschnitten —
+  gedacht für Overlay- und Timing-Systeme wie `finish-stream-overlay` und die
+  GFX Engine, für Monitoring und für eigene Integrationen.
+* **Jede Antwort** enthält die aktuelle WinLaufen-Wettkampfzeit **und** den
+  Verbindungsstatus der Kette WinLaufen → Bridge → Live Server. Ein Consumer
+  muss nie aus vorhandenen Daten raten, ob die Quelle noch hängt.
+* Read-only und ohne Rückfrage bei WinLaufen: Jeder Request wird aus dem
+  bereits veröffentlichten Zustand beantwortet.
+* Vollständige Schnittstellenreferenz — auch für Web Viewer, Bridge-Ingest und
+  Bridge Control: **[docs/API.md](docs/API.md)**.
+
+**Zeitmodell: messen, nicht korrigieren**
+
+* Zu jedem WinLaufen-Uhrtelegramm liefern Bridge und Live Server als
+  **Messstellen** je einen Empfangszeitpunkt, eine gemessene Differenz zur
+  Wettkampfzeit und den Status ihrer Zeitreferenz — zwei unabhängige Messungen
+  nebeneinander.
+* Sie **korrigieren nichts**, wählen keinen Offset und kalibrieren nicht; das
+  entscheidet der Consumer. Die Differenz ist eine **Messdifferenz** gegen die
+  jeweilige Systemuhr, kein ermittelter Uhrenfehler.
+* Sprecher-Web ist **kein hochpräzises Zeitmess- oder Timecode-System**.
+  Angestrebt wird für die vorgesehenen On-Screen-Anwendungen eine Größenordnung
+  von etwa 100 ms — ein Architekturziel, keine zugesagte Eigenschaft.
+* Das funktioniert **vollständig offline**. Ohne belegbare Zeitreferenz meldet
+  die API `UNVERIFIED`; das ist kein Fehlerzustand, und ein Consumer kann
+  weiterhin einen manuell bestimmten Offset verwenden.
+* **Wettkampf-Zeitzone:** Sprecher-Web verwendet standardmäßig `Europe/Berlin`.
+  Für normale WinLaufen-Veranstaltungen in Deutschland ist **keine Einstellung
+  erforderlich**. Nur für eine Veranstaltung in einer anderen Zeitzone wird sie
+  eingetragen — siehe [docs/INSTALLATION.md](docs/INSTALLATION.md#wettkampf-zeitzone).
+
 **Betrieb**
 
 * Ein Ausfall von Netzwerk, Live Server oder Bridge führt nie zu still
@@ -90,6 +126,35 @@ Startlisten-Wireprotokoll auf TCP 4444 gibt es nicht und wird nicht erfunden.
 > Profile, Pfade, Dienste, Ports, Firewall, Deinstallation.
 > **Für Veranstalter Schritt für Schritt:**
 > [docs/BEDIENERHANDBUCH.md](docs/BEDIENERHANDBUCH.md).
+
+### Installation oder Upgrade?
+
+Derselbe Installer macht beides und erkennt selbst, welcher Fall vorliegt. Er
+sagt es vor der ersten Änderung und fasst am Ende zusammen, was passiert ist.
+
+| | Was passiert |
+|---|---|
+| **Erstinstallation** | Sprecher-Web ist noch nicht vorhanden und wird neu eingerichtet: Programmdateien, Konfiguration, Datenverzeichnis, Dienste und — unter Windows — Firewallregeln. |
+| **Upgrade** | Eine bestehende Installation wird gefunden. Programmdateien und Dienste werden aktualisiert; **Konfiguration und Veranstaltungsdaten bleiben erhalten**. |
+
+Beim Upgrade bleiben insbesondere unangetastet: die WinLaufen-Adresse und die
+Liste der Live Server (`bridge.properties`), die technischen
+Live-Server-Parameter und die **importierte Startliste**. Eine bestehende
+Konfigurationsdatei wird nie überschrieben, auch nicht, wenn eine neue Version
+andere Standardwerte oder Kommentare mitbringt.
+
+**Die vorhandene WinLaufen-Installation wird dabei nie verändert** — weder
+ersetzt noch aktualisiert noch deinstalliert. WinLaufen darf während Build und
+Upgrade weiterlaufen.
+
+Einzelheiten, auch zur Erkennungslogik:
+[docs/INSTALLATION.md](docs/INSTALLATION.md#3-upgrade).
+
+### Zwei Installationswege
+
+Davon unabhängig ist die Frage, **woher** die Dateien kommen. Beides lässt sich
+frei kombinieren: Ein Releasepaket kann eine Erstinstallation oder ein Upgrade
+durchführen, ein Source-Build genauso.
 
 Es gibt **zwei verschiedene Installationswege**. Sie führen zu unterschiedlichen
 Ständen und haben unterschiedliche Voraussetzungen — bitte einen davon wählen
@@ -122,7 +187,7 @@ Stände gedacht.
 
 ### Installation aus dem Releasepaket — empfohlen
 
-Aktuelle Version: **0.4.0**. Die Dateinamen unten enthalten die Version; in
+Aktuelle Version: **0.4.1**. Die Dateinamen unten enthalten die Version; in
 den Befehlen steht dafür `<version>`.
 
 **Linux**
@@ -320,7 +385,7 @@ WinLaufen-Protokollcode. Auch die lokale Ansicht im All-in-One-Betrieb läuft
 | Port | Richtung | Funktion |
 |---|---|---|
 | TCP 4444 | Bridge → WinLaufen-PC, **ausgehend** | WinLaufen Sprecher-PC-Quelle |
-| TCP 44440 | eingehend | Live-Ergebnisse / HTTP Web Viewer |
+| TCP 44440 | eingehend | Live-Ergebnisse / HTTP Web Viewer / Read API |
 | TCP 44441 | eingehend | Live WebSocket und Bridge-Ingest auf einem Listener |
 | TCP 44442 | eingehend | Bridge Control |
 
@@ -331,6 +396,9 @@ die eingehenden Firewallregeln.
 
 44440 und 44441 müssen für die vorgesehenen Zuschauergeräte erreichbar sein,
 44442 nur für die vorgesehenen Administrationsgeräte.
+
+Welche Endpunkte auf welchem Port liegen, steht vollständig in
+[docs/API.md](docs/API.md#2-ports-und-endpunkte).
 
 ## Die angezeigte Wettkampfzeit
 
@@ -364,17 +432,26 @@ für Bediener: [Bedienerhandbuch, Kapitel 9](docs/BEDIENERHANDBUCH.md#9-die-ange
 | [docs/MODULAR_ARCHITECTURE.md](docs/MODULAR_ARCHITECTURE.md) | vollständige verbindliche Architekturentscheidungen |
 | [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) | Produktspezifikation |
 | [docs/WINLAUFEN_PROTOCOL.md](docs/WINLAUFEN_PROTOCOL.md) | WinLaufen-Protokoll und reale Evidenz |
+| [docs/API.md](docs/API.md) | **Schnittstellenreferenz**: Read API, Web Viewer, Bridge-Ingest, Bridge Control, Zeitmodell |
 | [docs/RELEASE.md](docs/RELEASE.md) | tag-basierter Release-Ablauf für Maintainer |
 
 ## Projektstatus
 
-**Version `0.4.0`.** Dieses Release schließt den Startlistenweg ab: Import in
-Bridge Control, persistenter Bestand in der Bridge, eigene Übertragung zum Live
-Server und klassenweise Anzeige im Web Viewer — zusätzlich zu Uhr und
-Ergebnissen wie bisher.
+**Version `0.4.1`.** Dieses Release öffnet Sprecher-Web für andere Systeme: Die
+**generische Read API** des Live Servers stellt Wettkampfzeit, Ergebnisse,
+Verbindungsstatus und den vollständigen Startlistenbestand maschinenlesbar
+bereit — für Overlay- und Timing-Systeme, Monitoring und eigene Integrationen.
+Bridge und Live Server messen dabei zu jedem WinLaufen-Uhrtelegramm, korrigieren
+aber nichts; die Auswertung bleibt beim Consumer.
 
-Es ist zugleich die erste Version mit **fertigen Releasepaketen** für Linux
-amd64 und Windows x64, die ohne Git, Maven und JDK installiert werden können.
+Dazu kommen zwei Korrekturen aus dem realen Windows-Betrieb: Die geplanten
+Aufgaben besitzen jetzt ihre Java-Prozesse, sodass `Stop-ScheduledTask` sie
+wirklich beendet, und der Installer stellt deutsche Umlaute richtig dar.
+
+`0.4.0` brachte zuvor den Startlistenweg — Import in Bridge Control, persistenter
+Bestand in der Bridge, Übertragung zum Live Server und klassenweise Anzeige im
+Web Viewer — sowie die ersten fertigen Releasepakete für Linux amd64 und
+Windows x64.
 
 Die Prototyp-Grenzen aus
 [Known prototype security limitation](#known-prototype-security-limitation)
@@ -434,13 +511,6 @@ Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
 
 ### Geplant, noch nicht vorhanden
 
-- **Generische Read-API des Live Servers** für externe Consumer, damit andere
-  Anwendungen den veröffentlichten Stand maschinenlesbar abrufen können —
-  vorgesehen sind unter anderem `finish-stream-overlay` und die GFX Engine.
-  Sie ist **nicht** implementiert: es gibt heute **kein**
-  `GET /api/v1/startlist`, und `GET /api/v1/state` liefert unverändert nur
-  den Wettkampfstand für den eigenen Web Viewer. Die API wird bewusst
-  allgemein und nicht auf einen einzelnen Consumer zugeschnitten.
 - **Nativer Windows-Installer** (`.exe`, gegebenenfalls `.msi`) und später
   optional eine Installation über `winget`. Beides existiert **noch nicht**.
   Unter Windows gibt es heute ausschließlich das Release-ZIP mit dem
@@ -462,7 +532,7 @@ Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
 | Punkt | Auswirkung heute |
 |---|---|
 | Der `WinLaufenClient`-Test belegt lokal TCP 4444. | `./mvnw clean package` kann auf einem Rechner scheitern, auf dem WinLaufen mit aktiver Sprecher-PC-Verbindung läuft. Vor dem Bauen dort **Trennen** wählen. |
-| Windows PowerShell 5.1 stellt Umlaute in den Installerausgaben von **`v0.4.0`** falsch dar. | Nur die Anzeige ist betroffen; Installation und Konfiguration sind korrekt. Ursache und Behebung: [Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5). Der Fix ist in `main`, **nicht** im veröffentlichten `v0.4.0`-ZIP, und erscheint erstmals im nächsten Release. |
+| Windows PowerShell 5.1 stellte Umlaute in den Installerausgaben von **`v0.4.0`** falsch dar. | **Behoben in 0.4.1** ([Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5)). Das veröffentlichte `v0.4.0`-ZIP zeigt es weiterhin; nur die Anzeige war betroffen, Installation und Konfiguration waren korrekt. |
 | Ob Installation und Upgrade auch bei laufender und verbundener Sprecher-PC-Schnittstelle zuverlässig funktionieren, ist noch nicht geprüft. | Bis dahin gilt verbindlich: vorher **Trennen**, danach **Verbinden**. |
 
 ## Known prototype security limitation
@@ -478,6 +548,19 @@ gibt die Control-API nicht aus; das ersetzt jedoch keine Zugriffsbeschränkung.
 44442 darf deshalb nur in einem vertrauenswürdigen LAN erreichbar sein: nicht im
 Gäste-WLAN, nicht über unkontrollierte Portweiterleitungen, nicht direkt aus dem
 Internet.
+
+### Die Read API ist unauthentifiziert und zeigt Teilnehmerdaten
+
+Die Read API auf TCP 44440 ist **read-only** — niemand kann darüber etwas
+ändern. Das sagt aber nichts darüber, wer sie **lesen** darf, und
+`GET /api/v1/startlist` liefert reale Teilnehmerdaten: Vorname, Nachname,
+Jahrgang, Verein, Verband, Nation, Startnummer, Klasse, Startzeit und Strecke.
+
+Das ist ein vollständiger Teilnehmerbestand, nicht nur der öffentlich angezeigte
+Wettkampfstand — auf demselben unauthentifizierten Port wie der Web Viewer. Port
+44440 gehört deshalb nur in Netze oder hinter Zugänge, in denen diese Daten
+gelesen werden dürfen. Wer einen Presentation Node öffentlich betreibt,
+veröffentlicht damit auch die Startliste.
 
 ### Der Bridge-Ingest verwendet ein bekanntes Secret
 

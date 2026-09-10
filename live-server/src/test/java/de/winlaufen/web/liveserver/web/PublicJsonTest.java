@@ -9,6 +9,7 @@ import de.winlaufen.web.contract.CompetitionClass;
 import de.winlaufen.web.contract.CurrentFinish;
 import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.SourceHealth;
+import de.winlaufen.web.liveserver.state.ClockMeasurement;
 import de.winlaufen.web.liveserver.state.PublishedState;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +32,8 @@ class PublicJsonTest {
                 new CurrentFinish(0, 0, 7), "a\"\\\n" + (char) 1 + (char) 0x2028);
 
         String json = PublicJson.state(new PublishedState(3, "stream", 7, state,
-                PresentationConfig.defaults()));
+                PresentationConfig.defaults(), SourceHealth.CONNECTED, true, 1_000, 1_000,
+                ClockMeasurement.none()));
         JsonNode parsed = MAPPER.readTree(json);
 
         JsonNode snapshot = parsed.get("state").get("competition").get("classes").get(0).get("snapshot");
@@ -67,7 +69,9 @@ class PublicJsonTest {
         var state = new CanonicalState(SourceHealth.STALE, "00:00:00", competition, null, null);
 
         JsonNode parsed = MAPPER.readTree(PublicJson.state(
-                new PublishedState(1, "s", 2, state, PresentationConfig.defaults())));
+                new PublishedState(1, "s", 2, state, PresentationConfig.defaults(),
+                        SourceHealth.CONNECTED, true, 1_000, 1_000,
+                ClockMeasurement.none())));
 
         assertTrue(parsed.get("state").get("competition").get("classes").get(0).get("snapshot").isNull());
         assertEquals(3, parsed.get("state").get("competition").get("roundOrHeat").asInt());

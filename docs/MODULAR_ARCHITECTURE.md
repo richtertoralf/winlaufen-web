@@ -129,7 +129,14 @@ Pfade:
 
 - Bridge Control: `http://<bridge>:44442/`
 - Web Viewer: `http://<live-server>:44440/`
-- Public State: `GET http://<live-server>:44440/api/v1/state`
+- Read API: `GET http://<live-server>:44440/api/v1/state` und
+  `GET http://<live-server>:44440/api/v1/startlist`; read-only, ohne
+  synchronen Zugriff auf Bridge oder WinLaufen, jede Antwort mit demselben
+  aktuellen Zeitblock und dem Verbindungsstatus der Kette. Bridge und Live
+  Server sind darin Messstellen: Sie erfassen Zeitpunkte und Messdifferenzen und
+  benennen Zeitzonenherkunft und Status ihrer Zeitreferenz, treffen aber keine
+  Auswahl, kalibrieren nicht und behaupten keinen Uhrenfehler
+  (siehe [API.md](API.md))
 - Browser live: `ws://<live-server>:44441/live/v1`
 - Bridge ingest: `ws://<live-server>:44441/bridge/v1/channels/<channel-id>`;
   über Internet zwingend `wss://...` (typischer externer Port 443)
@@ -140,6 +147,15 @@ Pfade:
 - Linux-Firewalls bleiben unverändert; Windows erhält nach
   Administratorprüfung nur die profilabhängigen Private-/Domain-Regeln,
   Uninstall entfernt nur eigene Regeln.
+
+## 4.1 Modulverantwortung in einem Satz
+
+| Modul | Verantwortung |
+|---|---|
+| **contract** | gemeinsame Datenmodelle und Regeln: Snapshot, ACK, Startliste, `ClockSample`, `TimeReference`, Limits. Bibliothek ohne Laufzeit. |
+| **bridge** | WinLaufen read-only lesen, Clock-Samples erfassen, Startliste importieren und persistent halten, kanonischen Zustand an 0..n Ziele veröffentlichen, Bridge Control bereitstellen. |
+| **live-server** | Bridge-Ingest annehmen, eigenen Messpunkt zum Clock-Sample ergänzen, veröffentlichten Zustand halten, Read API und Web Viewer ausliefern, WebSocket-Fan-out an Browser. |
+| **Consumer** | interpretiert die gelieferten Daten selbst — Zeitkorrektur, Offsetwahl, Zielzeiten. **Nicht Teil von Sprecher-Web.** |
 
 ## 5. State Ownership
 

@@ -256,11 +256,12 @@ Der Installer fragt nur nach dem Profil. Wählen Sie **[1] All-in-One**. Er
 fragt **keine** IP-Adresse, keinen Hostnamen und keine Internetadresse ab —
 das kommt später in Bridge Control.
 
-> **Falsche Umlaute in der Installerausgabe (Version 0.4.0).** In der
-> Windows-PowerShell erscheinen deutsche Umlaute des Installers verstümmelt,
-> zum Beispiel „lÃ¤uft" statt „läuft". Das ist eine reine Anzeigefrage: Die
-> Installation, die Dienste und Ihre Konfiguration sind davon nicht betroffen.
-> Der Fehler ist behoben und verschwindet mit der nächsten Version.
+> **Nur bei Version 0.4.0:** Dort erschienen deutsche Umlaute des Installers in
+> der Windows-PowerShell verstümmelt, zum Beispiel „lÃ¤uft" statt „läuft". Das
+> war eine reine Anzeigefrage — Installation, Dienste und Konfiguration waren
+> nicht betroffen. **Ab 0.4.1 behoben.** Eine Konfigurationsdatei, die damals
+> angelegt wurde, behält ihre verstümmelten Kommentare; das Upgrade lässt sie
+> bewusst unangetastet und ändert nichts an der Funktion.
 
 ### Schritt 5 — WinLaufen wieder verbinden
 
@@ -709,10 +710,48 @@ Die vollständigen und verbindlichen Einsatzgrenzen stehen in der
 
 ---
 
+## Andere Systeme anbinden
+
+Sprecher-Web kann seinen aktuellen Stand zusätzlich **maschinenlesbar**
+bereitstellen, damit andere Anwendungen ihn verwenden können — zum Beispiel eine
+Grafikeinblendung im Livestream. Für Sie als Veranstalter ändert sich dadurch
+nichts: Sie müssen nichts einschalten und nichts einstellen.
+
+**Auch die Wettkampf-Zeitzone müssen Sie nicht einstellen.** Sprecher-Web
+verwendet `Europe/Berlin`; Bridge Control zeigt das im Abschnitt WinLaufen als
+„Standard für WinLaufen" an. Das ist keine Warnung, sondern die normale Anzeige.
+
+Nur wenn Ihre Veranstaltung **in einer anderen Zeitzone** stattfindet, tragen Sie
+diese einmalig in der Konfigurationsdatei der Bridge ein:
+
+Windows:
+
+```powershell
+notepad "C:\ProgramData\WinLaufen Web\bridge.properties"
+```
+
+Linux:
+
+```sh
+sudo nano /etc/winlaufen-web/bridge.properties
+```
+
+Zeile ergänzen, zum Beispiel:
+
+```properties
+competition.timezone=America/New_York
+```
+
+Danach die Bridge neu starten. Steht dort ein Tippfehler, läuft Sprecher-Web
+weiter, verwendet `Europe/Berlin` und zeigt Ihnen in Bridge Control eine
+Warnung. Einzelheiten stehen in [INSTALLATION.md](INSTALLATION.md) und
+[API.md](API.md).
+
 ## Weiterführende Dokumentation
 
 | Dokument | Inhalt |
 |---|---|
+| [API.md](API.md) | Schnittstellen für andere Systeme, für Entwickler |
 | [QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md) | Server im Internet Schritt für Schritt |
 | [INSTALLATION.md](INSTALLATION.md) | technische Installationsreferenz, Pfade, Dienste, Deinstallation |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Build und Entwicklungsbetrieb |
