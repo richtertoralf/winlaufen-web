@@ -366,7 +366,7 @@ class WebViewerContractTest {
     private static String clockOfPublished(String clock) throws Exception {
         PublishedState published = new PublishedState(1, "stream", 1,
                 new CanonicalState(SourceHealth.CONNECTED, clock, null, null, null),
-                PresentationConfig.defaults(), SourceHealth.CONNECTED, true, 1_000);
+                PresentationConfig.defaults(), SourceHealth.CONNECTED, true, 1_000, 1_000);
         return MAPPER.readTree(PublicJson.state(published)).get("state").get("clock").asText();
     }
 
@@ -376,7 +376,7 @@ class WebViewerContractTest {
         JsonNode state;
         try {
             state = MAPPER.readTree(PublicJson.state(new PublishedState(1, "stream", 1,
-                    biathlonState(), presentation, SourceHealth.CONNECTED, true, 1_000)));
+                    biathlonState(), presentation, SourceHealth.CONNECTED, true, 1_000, 1_000)));
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
@@ -422,7 +422,7 @@ class WebViewerContractTest {
         var state = new CanonicalState(SourceHealth.CONNECTED, "12:00:00", competition,
                 new CurrentFinish(reportingClass, 0, revision), null);
         return new PublishedState(revision, "stream", revision, state,
-                PresentationConfig.defaults(), SourceHealth.CONNECTED, true, 1_000);
+                PresentationConfig.defaults(), SourceHealth.CONNECTED, true, 1_000, 1_000);
     }
 
     private static CanonicalState biathlonState() {

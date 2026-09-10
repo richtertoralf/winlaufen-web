@@ -74,13 +74,14 @@ public final class PublishedStateStore {
             if (old.bridgeLinkConnected()) {
                 state.set(new PublishedState(old.publicationRevision(), old.streamId(),
                         old.sourceRevision(), degraded, old.presentation(),
-                        old.reportedSourceHealth(), false, old.clockObservedAtEpochMilli()));
+                        old.reportedSourceHealth(), false, old.clockChangedAtEpochMilli(),
+                        old.lastUpdateAtEpochMilli()));
             }
             return;
         }
         PublishedState next = new PublishedState(old.publicationRevision() + 1, null,
                 old.sourceRevision(), degraded, old.presentation(), old.reportedSourceHealth(),
-                false, old.clockObservedAtEpochMilli());
+                false, old.clockChangedAtEpochMilli(), old.lastUpdateAtEpochMilli());
         state.set(next);
         listeners.forEach(listener -> listener.accept(next));
     }
@@ -100,7 +101,7 @@ public final class PublishedStateStore {
         }
         state.set(new PublishedState(old.publicationRevision(), old.streamId(), old.sourceRevision(),
                 old.state(), old.presentation(), old.reportedSourceHealth(), true,
-                old.clockObservedAtEpochMilli()));
+                old.clockChangedAtEpochMilli(), old.lastUpdateAtEpochMilli()));
     }
 
     /**
@@ -127,21 +128,27 @@ public final class PublishedStateStore {
     }
 
     /**
-     * When the competition time carried by this snapshot was first seen here.
+     * When the competition time carried by this snapshot first appeared here.
      *
-     * <p>Only a changed clock value counts as a new observation. A snapshot that repeats the clock
-     * this live server already has — a presentation change, a message, a resync after a reconnect —
-     * keeps the earlier timestamp. Otherwise a clock frozen since the source vanished would be
-     * re-stamped as current on the next unrelated publication, and a consumer judging freshness by
-     * this value would be told the opposite of the truth.
+     * <p>Only a changed value gets a new timestamp. A snapshot repeating the clock this live server
+     * already holds — a presentation change, a message, a result block, a resync after a reconnect —
+     * keeps the earlier one. That is deliberate twice over: a clock frozen since the source vanished
+     * must not be re-stamped as current by the next unrelated publication, and for a consumer that
+     * later wants to relate the competition time to real time, the moment the value appeared is the
+     * closest anchor there is.
+     *
+     * <p>This is explicitly not "when the source last delivered this value". The bridge bumps its
+     * revision for every kind of change and the envelope does not say which occurred, so that
+     * stronger statement cannot be proven here — and no field claims it. Whether data is still
+     * arriving at all is answered by {@code lastUpdateAt} and by the reported source health.
      */
-    private long observedAt(PublishedState old, SnapshotEnvelope value) {
+    private long changedAt(PublishedState old, SnapshotEnvelope value) {
         String clockValue = value.state().clock();
         if (clockValue == null) {
-            return old.clockObservedAtEpochMilli();
+            return old.clockChangedAtEpochMilli();
         }
-        if (clockValue.equals(old.state().clock()) && old.clockObservedAtEpochMilli() > 0) {
-            return old.clockObservedAtEpochMilli();
+        if (clockValue.equals(old.state().clock()) && old.clockChangedAtEpochMilli() > 0) {
+            return old.clockChangedAtEpochMilli();
         }
         return clock.millis();
     }
@@ -162,13 +169,14 @@ public final class PublishedStateStore {
             if (!old.bridgeLinkConnected()) {
                 state.set(new PublishedState(old.publicationRevision(), old.streamId(),
                         old.sourceRevision(), old.state(), old.presentation(),
-                        old.reportedSourceHealth(), true, old.clockObservedAtEpochMilli()));
+                        old.reportedSourceHealth(), true, old.clockChangedAtEpochMilli(),
+                        old.lastUpdateAtEpochMilli()));
             }
             return true;
         }
         PublishedState next = new PublishedState(old.publicationRevision() + 1, value.streamId(),
                 value.sourceRevision(), merged(old.state(), value.state()), value.presentation(),
-                value.state().sourceHealth(), true, observedAt(old, value));
+                value.state().sourceHealth(), true, changedAt(old, value), clock.millis());
         state.set(next);
         listeners.forEach(listener -> listener.accept(next));
         return true;

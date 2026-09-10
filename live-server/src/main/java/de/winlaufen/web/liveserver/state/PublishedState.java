@@ -20,22 +20,33 @@ import de.winlaufen.web.contract.SourceHealth;
  *   <li>{@code bridgeLinkConnected} — whether a bridge ingest connection is open right now.
  * </ul>
  *
- * <p>{@code clockObservedAtEpochMilli} is the live server's wall-clock reading of when the
- * <em>current competition time value</em> first arrived; {@code 0} means no clock has ever been
- * received. It deliberately does not move when a snapshot repeats a clock this live server already
- * had — a presentation change or a reconnect resends the state, and re-stamping it would present a
- * long-frozen clock as freshly observed. It is metadata about freshness and never a substitute for
- * the competition time: the WinLaufen clock stays a WinLaufen value and is never produced,
- * advanced or interpolated here.
+ * <p>Two wall-clock readings of this machine accompany the state. Both are freshness metadata and
+ * never a substitute for the competition time, which stays a WinLaufen value that is never
+ * produced, advanced or interpolated here.
+ *
+ * <ul>
+ *   <li>{@code clockChangedAtEpochMilli} — when the <em>current</em> competition time value first
+ *       arrived here. It deliberately does not move while a snapshot repeats a value already held,
+ *       so it stays the closest known anchor for that value. {@code 0} means no clock has ever
+ *       been received.
+ *   <li>{@code lastUpdateAtEpochMilli} — when the last snapshot was accepted from the bridge, no
+ *       matter what it carried. This is the only thing that shows data still flowing when the
+ *       competition time legitimately stands still.
+ * </ul>
+ *
+ * <p>Neither is an observation timestamp of the source, and no field claims to be one. The bridge
+ * publishes a new revision for a clock telegram, a result block, a message and a presentation
+ * change alike, and the envelope does not say which; this live server can prove that it accepted a
+ * snapshot at a point in time, not that WinLaufen re-delivered a particular clock value then.
  */
 public record PublishedState(long publicationRevision, String streamId, long sourceRevision,
                              CanonicalState state, PresentationConfig presentation,
                              SourceHealth reportedSourceHealth, boolean bridgeLinkConnected,
-                             long clockObservedAtEpochMilli) {
+                             long clockChangedAtEpochMilli, long lastUpdateAtEpochMilli) {
 
     public static PublishedState empty() {
         return new PublishedState(0, null, -1, CanonicalState.empty(), PresentationConfig.defaults(),
-                SourceHealth.DISCONNECTED, false, 0);
+                SourceHealth.DISCONNECTED, false, 0, 0);
     }
 
     /**

@@ -83,23 +83,29 @@ public final class PublicJson {
     }
 
     /**
-     * The competition time plus when this live server observed it.
+     * The competition time plus when it took on this value here.
      *
      * <p>{@code clock} is the WinLaufen competition time, carried through as the string WinLaufen
      * sent. It is not a timestamp: it has no date and no time zone, and nothing here turns it into
      * one or derives a finish time from it.
      *
-     * <p>{@code clockObservedAt} is an ordinary UTC instant of this machine and answers a different
-     * question — how old the value above is. It moves only when the clock value itself changes, so
-     * a clock frozen since the source vanished visibly ages instead of looking fresh. Both are null
-     * until a clock has ever arrived; inventing one would be worse than saying nothing.
+     * <p>{@code clockChangedAt} is an ordinary UTC instant of this machine: when this live server
+     * first saw the value above. It deliberately answers "since when is the competition time this"
+     * and not "when was it last delivered" — the second question cannot be answered from what the
+     * bridge sends, and a field must not claim more than can be proven. Its age is therefore **not**
+     * a staleness measure: a competition time may legitimately stand still while the source is
+     * perfectly healthy. Whether data is still arriving is what {@code connection} answers.
+     *
+     * <p>Both are null until a clock has ever arrived; inventing one would be worse than saying
+     * nothing.
      */
     private static String clockFields(PublishedState published) {
-        String observed = published.clockObservedAtEpochMilli() > 0
-                ? quote(Instant.ofEpochMilli(published.clockObservedAtEpochMilli()).toString())
-                : "null";
         return "\"clock\":" + nullable(published.state().clock())
-                + ",\"clockObservedAt\":" + observed;
+                + ",\"clockChangedAt\":" + instant(published.clockChangedAtEpochMilli());
+    }
+
+    private static String instant(long epochMilli) {
+        return epochMilli > 0 ? quote(Instant.ofEpochMilli(epochMilli).toString()) : "null";
     }
 
     /**
@@ -110,6 +116,11 @@ public final class PublicJson {
      * <p>{@code winlaufen} is what the bridge reported about its own source. While
      * {@code bridge} is not {@code CONNECTED} it is the last known value rather than a current
      * one — without a bridge nobody can observe WinLaufen — and {@code status} says so.
+     *
+     * <p>{@code lastUpdateAt} is when this live server last accepted anything from the bridge. It
+     * is the one honest measure of "data is still flowing", because the competition time may stand
+     * still with a healthy source, and because a silently dead ingest connection keeps
+     * {@code bridge} looking connected until the WebSocket supervision notices.
      */
     private static String connection(PublishedState published) {
         return "{\"status\":" + quote(published.chainStatus().name())
@@ -117,6 +128,7 @@ public final class PublicJson {
                 + ",\"bridge\":" + quote(published.bridgeLinkConnected() ? "CONNECTED" : "DISCONNECTED")
                 + ",\"fresh\":" + (published.chainStatus() == ChainStatus.CONNECTED)
                 + ",\"stateAvailable\":" + published.available()
+                + ",\"lastUpdateAt\":" + instant(published.lastUpdateAtEpochMilli())
                 + "}";
     }
 

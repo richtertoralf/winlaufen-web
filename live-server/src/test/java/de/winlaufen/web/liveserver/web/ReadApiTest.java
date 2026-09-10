@@ -96,13 +96,14 @@ class ReadApiTest {
         assertEquals("local", state.get("channelId").asText());
         assertEquals(STREAM, state.get("streamId").asText());
         assertEquals("10:00:01", state.get("clock").asText());
-        assertEquals("2026-09-10T08:00:00Z", state.get("clockObservedAt").asText());
+        assertEquals("2026-09-10T08:00:00Z", state.get("clockChangedAt").asText());
 
         assertEquals("CONNECTED", state.get("connection").get("status").asText());
         assertEquals("CONNECTED", state.get("connection").get("winlaufen").asText());
         assertEquals("CONNECTED", state.get("connection").get("bridge").asText());
         assertTrue(state.get("connection").get("fresh").asBoolean());
         assertTrue(state.get("connection").get("stateAvailable").asBoolean());
+        assertEquals("2026-09-10T08:00:00Z", state.get("connection").get("lastUpdateAt").asText());
 
         JsonNode rows = state.get("state").get("competition").get("classes").get(0)
                 .get("snapshot").get("rows");
@@ -141,7 +142,7 @@ class ReadApiTest {
 
         JsonNode second = json("/api/v1/state");
         assertEquals("10:00:02", second.get("clock").asText());
-        assertEquals("2026-09-10T08:00:01Z", second.get("clockObservedAt").asText());
+        assertEquals("2026-09-10T08:00:01Z", second.get("clockChangedAt").asText());
     }
 
     @Test
@@ -195,14 +196,14 @@ class ReadApiTest {
         publishClockAndResults("10:00:02");
         JsonNode second = json("/api/v1/startlist");
         assertEquals("10:00:02", second.get("clock").asText());
-        assertEquals("2026-09-10T08:00:01Z", second.get("clockObservedAt").asText());
+        assertEquals("2026-09-10T08:00:01Z", second.get("clockChangedAt").asText());
         assertEquals(1, second.get("generation").asInt());
 
         now.set(Instant.parse("2026-09-10T08:00:02Z"));
         publishClockAndResults("10:00:03");
         JsonNode third = json("/api/v1/startlist");
         assertEquals("10:00:03", third.get("clock").asText());
-        assertEquals("2026-09-10T08:00:02Z", third.get("clockObservedAt").asText());
+        assertEquals("2026-09-10T08:00:02Z", third.get("clockChangedAt").asText());
         assertEquals(1, third.get("generation").asInt());
     }
 
@@ -348,10 +349,11 @@ class ReadApiTest {
         for (String path : List.of("/api/v1/state", "/api/v1/startlist")) {
             JsonNode body = json(path);
             assertTrue(body.get("clock").isNull(), path);
-            assertTrue(body.get("clockObservedAt").isNull(), path);
+            assertTrue(body.get("clockChangedAt").isNull(), path);
             assertEquals("NO_STATE", body.get("connection").get("status").asText(), path);
             assertFalse(body.get("connection").get("fresh").asBoolean(), path);
             assertFalse(body.get("connection").get("stateAvailable").asBoolean(), path);
+            assertTrue(body.get("connection").get("lastUpdateAt").isNull(), path);
         }
         assertTrue(json("/api/v1/state").get("streamId").isNull());
     }
@@ -371,7 +373,7 @@ class ReadApiTest {
         JsonNode state = json("/api/v1/state");
         assertEquals("CONNECTED", state.get("connection").get("status").asText());
         assertEquals("10:05:00", state.get("clock").asText());
-        assertEquals("2026-09-10T08:05:00Z", state.get("clockObservedAt").asText());
+        assertEquals("2026-09-10T08:05:00Z", state.get("clockChangedAt").asText());
     }
 
     @Test
@@ -383,7 +385,7 @@ class ReadApiTest {
         JsonNode state = json("/api/v1/state");
         JsonNode startList = json("/api/v1/startlist");
         assertEquals(state.get("clock"), startList.get("clock"));
-        assertEquals(state.get("clockObservedAt"), startList.get("clockObservedAt"));
+        assertEquals(state.get("clockChangedAt"), startList.get("clockChangedAt"));
         assertEquals(state.get("connection"), startList.get("connection"));
         assertEquals(state.get("streamId"), startList.get("streamId"));
         assertEquals(state.get("startList").get("generation"), startList.get("generation"));
@@ -394,22 +396,24 @@ class ReadApiTest {
      * unrelated publication — a presentation change — makes the frozen clock look freshly observed.
      */
     @Test
-    void aRepeatedClockKeepsItsOriginalObservationTime() throws Exception {
+    void aRepeatedClockKeepsItsOriginalChangeTime() throws Exception {
         states.ingestConnected();
         publishClockAndResults("10:00:01");
-        assertEquals("2026-09-10T08:00:00Z", json("/api/v1/state").get("clockObservedAt").asText());
+        assertEquals("2026-09-10T08:00:00Z", json("/api/v1/state").get("clockChangedAt").asText());
 
         now.set(Instant.parse("2026-09-10T08:05:00Z"));
         publish(SourceHealth.DISCONNECTED, "10:00:01");
 
         JsonNode frozen = json("/api/v1/state");
         assertEquals("10:00:01", frozen.get("clock").asText());
-        assertEquals("2026-09-10T08:00:00Z", frozen.get("clockObservedAt").asText());
-        assertEquals("2026-09-10T08:00:00Z", json("/api/v1/startlist").get("clockObservedAt").asText());
+        assertEquals("2026-09-10T08:00:00Z", frozen.get("clockChangedAt").asText());
+        assertEquals("2026-09-10T08:00:00Z", json("/api/v1/startlist").get("clockChangedAt").asText());
+        // The publication itself did happen, and lastUpdateAt is allowed to say so.
+        assertEquals("2026-09-10T08:05:00Z", frozen.get("connection").get("lastUpdateAt").asText());
 
         now.set(Instant.parse("2026-09-10T08:06:00Z"));
         publishClockAndResults("10:06:00");
-        assertEquals("2026-09-10T08:06:00Z", json("/api/v1/state").get("clockObservedAt").asText());
+        assertEquals("2026-09-10T08:06:00Z", json("/api/v1/state").get("clockChangedAt").asText());
     }
 
     /**
@@ -425,9 +429,71 @@ class ReadApiTest {
 
         JsonNode state = json("/api/v1/state");
         assertTrue(state.get("clock").isNull());
-        assertTrue(state.get("clockObservedAt").isNull());
+        assertTrue(state.get("clockChangedAt").isNull());
         assertTrue(state.get("connection").get("stateAvailable").asBoolean());
         assertEquals("WINLAUFEN_DISCONNECTED", state.get("connection").get("status").asText());
+    }
+
+    /**
+     * A standing competition time is not a broken chain. WinLaufen may legitimately send the same
+     * value again — the protocol says identical values are accepted unchanged and every telegram
+     * renews liveness — so a consumer must not read a standing clock as a stale source.
+     */
+    @Test
+    void aStandingClockOnAHealthySourceStaysConnectedAndKeepsUpdating() throws Exception {
+        states.ingestConnected();
+        publishClockAndResults("00:42:17");
+        assertEquals("2026-09-10T08:00:00Z", json("/api/v1/state").get("clockChangedAt").asText());
+
+        for (int second = 1; second <= 30; second++) {
+            now.set(Instant.parse("2026-09-10T08:00:00Z").plusSeconds(second));
+            publishClockAndResults("00:42:17");
+        }
+
+        JsonNode state = json("/api/v1/state");
+        assertEquals("00:42:17", state.get("clock").asText());
+        assertEquals("CONNECTED", state.get("connection").get("status").asText());
+        assertTrue(state.get("connection").get("fresh").asBoolean());
+
+        // The value has not changed for 30 s, and the field says exactly that and nothing more.
+        assertEquals("2026-09-10T08:00:00Z", state.get("clockChangedAt").asText());
+        // Data is demonstrably still arriving, which is what lastUpdateAt is for.
+        assertEquals("2026-09-10T08:00:30Z", state.get("connection").get("lastUpdateAt").asText());
+        assertEquals(state.get("connection"), json("/api/v1/startlist").get("connection"));
+    }
+
+    /**
+     * The opposite trap: an organiser changing a viewer setting is not new source data, so it must
+     * not make a long-frozen competition time look as if it had just moved.
+     */
+    @Test
+    void aPresentationChangeDoesNotTouchTheClockTimestamp() throws Exception {
+        states.ingestConnected();
+        publishClockAndResults("10:00:01");
+
+        now.set(Instant.parse("2026-09-10T08:05:00Z"));
+        states.accept(new SnapshotEnvelope("local", STREAM, ++revision,
+                new CanonicalState(SourceHealth.CONNECTED, "10:00:01", null, null, null),
+                new PresentationConfig(true, true, true, true, true)));
+
+        JsonNode state = json("/api/v1/state");
+        assertEquals("2026-09-10T08:00:00Z", state.get("clockChangedAt").asText());
+        assertTrue(state.get("presentation").get("showNation").asBoolean());
+        assertEquals("2026-09-10T08:05:00Z", state.get("connection").get("lastUpdateAt").asText());
+    }
+
+    @Test
+    void aLostBridgeFreezesBothTimestampsAtTheirLastRealValues() throws Exception {
+        states.ingestConnected();
+        publishClockAndResults("10:00:01");
+
+        now.set(Instant.parse("2026-09-10T08:09:00Z"));
+        states.ingestDisconnected();
+
+        JsonNode state = json("/api/v1/state");
+        assertEquals("2026-09-10T08:00:00Z", state.get("clockChangedAt").asText());
+        // Losing the link is not something the bridge published, so it is not an update either.
+        assertEquals("2026-09-10T08:00:00Z", state.get("connection").get("lastUpdateAt").asText());
     }
 
     // ---------------------------------------------------------------- transport

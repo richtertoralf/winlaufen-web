@@ -41,22 +41,55 @@ Pro HTTP-Request gibt es deshalb:
 mehrmals pro Sekunde abrufbar. `GET /api/v1/startlist` liefert je nach
 Veranstaltung einige hundert Kilobyte und wird typischerweise selten abgerufen.
 
-## Wettkampfzeit und Beobachtungszeitpunkt
+## Wettkampfzeit und Zeitstempel
 
-Zwei Felder, die nicht verwechselt werden dürfen:
+Drei Angaben, die nicht verwechselt werden dürfen:
 
 | Feld | Bedeutung |
 |---|---|
 | `clock` | Die **Wettkampfzeit aus WinLaufen**, unverändert als Zeichenkette durchgereicht, zum Beispiel `"10:14:37"`. Kein Datum, keine Zeitzone, kein Zeitstempel. Keine Stufe der Kette erzeugt, korrigiert oder zählt sie weiter. |
-| `clockObservedAt` | Ein gewöhnlicher **UTC-Zeitpunkt dieses Live Servers**, zu dem er den Snapshot mit genau diesem Uhrwert angenommen hat, ISO-8601, zum Beispiel `"2026-09-10T08:14:37.123Z"`. |
+| `clockChangedAt` | Ein gewöhnlicher **UTC-Zeitpunkt dieses Live Servers**: wann er den Uhrwert oben **erstmals** gesehen hat, ISO-8601, zum Beispiel `"2026-09-10T08:14:37.123Z"`. |
+| `connection.lastUpdateAt` | Ein UTC-Zeitpunkt dieses Live Servers: wann er **zuletzt irgendeinen** Snapshot der Bridge angenommen hat. |
 
-`clockObservedAt` beantwortet nur eine Frage: **wie alt** ist der Uhrwert
-darüber. Es ist kein Ersatz für die Wettkampfzeit und wird nie in sie
-umgerechnet.
+### Warum `clockChangedAt` und nicht `clockObservedAt`
+
+Weil der Live Server das eine beweisen kann und das andere nicht.
+
+Die Bridge erhöht ihre Revision für **jede** Änderung — ein Uhrtelegramm, einen
+Ergebnisblock, eine WinLaufen-Nachricht, eine Präsentationsänderung — und der
+Snapshot sagt nicht, welche davon es war. Jeder Snapshot trägt außerdem immer
+den zuletzt bekannten Uhrwert mit. Der Live Server kann deshalb belegen:
+
+> Zum Zeitpunkt X habe ich einen Snapshot mit dem Uhrwert Y angenommen.
+
+Er kann **nicht** belegen:
+
+> WinLaufen hat den Uhrwert Y zum Zeitpunkt X erneut geliefert.
+
+Ein Feld namens `clockObservedAt` würde genau diese zweite, stärkere Aussage
+behaupten. Deshalb heißt es `clockChangedAt` und sagt nur, **seit wann** die
+Wettkampfzeit diesen Wert hat.
+
+### Ein stehender Uhrwert bedeutet nicht „veraltet"
+
+Das ist die wichtigste Konsequenz. Das WinLaufen-Protokoll akzeptiert
+ausdrücklich gleiche, rückwärtslaufende und springende Uhrwerte; jedes Telegramm
+erneuert die Liveness, unabhängig von seinem Wert. Eine Wettkampfzeit darf also
+minutenlang stillstehen, während die Quelle vollkommen gesund ist.
+
+Deshalb gilt: **Das Alter von `clockChangedAt` ist kein Freshness-Maß.** Ob die
+Kette gerade funktioniert, beantworten `connection.status` und
+`connection.lastUpdateAt` — nur dort steht, ob überhaupt noch Daten eintreffen.
+
+Umgekehrt ist `clockChangedAt` der beste verfügbare Anker, wenn ein Consumer die
+Wettkampfzeit später zu einer echten Uhrzeit in Beziehung setzen will: Der
+Moment, in dem der Wert erschien, liegt näher am tatsächlichen Umschalten als
+jede spätere Wiederholung desselben Werts. Diese Auswertung selbst gehört
+allerdings in das Zielsystem, nicht hierher.
 
 Hat dieser Live Server seit seinem Start noch **nie** einen Snapshot erhalten,
-sind beide Felder `null`. Eine Wettkampfzeit wird in diesem Fall nicht
-erfunden.
+sind `clock`, `clockChangedAt` und `lastUpdateAt` `null`. Eine Wettkampfzeit
+wird in diesem Fall nicht erfunden.
 
 ## Verbindungsstatus
 
@@ -68,7 +101,8 @@ Jede Antwort enthält ein `connection`-Objekt:
   "winlaufen": "CONNECTED",
   "bridge": "CONNECTED",
   "fresh": true,
-  "stateAvailable": true
+  "stateAvailable": true,
+  "lastUpdateAt": "2026-09-10T08:14:37.123Z"
 }
 ```
 
@@ -93,6 +127,11 @@ Kette unterbrochen ist:
   diesem Live Server besteht, sonst `DISCONNECTED`.
 - `fresh` — Kurzform für `status == "CONNECTED"`.
 - `stateAvailable` — ob überhaupt schon einmal ein Zustand empfangen wurde.
+- `lastUpdateAt` — wann zuletzt ein Snapshot der Bridge angenommen wurde,
+  unabhängig davon, was er enthielt. Das ist das einzige ehrliche Maß dafür,
+  dass noch Daten fließen, denn die Wettkampfzeit darf bei gesunder Quelle
+  stillstehen. Der Verlust der Verbindung selbst aktualisiert diesen Wert
+  **nicht** — er bleibt beim letzten echten Empfang stehen.
 
 **Bei einem Abbruch werden Daten nicht verworfen.** Wettkampfzeit, Ergebnisse
 und Startliste bleiben als zuletzt bekannter Stand lesbar; der Status sagt
@@ -102,9 +141,10 @@ Viewers und ist keine Sondersemantik der API.
 Ein Hinweis zur Erkennungsdauer: Ein sauber geschlossener oder abgebrochener
 Bridge-Ingest wird sofort erkannt. Eine still gestorbene TCP-Verbindung
 erkennt erst die WebSocket-Überwachung; bis dahin steht `bridge` weiter auf
-`CONNECTED`, während `clockObservedAt` sichtbar altert. Ein Consumer mit
-eigenen Anforderungen an die Aktualität sollte deshalb zusätzlich das Alter von
-`clockObservedAt` auswerten.
+`CONNECTED`, während `connection.lastUpdateAt` sichtbar altert. Ein Consumer mit
+eigenen Anforderungen an die Aktualität wertet deshalb zusätzlich dessen Alter
+aus — **nicht** das von `clockChangedAt`, das bei stehender Wettkampfzeit auch
+im Normalbetrieb alt wird.
 
 ## GET /api/v1/state
 
@@ -124,13 +164,14 @@ am Tag und gehört deshalb nach `/api/v1/startlist`.
   "sourceRevision" : 41,
   "publicationRevision" : 1,
   "clock" : "10:14:37",
-  "clockObservedAt" : "2026-09-10T08:14:37.123Z",
+  "clockChangedAt" : "2026-09-10T08:14:37.123Z",
   "connection" : {
     "status" : "CONNECTED",
     "winlaufen" : "CONNECTED",
     "bridge" : "CONNECTED",
     "fresh" : true,
-    "stateAvailable" : true
+    "stateAvailable" : true,
+    "lastUpdateAt" : "2026-09-10T08:14:37.123Z"
   },
   "startList" : {
     "present" : true,
@@ -212,13 +253,14 @@ Startliste veröffentlicht wurde.
   "channelId" : "local",
   "streamId" : "b7f1c2",
   "clock" : "10:14:37",
-  "clockObservedAt" : "2026-09-10T08:14:37.123Z",
+  "clockChangedAt" : "2026-09-10T08:14:37.123Z",
   "connection" : {
     "status" : "CONNECTED",
     "winlaufen" : "CONNECTED",
     "bridge" : "CONNECTED",
     "fresh" : true,
-    "stateAvailable" : true
+    "stateAvailable" : true,
+    "lastUpdateAt" : "2026-09-10T08:14:37.123Z"
   },
   "present" : true,
   "generation" : 2,

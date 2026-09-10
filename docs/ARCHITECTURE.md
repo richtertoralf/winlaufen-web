@@ -64,9 +64,13 @@ Startlisten-Dateiexport --Bridge Control---------->|
   Browsernachricht neben dem Zustandssnapshot
 - Live Server: pro Channel memory-only Published State mit eigener
   `publicationRevision`
-- Live Server zusätzlich: Beobachtungszeitpunkt des zuletzt angenommenen
-  Snapshots und der Zustand der eigenen Bridge-Ingest-Verbindung. Beides ist
-  Freshness-Metadatum der Read API und fließt nie in die Wettkampfzeit ein.
+- Live Server zusätzlich: seit wann die Wettkampfzeit ihren aktuellen Wert hat,
+  wann zuletzt irgendein Snapshot ankam und der Zustand der eigenen
+  Bridge-Ingest-Verbindung. Alles drei ist Metadatum der Read API und fließt nie
+  in die Wettkampfzeit ein. Bewusst kein Beobachtungszeitpunkt der Quelle: Die
+  Bridge erhöht ihre Revision für jede Art von Änderung und sagt nicht, welche
+  es war — mehr als „zu diesem Zeitpunkt kam ein Snapshot mit diesem Uhrwert an"
+  ist nicht belegbar, und kein Feld behauptet mehr.
   Damit lässt sich „WinLaufen getrennt" von „Bridge getrennt" unterscheiden —
   die browserseitige `SourceHealth` wird beim Bridge-Verlust bewusst abgewertet
   und kann das allein nicht ausdrücken
