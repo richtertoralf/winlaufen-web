@@ -64,6 +64,12 @@ Startlisten-Dateiexport --Bridge Control---------->|
   Browsernachricht neben dem Zustandssnapshot
 - Live Server: pro Channel memory-only Published State mit eigener
   `publicationRevision`
+- Live Server zusätzlich: Beobachtungszeitpunkt des zuletzt angenommenen
+  Snapshots und der Zustand der eigenen Bridge-Ingest-Verbindung. Beides ist
+  Freshness-Metadatum der Read API und fließt nie in die Wettkampfzeit ein.
+  Damit lässt sich „WinLaufen getrennt" von „Bridge getrennt" unterscheiden —
+  die browserseitige `SourceHealth` wird beim Bridge-Verlust bewusst abgewertet
+  und kann das allein nicht ausdrücken
 - Browser: nur flüchtige öffentliche Kopie
 - `BridgeConfig`: Source, 0..n Targets, Presentation Config
 - Live Server kennt nur technische Bind-/Channel-/Ingest-Credential-Config
@@ -93,8 +99,13 @@ liefert sie den Bestand beim Reconnect von selbst erneut, ohne erneuten Import.
 Vor-/Zurück-Navigation und direkter Klassenauswahl. Reihenfolge der Klassen und
 der Teilnehmer bleibt die des Imports.
 
-Eine generische Read-API für externe Consumer gehört **nicht** zu diesem Stand;
-siehe [README, Geplant](../README.md#geplant-noch-nicht-vorhanden).
+**Read API** — der Live Server stellt beides zusätzlich generisch über HTTP
+bereit: `GET /api/v1/state` mit Wettkampfzeit, Ergebnissen, Verbindungsstatus
+und Startlisten-**Metadaten**, `GET /api/v1/startlist` mit dem vollständigen
+Bestand. Beide Antworten führen die aktuelle Wettkampfzeit und den Zustand der
+Kette WinLaufen → Bridge → Live Server mit; die Startliste wird erst beim
+HTTP-Read mit dem laufenden State zusammengeführt, nie eingefroren
+mitgespeichert. Vollständig: [API.md](API.md).
 
 Details: MODULAR_ARCHITECTURE.md §5 (State Ownership), §5.1 (Startliste), §6
 (Contract inkl. Startlistennachricht), §9 (Konfigurationsbesitz).
@@ -114,7 +125,7 @@ Kurzreferenz:
 | Port  | Dienst                                             |
 | ----- | --------------------------------------------------- |
 | 4444  | WinLaufen (Bridge → WinLaufen, nur ausgehend)        |
-| 44440 | Live Server: Web View / Public HTTP/API              |
+| 44440 | Live Server: Web View / Public HTTP / Read API       |
 | 44441 | Live Server: Browser-WebSocket + Bridge-Ingest       |
 | 44442 | Bridge Control (nur vertrauenswürdiges LAN, v0.1 ohne Auth) |
 

@@ -155,6 +155,10 @@ public final class LiveWebSocketServer extends WebSocketServer {
         if (connection.getAttachment() == Role.BROWSER) {
             send(connection, store.get());
             send(connection, startLists.get());
+        } else {
+            // The read API must be able to tell "WinLaufen is gone" from "the bridge is gone", so
+            // the link itself is recorded, not only what arrives over it.
+            store.ingestConnected();
         }
     }
 

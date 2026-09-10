@@ -1,6 +1,7 @@
 package de.winlaufen.web.liveserver.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.winlaufen.web.liveserver.state.PublishedStartListStore;
 import de.winlaufen.web.liveserver.state.PublishedStateStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,7 +25,8 @@ class PublicHttpServerTest {
 
     @BeforeEach
     void start() throws Exception {
-        server = new PublicHttpServer("127.0.0.1", 0, 44441, new PublishedStateStore("local"));
+        server = new PublicHttpServer("127.0.0.1", 0, 44441, new PublishedStateStore("local"),
+                new PublishedStartListStore("local"));
         server.start();
     }
 
@@ -79,13 +81,13 @@ class PublicHttpServerTest {
     void cleanShutdownAllowsImmediateRebindOnTheSamePort() throws Exception {
         int reused = freePort();
         PublicHttpServer first = new PublicHttpServer("127.0.0.1", reused, 44441,
-                new PublishedStateStore("local"));
+                new PublishedStateStore("local"), new PublishedStartListStore("local"));
         first.start();
         assertEquals(reused, first.port());
         first.close();
 
         PublicHttpServer second = new PublicHttpServer("127.0.0.1", reused, 44441,
-                new PublishedStateStore("local"));
+                new PublishedStateStore("local"), new PublishedStartListStore("local"));
         second.start();
         assertEquals(reused, second.port());
         second.close();

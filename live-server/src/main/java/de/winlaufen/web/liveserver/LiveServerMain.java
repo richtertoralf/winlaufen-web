@@ -53,7 +53,7 @@ public final class LiveServerMain {
 
         try {
             http[0] = new PublicHttpServer(config.httpBindAddress(), config.httpPort(),
-                    config.webSocketPort(), store);
+                    config.webSocketPort(), store, startLists);
             http[0].start();
             webSocket.start();
             webSocket.awaitStart();

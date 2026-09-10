@@ -72,6 +72,21 @@ Die beiden sichtbaren Oberflächen heißen:
 * Im Web Viewer erscheint sie **klassenweise**: Vor-/Zurück-Navigation,
   direkte Klassenauswahl und die Reihenfolge genau wie im WinLaufen-Export.
 
+**Generische Read API**
+
+* Der Live Server stellt seinen Zustand **maschinenlesbar** über HTTP bereit:
+  `GET /api/v1/state` für den laufenden Zustand und `GET /api/v1/startlist`
+  für den vollständigen Startlistenbestand.
+* Bewusst **generisch** und auf keinen einzelnen Consumer zugeschnitten —
+  gedacht für Overlay- und Timing-Systeme wie `finish-stream-overlay` und die
+  GFX Engine, für Monitoring und für eigene Integrationen.
+* **Jede Antwort** enthält die aktuelle WinLaufen-Wettkampfzeit **und** den
+  Verbindungsstatus der Kette WinLaufen → Bridge → Live Server. Ein Consumer
+  muss nie aus vorhandenen Daten raten, ob die Quelle noch hängt.
+* Read-only und ohne Rückfrage bei WinLaufen: Jeder Request wird aus dem
+  bereits veröffentlichten Zustand beantwortet.
+* Details: [docs/API.md](docs/API.md).
+
 **Betrieb**
 
 * Ein Ausfall von Netzwerk, Live Server oder Bridge führt nie zu still
@@ -320,7 +335,7 @@ WinLaufen-Protokollcode. Auch die lokale Ansicht im All-in-One-Betrieb läuft
 | Port | Richtung | Funktion |
 |---|---|---|
 | TCP 4444 | Bridge → WinLaufen-PC, **ausgehend** | WinLaufen Sprecher-PC-Quelle |
-| TCP 44440 | eingehend | Live-Ergebnisse / HTTP Web Viewer |
+| TCP 44440 | eingehend | Live-Ergebnisse / HTTP Web Viewer / Read API |
 | TCP 44441 | eingehend | Live WebSocket und Bridge-Ingest auf einem Listener |
 | TCP 44442 | eingehend | Bridge Control |
 
@@ -364,6 +379,7 @@ für Bediener: [Bedienerhandbuch, Kapitel 9](docs/BEDIENERHANDBUCH.md#9-die-ange
 | [docs/MODULAR_ARCHITECTURE.md](docs/MODULAR_ARCHITECTURE.md) | vollständige verbindliche Architekturentscheidungen |
 | [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) | Produktspezifikation |
 | [docs/WINLAUFEN_PROTOCOL.md](docs/WINLAUFEN_PROTOCOL.md) | WinLaufen-Protokoll und reale Evidenz |
+| [docs/API.md](docs/API.md) | Read API des Live Servers für externe Consumer |
 | [docs/RELEASE.md](docs/RELEASE.md) | tag-basierter Release-Ablauf für Maintainer |
 
 ## Projektstatus
@@ -434,13 +450,6 @@ Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
 
 ### Geplant, noch nicht vorhanden
 
-- **Generische Read-API des Live Servers** für externe Consumer, damit andere
-  Anwendungen den veröffentlichten Stand maschinenlesbar abrufen können —
-  vorgesehen sind unter anderem `finish-stream-overlay` und die GFX Engine.
-  Sie ist **nicht** implementiert: es gibt heute **kein**
-  `GET /api/v1/startlist`, und `GET /api/v1/state` liefert unverändert nur
-  den Wettkampfstand für den eigenen Web Viewer. Die API wird bewusst
-  allgemein und nicht auf einen einzelnen Consumer zugeschnitten.
 - **Nativer Windows-Installer** (`.exe`, gegebenenfalls `.msi`) und später
   optional eine Installation über `winget`. Beides existiert **noch nicht**.
   Unter Windows gibt es heute ausschließlich das Release-ZIP mit dem

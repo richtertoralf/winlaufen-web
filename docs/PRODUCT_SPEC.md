@@ -467,6 +467,16 @@ Der normale Start läuft so ab:
 veröffentlichte State besitzt eine monoton steigende `publicationRevision`;
 Live-WebSocket-Nachrichten sind vollständige autoritative Snapshots.
 
+Derselbe Endpunkt ist zugleich die **generische Read API** für externe
+Consumer, ergänzt um `GET /api/v1/startlist` für den vollständigen
+Startlistenbestand. Beide Antworten führen die aktuelle Wettkampfzeit, deren
+Beobachtungszeitpunkt und den Verbindungsstatus der Kette WinLaufen → Bridge →
+Live Server mit; sie sind read-only und fragen WinLaufen nicht pro Request ab.
+Die API ist bewusst nicht auf einen einzelnen Consumer zugeschnitten und
+enthält keine Begriffe eines Zielsystems — die fachliche Auswertung, etwa ein
+Abgleich der Wettkampfzeit gegen eine andere Uhr, gehört dorthin und nicht
+hierher. Vollständig: [API.md](API.md).
+
 Ein allgemeiner Event-Bus oder ein zusätzliches Delta-Protokoll ist nicht
 erforderlich.
 

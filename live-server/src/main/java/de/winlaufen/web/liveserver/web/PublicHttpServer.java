@@ -2,6 +2,9 @@ package de.winlaufen.web.liveserver.web;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import de.winlaufen.web.liveserver.state.PublishedStartList;
+import de.winlaufen.web.liveserver.state.PublishedStartListStore;
+import de.winlaufen.web.liveserver.state.PublishedState;
 import de.winlaufen.web.liveserver.state.PublishedStateStore;
 
 import java.io.IOException;
@@ -13,19 +16,26 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Public read-only HTTP surface: the web viewer, the published state and the browser WebSocket
- * endpoint hint. It never exposes bridge configuration, target data or credentials.
+ * Public read-only HTTP surface: the web viewer, the generic read API and the browser WebSocket
+ * endpoint hint. It never exposes bridge configuration, target data or credentials, and it has no
+ * endpoint that changes anything — no configuration, no start-list import, no bridge control.
+ *
+ * <p>The read API answers from the state this live server already holds. It never contacts the
+ * bridge or WinLaufen while handling a request and never reads a file, so an external consumer may
+ * poll {@code /api/v1/state} as often as it needs to.
  */
 public final class PublicHttpServer implements AutoCloseable {
 
     private final HttpServer server;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final PublishedStateStore store;
+    private final PublishedStartListStore startLists;
     private final int webSocketPort;
 
-    public PublicHttpServer(String bind, int port, int webSocketPort, PublishedStateStore store)
-            throws IOException {
+    public PublicHttpServer(String bind, int port, int webSocketPort, PublishedStateStore store,
+                            PublishedStartListStore startLists) throws IOException {
         this.store = store;
+        this.startLists = startLists;
         this.webSocketPort = webSocketPort;
         this.server = HttpServer.create(new InetSocketAddress(bind, port), 0);
         this.server.setExecutor(executor);
@@ -55,13 +65,38 @@ public final class PublicHttpServer implements AutoCloseable {
                 }
                 case "/assets/viewer.css" -> resource(exchange, "/web-viewer/viewer.css", "text/css; charset=utf-8");
                 case "/assets/viewer.js" -> resource(exchange, "/web-viewer/viewer.js", "text/javascript; charset=utf-8");
-                case "/api/v1/state" -> json(exchange, PublicJson.state(store.get()));
+                case "/api/v1/state" -> json(exchange, apiState());
+                case "/api/v1/startlist" -> json(exchange, apiStartList());
                 case "/api/v1/runtime" -> json(exchange, PublicJson.runtime(webSocketPort));
                 default -> text(exchange, 404, "Nicht gefunden");
             }
         } finally {
             exchange.close();
         }
+    }
+
+    /**
+     * One read per store, then one response built from those two values.
+     *
+     * <p>There is no transaction across the system and none is needed: each store hands out an
+     * immutable value atomically. Reading each exactly once is what keeps a single response from
+     * mixing a clock from one moment with start-list metadata from another.
+     */
+    private String apiState() {
+        PublishedState published = store.get();
+        PublishedStartList startList = startLists.get();
+        return PublicJson.apiState(store.channelId(), published, startList);
+    }
+
+    /**
+     * The start list is slow-moving, the competition time is not. Both are read here, at request
+     * time, and combined into one answer — so a start list that has not changed for hours is still
+     * delivered with the clock of this very request.
+     */
+    private String apiStartList() {
+        PublishedState published = store.get();
+        PublishedStartList startList = startLists.get();
+        return PublicJson.apiStartList(store.channelId(), published, startList);
     }
 
     private static void resource(HttpExchange exchange, String name, String type) throws IOException {

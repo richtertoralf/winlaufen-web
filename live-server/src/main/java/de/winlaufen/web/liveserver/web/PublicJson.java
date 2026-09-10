@@ -7,9 +7,11 @@ import de.winlaufen.web.contract.CompetitionClass;
 import de.winlaufen.web.contract.CurrentFinish;
 import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.StartListRow;
+import de.winlaufen.web.liveserver.state.ChainStatus;
 import de.winlaufen.web.liveserver.state.PublishedStartList;
 import de.winlaufen.web.liveserver.state.PublishedState;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -21,6 +23,125 @@ import java.util.List;
 public final class PublicJson {
 
     private PublicJson() { }
+
+    /**
+     * Version of the read API's own envelope. It is not the contract schema version and not the
+     * product version: it changes only if this JSON shape ever stops being backwards compatible.
+     */
+    public static final int API_VERSION = 1;
+
+    /**
+     * Generic read API: the current state for external consumers, small enough to poll often.
+     *
+     * <p>Deliberately a superset of {@link #state}, because the web viewer bootstraps from this
+     * same endpoint before its WebSocket is up. Everything added here is additive; the fields the
+     * viewer reads keep their names and meaning.
+     *
+     * <p>The start list appears here only as metadata. Its entries would make a frequently polled
+     * endpoint carry thousands of rows that change a few times a day; they are served by
+     * {@link #apiStartList} instead.
+     */
+    public static String apiState(String channelId, PublishedState published,
+                                  PublishedStartList startList) {
+        return "{\"apiVersion\":" + API_VERSION
+                + ",\"type\":\"snapshot\""
+                + ",\"channelId\":" + quote(channelId)
+                + ",\"streamId\":" + nullable(published.streamId())
+                + ",\"sourceRevision\":" + published.sourceRevision()
+                + ",\"publicationRevision\":" + published.publicationRevision()
+                + "," + clockFields(published)
+                + ",\"connection\":" + connection(published)
+                + ",\"startList\":" + startListMetadata(startList)
+                + ",\"state\":" + canonical(published.state())
+                + ",\"presentation\":" + presentation(published.presentation())
+                + "}";
+    }
+
+    /**
+     * Generic read API: the complete current start list.
+     *
+     * <p>It carries the competition time and the connection status of the moment the request was
+     * answered, taken from the live competition state — never from the state that happened to be
+     * current when the start list was published. A start list changes a few times a day and the
+     * clock runs continuously; freezing the clock into the start list would hand a consumer a time
+     * that is hours old without any sign of it.
+     *
+     * <p>Entry order is the published order, which is the import order. Nothing is sorted and no
+     * participant id is invented; the source has none.
+     */
+    public static String apiStartList(String channelId, PublishedState published,
+                                      PublishedStartList startList) {
+        return "{\"apiVersion\":" + API_VERSION
+                + ",\"type\":\"startlist\""
+                + ",\"channelId\":" + quote(channelId)
+                + ",\"streamId\":" + nullable(published.streamId())
+                + "," + clockFields(published)
+                + ",\"connection\":" + connection(published)
+                + "," + startListFacts(startList)
+                + ",\"entries\":" + startListEntries(startList)
+                + "}";
+    }
+
+    /**
+     * The competition time plus when this live server observed it.
+     *
+     * <p>{@code clock} is the WinLaufen competition time, carried through as the string WinLaufen
+     * sent. It is not a timestamp: it has no date and no time zone, and nothing here turns it into
+     * one or derives a finish time from it.
+     *
+     * <p>{@code clockObservedAt} is an ordinary UTC instant of this machine and answers a different
+     * question — how old the value above is. It moves only when the clock value itself changes, so
+     * a clock frozen since the source vanished visibly ages instead of looking fresh. Both are null
+     * until a clock has ever arrived; inventing one would be worse than saying nothing.
+     */
+    private static String clockFields(PublishedState published) {
+        String observed = published.clockObservedAtEpochMilli() > 0
+                ? quote(Instant.ofEpochMilli(published.clockObservedAtEpochMilli()).toString())
+                : "null";
+        return "\"clock\":" + nullable(published.state().clock())
+                + ",\"clockObservedAt\":" + observed;
+    }
+
+    /**
+     * Where the delivery chain stands. A consumer must never have to infer this from the presence
+     * of a competition time or of results: both are the last known copy and stay readable while
+     * the source is gone.
+     *
+     * <p>{@code winlaufen} is what the bridge reported about its own source. While
+     * {@code bridge} is not {@code CONNECTED} it is the last known value rather than a current
+     * one — without a bridge nobody can observe WinLaufen — and {@code status} says so.
+     */
+    private static String connection(PublishedState published) {
+        return "{\"status\":" + quote(published.chainStatus().name())
+                + ",\"winlaufen\":" + quote(published.reportedSourceHealth().name())
+                + ",\"bridge\":" + quote(published.bridgeLinkConnected() ? "CONNECTED" : "DISCONNECTED")
+                + ",\"fresh\":" + (published.chainStatus() == ChainStatus.CONNECTED)
+                + ",\"stateAvailable\":" + published.available()
+                + "}";
+    }
+
+    private static String startListMetadata(PublishedStartList startList) {
+        return "{" + startListFacts(startList) + "}";
+    }
+
+    /**
+     * What is known about the current stock, used identically by both endpoints so they can never
+     * disagree.
+     *
+     * <p>Without a start list, {@code source} and {@code sourceLabel} are null rather than a
+     * value. The bridge has to put something in those fields even when it states "I have no start
+     * list", and reporting that filler would tell a consumer a file format and an origin for a
+     * stock that does not exist.
+     */
+    private static String startListFacts(PublishedStartList startList) {
+        boolean present = startList.present();
+        return "\"present\":" + present
+                + ",\"generation\":" + startList.generation()
+                + ",\"source\":" + (present ? quote(startList.source()) : "null")
+                + ",\"sourceLabel\":" + (present ? quote(startList.sourceLabel()) : "null")
+                + ",\"entryCount\":" + startList.entries().size()
+                + ",\"classCount\":" + startList.classCount();
+    }
 
     public static String state(PublishedState published) {
         return "{\"type\":\"snapshot\""
@@ -42,6 +163,21 @@ public final class PublicJson {
      * has already seen; the two are different things and are never compared with each other.
      */
     public static String startList(PublishedStartList published) {
+        return "{\"type\":\"startlist\""
+                + ",\"publicationRevision\":" + published.publicationRevision()
+                + ",\"generation\":" + published.generation()
+                + ",\"source\":" + quote(published.source())
+                + ",\"sourceLabel\":" + quote(published.sourceLabel())
+                + ",\"entries\":" + startListEntries(published)
+                + "}";
+    }
+
+    /**
+     * The entries themselves, shared by the browser message and the read API so both can never
+     * describe a participant differently. The field names are the canonical ones; there is no
+     * participant id because the source does not have one.
+     */
+    private static String startListEntries(PublishedStartList published) {
         StringBuilder entries = new StringBuilder("[");
         for (StartListRow row : published.entries()) {
             if (entries.length() > 1) {
@@ -60,13 +196,7 @@ public final class PublicJson {
                     .append(",\"nation\":").append(quote(row.nation()))
                     .append('}');
         }
-        return "{\"type\":\"startlist\""
-                + ",\"publicationRevision\":" + published.publicationRevision()
-                + ",\"generation\":" + published.generation()
-                + ",\"source\":" + quote(published.source())
-                + ",\"sourceLabel\":" + quote(published.sourceLabel())
-                + ",\"entries\":" + entries.append(']')
-                + "}";
+        return entries.append(']').toString();
     }
 
     /**

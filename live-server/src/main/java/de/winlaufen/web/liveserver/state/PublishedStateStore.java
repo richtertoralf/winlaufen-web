@@ -4,6 +4,7 @@ import de.winlaufen.web.contract.CanonicalState;
 import de.winlaufen.web.contract.SnapshotEnvelope;
 import de.winlaufen.web.contract.SourceHealth;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,9 +25,21 @@ public final class PublishedStateStore {
     private final String channelId;
     private final AtomicReference<PublishedState> state = new AtomicReference<>(PublishedState.empty());
     private final List<Consumer<PublishedState>> listeners = new CopyOnWriteArrayList<>();
+    /**
+     * Wall clock for freshness metadata only. It records when a snapshot was accepted here, which
+     * is what a consumer needs to judge how old the carried competition time is. It never produces
+     * or advances that competition time — that value stays exactly what WinLaufen sent.
+     */
+    private final Clock clock;
 
     public PublishedStateStore(String channelId) {
+        this(channelId, Clock.systemUTC());
+    }
+
+    /** Test seam: makes freshness metadata deterministic without sleeping. */
+    public PublishedStateStore(String channelId, Clock clock) {
         this.channelId = channelId;
+        this.clock = clock;
     }
 
     public String channelId() {
@@ -53,15 +66,41 @@ public final class PublishedStateStore {
      */
     public synchronized void ingestDisconnected() {
         PublishedState old = state.get();
-        if (old.streamId() == null && old.state().sourceHealth() == SourceHealth.DISCONNECTED) {
-            return;
-        }
         CanonicalState degraded = new CanonicalState(SourceHealth.DISCONNECTED, old.state().clock(),
                 old.state().competition(), old.state().currentFinish(), old.state().message());
+        if (old.streamId() == null && old.state().sourceHealth() == SourceHealth.DISCONNECTED) {
+            // Nothing changes for a browser, but the link flag still has to become false: a
+            // consumer must not be told the bridge is attached when it is not.
+            if (old.bridgeLinkConnected()) {
+                state.set(new PublishedState(old.publicationRevision(), old.streamId(),
+                        old.sourceRevision(), degraded, old.presentation(),
+                        old.reportedSourceHealth(), false, old.clockObservedAtEpochMilli()));
+            }
+            return;
+        }
         PublishedState next = new PublishedState(old.publicationRevision() + 1, null,
-                old.sourceRevision(), degraded, old.presentation());
+                old.sourceRevision(), degraded, old.presentation(), old.reportedSourceHealth(),
+                false, old.clockObservedAtEpochMilli());
         state.set(next);
         listeners.forEach(listener -> listener.accept(next));
+    }
+
+    /**
+     * A bridge ingest connection was opened. This only records the link; it publishes nothing and
+     * changes no revision, because an open socket is not yet a state. The first accepted snapshot
+     * does the publishing.
+     *
+     * <p>The reported source health stays what the previous bridge said until the new one speaks:
+     * inventing {@code CONNECTED} here would claim a WinLaufen connection nobody has observed.
+     */
+    public synchronized void ingestConnected() {
+        PublishedState old = state.get();
+        if (old.bridgeLinkConnected()) {
+            return;
+        }
+        state.set(new PublishedState(old.publicationRevision(), old.streamId(), old.sourceRevision(),
+                old.state(), old.presentation(), old.reportedSourceHealth(), true,
+                old.clockObservedAtEpochMilli()));
     }
 
     /**
@@ -87,6 +126,26 @@ public final class PublishedStateStore {
                 old.currentFinish(), value.message());
     }
 
+    /**
+     * When the competition time carried by this snapshot was first seen here.
+     *
+     * <p>Only a changed clock value counts as a new observation. A snapshot that repeats the clock
+     * this live server already has — a presentation change, a message, a resync after a reconnect —
+     * keeps the earlier timestamp. Otherwise a clock frozen since the source vanished would be
+     * re-stamped as current on the next unrelated publication, and a consumer judging freshness by
+     * this value would be told the opposite of the truth.
+     */
+    private long observedAt(PublishedState old, SnapshotEnvelope value) {
+        String clockValue = value.state().clock();
+        if (clockValue == null) {
+            return old.clockObservedAtEpochMilli();
+        }
+        if (clockValue.equals(old.state().clock()) && old.clockObservedAtEpochMilli() > 0) {
+            return old.clockObservedAtEpochMilli();
+        }
+        return clock.millis();
+    }
+
     /** @return {@code false} when the snapshot was rejected because its revision went backwards. */
     public synchronized boolean accept(SnapshotEnvelope value) {
         if (!channelId.equals(value.channelId())) {
@@ -98,10 +157,18 @@ public final class PublishedStateStore {
             return false;
         }
         if (sameStream && value.sourceRevision() == old.sourceRevision()) {
+            // Same revision, same state: no publication. The link is demonstrably alive though,
+            // and a resend after a reconnect must not leave it flagged as broken.
+            if (!old.bridgeLinkConnected()) {
+                state.set(new PublishedState(old.publicationRevision(), old.streamId(),
+                        old.sourceRevision(), old.state(), old.presentation(),
+                        old.reportedSourceHealth(), true, old.clockObservedAtEpochMilli()));
+            }
             return true;
         }
         PublishedState next = new PublishedState(old.publicationRevision() + 1, value.streamId(),
-                value.sourceRevision(), merged(old.state(), value.state()), value.presentation());
+                value.sourceRevision(), merged(old.state(), value.state()), value.presentation(),
+                value.state().sourceHealth(), true, observedAt(old, value));
         state.set(next);
         listeners.forEach(listener -> listener.accept(next));
         return true;
