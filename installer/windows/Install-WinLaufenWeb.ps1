@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     WinLaufen Web Setup für Windows 11.
 
@@ -36,6 +36,13 @@
     .\dist\installer\windows\Install-WinLaufenWeb.ps1
     .\installer\windows\Install-WinLaufenWeb.ps1 -Profile BridgeOnly
 #>
+
+# Diese Datei ist UTF-8 MIT BOM gespeichert, und das muss so bleiben.
+# Windows PowerShell 5.1 liest ein .ps1 ohne BOM nicht als UTF-8, sondern in der
+# ANSI-Codepage des Systems. Jeder Umlaut wird dann als zwei falsche Zeichen
+# gelesen, und zwar bereits beim Parsen und nicht erst bei der Ausgabe. Ein
+# Editor, der den BOM entfernt, bringt den Fehler also zurueck. PowerShell 7
+# kommt mit BOM ebenso zurecht. Siehe Issue #5; die Installer-Tests pruefen es.
 [CmdletBinding()]
 param(
     [ValidateSet('AllInOne', 'BridgeOnly')]
