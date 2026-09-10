@@ -21,3 +21,7 @@ Thumbs.db
 
 # Capture scratch files
 *.tmp
+
+# Downloaded WinLaufen Web release artifacts
+/winlaufen-web-*.tar.gz
+/winlaufen-web-*.zip
