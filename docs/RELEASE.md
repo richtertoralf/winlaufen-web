@@ -80,10 +80,31 @@ gebaut. Beide Distributionen verwenden die vorhandenen `build-dist`-Skripte
 und enthalten eine plattformspezifische `jlink`-Runtime. Erst wenn beide Pakete
 erfolgreich vorliegen, erzeugt der Workflow `SHA256SUMS` und das GitHub Release.
 
+## Erzeugte Artefakte
+
 Erwartete Assets für `v1.2.3`:
 
-- `winlaufen-web-1.2.3-linux-amd64.tar.gz`
-- `winlaufen-web-1.2.3-windows-x64.zip`
-- `SHA256SUMS`
+| Asset | Was es ist |
+| ----- | ----------- |
+| `winlaufen-web-1.2.3-linux-amd64.tar.gz` | Binary Distribution für Linux amd64 |
+| `winlaufen-web-1.2.3-windows-x64.zip` | Binary Distribution für Windows x64 |
+| `SHA256SUMS` | Prüfsummen beider Archive |
+
+Beide Archive sind **Binary Distributions**, keine plattformnativen
+Installationsprogramme. Ein Archiv enthält ein einziges Wurzelverzeichnis mit
+`lib/` (die Anwendungs-JARs), `runtime/` (die plattformspezifische
+`jlink`-Runtime), `installer/` (dieselben Installer- und Deinstallationsskripte
+wie im Repository) und `VERSION`. Installiert wird daraus mit
+`installer/linux/install.sh` bzw. `installer\windows\Install-WinLaufenWeb.ps1`;
+Git, Maven und ein JDK werden dafür nicht benötigt.
+
+Ausdrücklich **nicht** erzeugt werden ein nativer Windows-Installer (`.exe`,
+`.msi`), ein Linux-Paket (`.deb`, `.rpm`) oder ein `winget`-Manifest. Ein
+nativer Windows-Installer ist geplant; solange er fehlt, ist das ZIP mit dem
+enthaltenen PowerShell-Skript der Windows-Weg. Auch ein ARM64-Paket für den
+Raspberry Pi wird derzeit nicht gebaut; dort gilt der Weg über den Quellcode.
+
+Die beiden Installationswege für Anwender und Entwickler sind in
+[INSTALLATION.md](INSTALLATION.md) beschrieben.
 
 Build- oder Distributionsergebnisse werden nicht im Repository versioniert.

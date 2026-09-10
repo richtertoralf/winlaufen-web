@@ -32,31 +32,40 @@ Beim Anbieter Ihrer Wahl eine kleine VM mit **Ubuntu 24.04** und öffentlicher
 IPv4-Adresse anlegen. Die kleinste Größe genügt. Notieren Sie die IP-Adresse,
 zum Beispiel `203.0.113.7`.
 
-**2. Auf dem Cloud-Server anmelden und Git und Java installieren**
+**2. Auf dem Cloud-Server anmelden und das Releasepaket holen**
+
+Das Releasepaket ist eine fertig gebaute Version mit eigener Java-Umgebung.
+Git, Maven und Java müssen dafür nicht installiert werden. Den Dateinamen der
+gewünschten Version finden Sie auf der
+[Releases-Seite](https://github.com/richtertoralf/winlaufen-web/releases).
 
 ```sh
-sudo apt update
-sudo apt install git openjdk-25-jdk
+curl -LO https://github.com/richtertoralf/winlaufen-web/releases/download/v<version>/winlaufen-web-<version>-linux-amd64.tar.gz
+tar -xzf winlaufen-web-<version>-linux-amd64.tar.gz
+cd winlaufen-web-<version>-linux-amd64
 ```
 
-**3. Sprecher-Web holen und bauen**
-
-```sh
-git clone https://github.com/richtertoralf/winlaufen-web.git
-cd winlaufen-web
-./mvnw clean package
-```
-
-**4. Installieren**
+**3. Installieren**
 
 ```sh
 sudo ./installer/linux/install.sh
 ```
 
+> Alternativ der Entwicklerweg aus dem Quellcode, wenn Sie bewusst einen noch
+> nicht veröffentlichten Stand testen wollen:
+>
+> ```sh
+> sudo apt update && sudo apt install git openjdk-25-jdk
+> git clone https://github.com/richtertoralf/winlaufen-web.git
+> cd winlaufen-web
+> ./mvnw clean package
+> sudo ./installer/linux/install.sh
+> ```
+
 Bei der Frage nach der Rolle des Rechners das Profil **[3] Presentation Node**
 wählen. Es wird nach keiner Adresse gefragt.
 
-**5. Firewall des Anbieters öffnen**
+**4. Firewall des Anbieters öffnen**
 
 In der Firewall Ihres Cloud-Anbieters eingehend freigeben:
 
@@ -69,7 +78,7 @@ In der Firewall Ihres Cloud-Anbieters eingehend freigeben:
 **TCP 44442 wird nicht freigegeben.** Das ist Bridge Control; es hat keine
 Anmeldung und läuft ohnehin nur auf Ihrem eigenen Rechner im Vereinsnetz.
 
-**6. Bridge im Vereinsnetz mit dem Cloud-Server verbinden**
+**5. Bridge im Vereinsnetz mit dem Cloud-Server verbinden**
 
 Bridge Control im Browser öffnen: `http://<ihre-bridge-ip>:44442/`
 
@@ -85,7 +94,7 @@ Kurz darauf sollte am neuen Ziel **Verbunden** stehen. Darunter erscheint der
 Hinweis, dass unverschlüsselt übertragen wird — das ist in diesem Betrieb so
 gewollt.
 
-**7. Live-Ergebnisse öffnen und weitergeben**
+**6. Live-Ergebnisse öffnen und weitergeben**
 
 ```text
 http://203.0.113.7:44440/
@@ -94,7 +103,7 @@ http://203.0.113.7:44440/
 Diese Adresse können Sie an Zuschauer weitergeben, zum Beispiel als Link oder
 QR-Code am Zielbereich.
 
-**8. Nach der Veranstaltung**
+**7. Nach der Veranstaltung**
 
 Den gemieteten Server **abschalten oder löschen**, wenn er nur für diesen Tag
 gebraucht wurde. Das beendet die Kosten und den offenen Zugang zugleich.

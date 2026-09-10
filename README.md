@@ -91,10 +91,86 @@ Startlisten-Wireprotokoll auf TCP 4444 gibt es nicht und wird nicht erfunden.
 > **Für Veranstalter Schritt für Schritt:**
 > [docs/BEDIENERHANDBUCH.md](docs/BEDIENERHANDBUCH.md).
 
-Voraussetzungen sind Git und JDK 25; Maven liefert der Maven Wrapper mit.
-Fertige Releases zum Download gibt es noch nicht.
+Es gibt **zwei verschiedene Installationswege**. Sie führen zu unterschiedlichen
+Ständen und haben unterschiedliche Voraussetzungen — bitte einen davon wählen
+und nicht mischen.
 
-### Neuinstallation unter Linux
+**Ein Releasepaket** ist eine bereits fertig gebaute Binary Distribution einer
+veröffentlichten Version. Es enthält die Anwendungs-JARs (`lib/`), eine
+passende Java-Runtime (`runtime/`) und die Installationsskripte (`installer/`).
+Releasepakete liegen als Dateianhang unter
+[Releases](https://github.com/richtertoralf/winlaufen-web/releases).
+
+**Ein Releasepaket ist nicht das Git-Repository.** `git clone` lädt
+ausschließlich den Quelltext herunter und **keine** Release-Artefakte; ein
+Checkout enthält weder gebaute JARs noch eine Java-Runtime.
+
+| | Installation aus Releasepaket | Installation aus Quellcode |
+|---|---|---|
+| Zielgruppe | Anwender und Administratoren | Entwickler |
+| Git nötig | nein | ja |
+| Maven-Build nötig | nein | ja |
+| JDK 25 nötig | nein | ja |
+| Java-Runtime enthalten | ja, im Paket | nein — System-Java ≥ 25 erforderlich |
+| Versionsstand | genau die veröffentlichte Version | der ausgecheckte Git-Stand |
+| Für Produktivrechner empfohlen | ja | eher nicht |
+| Feature-Branches testbar | nein | ja |
+
+**Empfehlung:** Wer Sprecher-Web nur einsetzen will, nimmt das Releasepaket.
+Der Quellcode-Weg ist für Entwicklung, Tests und noch nicht veröffentlichte
+Stände gedacht.
+
+### Installation aus dem Releasepaket — empfohlen
+
+Aktuelle Version: **0.4.0**. Die Dateinamen unten enthalten die Version; in
+den Befehlen steht dafür `<version>`.
+
+**Linux**
+
+Auf der [Releases-Seite](https://github.com/richtertoralf/winlaufen-web/releases)
+`winlaufen-web-<version>-linux-amd64.tar.gz` herunterladen, dann:
+
+```sh
+tar -xzf winlaufen-web-<version>-linux-amd64.tar.gz
+cd winlaufen-web-<version>-linux-amd64
+sudo ./installer/linux/install.sh --profile all-in-one
+```
+
+Weder `git clone` noch `./mvnw clean package` sind dafür nötig: Die JARs sind
+gebaut, und die mitgelieferte Java-Runtime wird nach
+`/opt/winlaufen-web/runtime` installiert und von den Diensten verwendet. Auf
+dem Zielrechner muss deshalb kein Java installiert sein.
+
+**Windows 11**
+
+`winlaufen-web-<version>-windows-x64.zip` herunterladen und entpacken. Das ZIP
+ist eine fertige Binary Distribution mit gebündelter Java-Runtime — es ist
+**kein** `.exe`- oder `.msi`-Installer; installiert wird mit dem enthaltenen
+PowerShell-Skript. Dafür eine **PowerShell mit Administratorrechten** öffnen,
+in das entpackte Verzeichnis wechseln und starten:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\installer\windows\Install-WinLaufenWeb.ps1 -Profile AllInOne
+```
+
+`Set-ExecutionPolicy` erlaubt das Ausführen von PowerShell-Skripten, die sonst
+blockiert würden. Die Änderung gilt nur für dieses eine PowerShell-Fenster;
+nach dem Schließen ist die Sperre wieder aktiv.
+
+Ohne `--profile` bzw. `-Profile` fragt der Installer das Profil interaktiv ab.
+Die anderen Werte sind `bridge-only` / `BridgeOnly` und unter Linux zusätzlich
+`presentation-node`.
+
+### Installation aus dem Quellcode — für Entwickler
+
+Dieser Weg baut Bridge und Live Server lokal aus dem aktuellen
+Repository-Stand. Er ist für Entwicklung, Tests, Feature-Branches und noch
+nicht veröffentlichte Versionen gedacht — und installiert dementsprechend
+nicht notwendigerweise einen veröffentlichten Release. Voraussetzungen sind
+Git und JDK 25; Maven liefert der Maven Wrapper mit.
+
+**Linux**
 
 ```sh
 sudo apt install git openjdk-25-jdk
@@ -104,21 +180,66 @@ cd winlaufen-web
 sudo ./installer/linux/install.sh --profile all-in-one
 ```
 
-Ohne `--profile` fragt der Installer das Profil interaktiv ab. Die anderen
-Werte sind `bridge-only` und `presentation-node`.
+**Windows 11**
 
-### Upgrade einer bestehenden Linux-Installation
+```powershell
+winget install --id Git.Git --exact --source winget
+winget install --id Microsoft.OpenJDK.25 --exact --source winget
+# PowerShell neu öffnen, dann:
+git clone https://github.com/richtertoralf/winlaufen-web.git
+Set-Location winlaufen-web
+.\mvnw.cmd clean package
+```
 
-Derselbe Installer führt auch das Upgrade durch:
+Den **Installer** anschließend in einer **PowerShell mit Administratorrechten**
+starten. Windows blockiert Skripte standardmäßig; deswegen das Folgende mit ausführen:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\installer\windows\Install-WinLaufenWeb.ps1
+```
+
+***Zweck: Der Befehl `Set-ExecutionPolicy...` erlaubt das Ausführen von PowerShell-Skripten, die normalerweise durch Sicherheitsbeschränkungen blockiert würden.Temporär: Die Änderung gilt nur für das aktuelle PowerShell-Fenster. Sobald das Fenster geschlossen wird, ist die Sperre wieder aktiv.***
+
+Ein Source-Checkout bringt keine Java-Runtime mit; die Dienste verwenden dann
+das System-Java, das mindestens Version 25 sein muss. Wer aus dem Quellcode ein
+Paket mit gebündelter Runtime erzeugen will, nutzt
+`./installer/common/build-dist.sh --with-runtime` bzw.
+`.\installer\common\build-dist.ps1 -WithRuntime`.
+
+### Upgrade
+
+Es gibt keinen separaten Upgrade-Pfad: Derselbe Installer führt auch das
+Upgrade durch. Entscheidend ist, dass der Weg derselbe bleibt wie bei der
+Installation.
+
+**Upgrade einer Installation aus dem Releasepaket**
+
+Neues Releasepaket herunterladen, entpacken und den Installer mit demselben
+Profil erneut ausführen:
+
+```sh
+tar -xzf winlaufen-web-<neue-version>-linux-amd64.tar.gz
+cd winlaufen-web-<neue-version>-linux-amd64
+sudo ./installer/linux/install.sh --profile all-in-one
+```
+
+Eine Git-Arbeitskopie wird dafür nicht benötigt.
+
+**Upgrade einer Entwicklerinstallation**
 
 ```sh
 cd ~/winlaufen-web
+git status
 git pull --ff-only
 ./mvnw clean package
 sudo ./installer/linux/install.sh --profile all-in-one
 ```
 
-Dabei gilt:
+Dieser Weg aktualisiert auf den ausgecheckten Git-Stand — nicht
+notwendigerweise auf eine veröffentlichte Version.
+
+**In beiden Fällen gilt:**
 
 * Vorhandene Konfiguration wird **nie überschrieben** — die gepflegte
   WinLaufen-Adresse und die Liste der Live Server bleiben erhalten.
@@ -137,27 +258,6 @@ sudo ss -ltnp | grep -E ':(44440|44441|44442)\b'
 
 Bei `bridge-only` gehört nur `winlaufen-bridge` und Port 44442 dazu, bei
 `presentation-node` nur `winlaufen-live-server` und die Ports 44440 und 44441.
-
-### Windows 11
-
-```powershell
-winget install --id Git.Git --exact --source winget
-winget install --id Microsoft.OpenJDK.25 --exact --source winget
-# PowerShell neu öffnen, dann:
-git clone https://github.com/richtertoralf/winlaufen-web.git
-Set-Location winlaufen-web
-.\mvnw.cmd clean package
-```
-
-Den **Installer** anschließend in einer **PowerShell mit Administratorrechten**
-starten. Windows blockiert Skripte standardmäßig; deswegen das Folgende mit ausführen:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\installer\windows\Install-WinLaufenWeb.ps1
-```
-***Zweck: Der Befehl `Set-ExecutionPolicy...` erlaubt das Ausführen von PowerShell-Skripten, die normalerweise durch Sicherheitsbeschränkungen blockiert würden.Temporär: Die Änderung gilt nur für das aktuelle PowerShell-Fenster. Sobald das Fenster geschlossen wird, ist die Sperre wieder aktiv.***
-
 
 > **Vor Installation und Upgrade** eines Profils mit Bridge (All-in-One,
 > Bridge only) in WinLaufen **Abwicklung → Sprecher-PC… → Trennen** wählen und
@@ -273,6 +373,9 @@ Bridge Control, persistenter Bestand in der Bridge, eigene Übertragung zum Live
 Server und klassenweise Anzeige im Web Viewer — zusätzlich zu Uhr und
 Ergebnissen wie bisher.
 
+Es ist zugleich die erste Version mit **fertigen Releasepaketen** für Linux
+amd64 und Windows x64, die ohne Git, Maven und JDK installiert werden können.
+
 Die Prototyp-Grenzen aus
 [Known prototype security limitation](#known-prototype-security-limitation)
 gelten unverändert: Bridge Control hat keine Anmeldung, und der Bridge-Ingest
@@ -310,12 +413,17 @@ Der Nachweis ist in [docs/SMOKE_TESTS.md](docs/SMOKE_TESTS.md) protokolliert.
   `GET /api/v1/startlist`, und `GET /api/v1/state` liefert unverändert nur
   den Wettkampfstand für den eigenen Web Viewer. Die API wird bewusst
   allgemein und nicht auf einen einzelnen Consumer zugeschnitten.
+- **Nativer Windows-Installer** (`.exe`, gegebenenfalls `.msi`) und später
+  optional eine Installation über `winget`. Beides existiert **noch nicht**.
+  Unter Windows gibt es heute ausschließlich das Release-ZIP mit dem
+  enthaltenen PowerShell-Installer.
 
 ### Noch offen
 
-- endgültiges Windows-x64-Releasepaket mit gebündelter Runtime
-- echte Fresh Installation ohne Git, Maven und JDK
-- Linux-Releasepakete für AMD64 und ARM64
+- echte Fresh Installation aus dem Releasepaket, ohne Git, Maven und JDK, auf
+  einem frisch aufgesetzten Rechner nachgewiesen
+- Linux-Releasepaket für ARM64 (Raspberry Pi); veröffentlicht wird derzeit nur
+  AMD64
 - vollständige Reboot-, Reinstall- und Profilwechsel-Abnahmen
 - Richter-Projects-Pairing
 - bekannte P2-/P3-Punkte aus den Reviews

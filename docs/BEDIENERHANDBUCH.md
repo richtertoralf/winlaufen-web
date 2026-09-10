@@ -70,21 +70,40 @@ Sie bedienen zwei Oberflächen:
 
 * Windows 11
 * WinLaufen (getestet mit Version 16 und 19)
-* **Git** und **JDK 25** (Installation siehe Kapitel 4)
 * ein Netzwerk (LAN oder WLAN), in dem die Zuschauergeräte den Windows-PC
   erreichen
 
 ### Für einen Linux-Rechner
 
 * Debian, Ubuntu 24.04 LTS, Ubuntu 26.04 LTS oder Raspberry Pi OS
-* Git und JDK 25
 
 Andere Distributionen werden vom Installer nicht abgelehnt, aber als nicht
 getestet gemeldet.
 
-> Fertige Installationspakete zum Herunterladen gibt es noch nicht. Sie holen
-> das Projekt derzeit mit Git und bauen es einmal selbst — das sind drei
-> Befehle und dauert wenige Minuten.
+### Kein Java, kein Git — wenn Sie das Releasepaket nehmen
+
+Es gibt **zwei Wege**, Sprecher-Web zu installieren. Für Veranstalter ist nur
+der erste gedacht:
+
+| Weg | Für wen | Was Sie brauchen |
+|---|---|---|
+| **Releasepaket** herunterladen und entpacken | **Sie als Veranstalter** | nur einen Browser zum Herunterladen |
+| **Quellcode** holen und selbst bauen | Entwickler | zusätzlich Git und JDK 25 |
+
+Ein **Releasepaket** ist eine fertig gebaute Version zum Herunterladen. Es
+enthält bereits das fertige Programm **und** die passende Java-Umgebung, es
+muss also nichts übersetzt und kein Java installiert werden. Die Pakete liegen
+unter
+[github.com/richtertoralf/winlaufen-web/releases](https://github.com/richtertoralf/winlaufen-web/releases):
+
+* Windows: `winlaufen-web-<version>-windows-x64.zip`
+* Linux: `winlaufen-web-<version>-linux-amd64.tar.gz`
+
+Für einen **Raspberry Pi** gibt es noch kein fertiges Paket; dort ist derzeit
+der Weg über den Quellcode nötig.
+
+Dieses Handbuch beschreibt in den Kapiteln 4 und 5 zuerst den Weg über das
+Releasepaket und nennt den Entwicklerweg jeweils darunter als Alternative.
 
 ---
 
@@ -131,9 +150,30 @@ Veranstaltungsnetzes mitlesen können. Siehe Kapitel 12.
 
 ## 4. Windows: All-in-One installieren
 
-### Schritt 1 — Git und Java installieren
+### Schritt 1 — Releasepaket herunterladen und entpacken
 
-PowerShell öffnen (normale Rechte genügen) und eingeben:
+Öffnen Sie im Browser
+[github.com/richtertoralf/winlaufen-web/releases](https://github.com/richtertoralf/winlaufen-web/releases)
+und laden Sie beim obersten Eintrag die Datei
+
+```text
+winlaufen-web-<version>-windows-x64.zip
+```
+
+herunter. Entpacken Sie die ZIP-Datei, zum Beispiel im Ordner „Downloads".
+Dabei entsteht ein Ordner mit demselben Namen.
+
+Es ist **kein** Setup-Programm im gewohnten Sinn: Sprecher-Web bringt heute
+noch keinen `.exe`-Installer mit. Die Installation erfolgt gleich mit einem
+mitgelieferten PowerShell-Skript.
+
+Sie müssen dafür **weder Git noch Java installieren**: Die passende
+Java-Umgebung liegt im Paket, und Git wird nur für den Entwicklerweg gebraucht.
+
+### Schritt 2 — Alternative: aus dem Quellcode bauen
+
+Diesen Schritt brauchen Sie **nur**, wenn Sie bewusst einen
+Entwicklungsstand testen wollen. Sonst weiter mit Schritt 3.
 
 ```powershell
 winget install --id Git.Git --exact --source winget
@@ -149,8 +189,6 @@ java -version
 javac -version
 ```
 
-### Schritt 2 — Sprecher-Web holen und bauen
-
 ```powershell
 git clone https://github.com/richtertoralf/winlaufen-web.git
 Set-Location winlaufen-web
@@ -158,7 +196,9 @@ Set-Location winlaufen-web
 ```
 
 Der erste Build lädt einmalig Abhängigkeiten aus dem Internet und dauert
-einige Minuten. Am Ende muss `BUILD SUCCESS` stehen.
+einige Minuten. Am Ende muss `BUILD SUCCESS` stehen. Dieser Weg installiert
+den aktuellen Entwicklungsstand — nicht unbedingt eine veröffentlichte
+Version.
 
 ### Schritt 3 — WinLaufen-Verbindung trennen
 
@@ -177,10 +217,11 @@ einige Minuten. Am Ende muss `BUILD SUCCESS` stehen.
 ### Schritt 4 — Installer als Administrator ausführen
 
 PowerShell über das Startmenü mit **„Als Administrator ausführen"** neu
-starten und in das Repository wechseln:
+starten und in den entpackten Ordner wechseln — beim Releasepaket ist das der
+Ordner aus Schritt 1, beim Quellcode-Weg das Repository:
 
 ```powershell
-Set-Location winlaufen-web
+Set-Location $HOME\Downloads\winlaufen-web-<version>-windows-x64
 ```
 
 **Skriptausführung für dieses Fenster erlauben.** Windows blockiert das
@@ -235,13 +276,37 @@ Netzwerk" um.
 
 ### Upgrade auf eine neuere Version
 
-Genau derselbe Ablauf: Verbindung trennen (Schritt 3), `git pull`,
-`.\mvnw.cmd clean package`, Installer erneut ausführen, Verbindung wieder
-herstellen. Ihre Konfiguration bleibt dabei erhalten.
+Genau derselbe Ablauf wie die Installation, mit demselben Profil.
+
+* **Releasepaket:** neues ZIP herunterladen, entpacken, Verbindung trennen
+  (Schritt 3), Installer aus dem **neuen** Ordner ausführen, Verbindung wieder
+  herstellen.
+* **Quellcode:** Verbindung trennen, `git pull --ff-only`,
+  `.\mvnw.cmd clean package`, Installer erneut ausführen, Verbindung wieder
+  herstellen.
+
+Ihre Konfiguration bleibt in beiden Fällen erhalten — ebenso die importierte
+Startliste. Bleiben Sie bei dem Weg, mit dem Sie installiert haben.
 
 ---
 
 ## 5. Linux: All-in-One oder Bridge only installieren
+
+**Mit dem Releasepaket — der normale Weg.** Von der
+[Releases-Seite](https://github.com/richtertoralf/winlaufen-web/releases) das
+Archiv `winlaufen-web-<version>-linux-amd64.tar.gz` herunterladen, dann:
+
+```sh
+tar -xzf winlaufen-web-<version>-linux-amd64.tar.gz
+cd winlaufen-web-<version>-linux-amd64
+sudo ./installer/linux/install.sh
+```
+
+Git, Maven und Java müssen dafür nicht installiert sein; die Java-Umgebung
+liegt im Paket. Für ein Upgrade laden Sie später einfach das neue Paket
+herunter und führen den Installer daraus erneut mit demselben Profil aus.
+
+**Aus dem Quellcode — nur für Entwicklungsstände.**
 
 ```sh
 sudo apt install git openjdk-25-jdk
@@ -250,6 +315,9 @@ cd winlaufen-web
 ./mvnw clean package
 sudo ./installer/linux/install.sh
 ```
+
+Auf einem Raspberry Pi ist dies derzeit der einzige Weg, weil noch kein
+ARM-Paket veröffentlicht wird.
 
 > Auch hier gilt: Läuft WinLaufen bereits und ist die Sprecher-PC-Verbindung
 > aktiv, vorher **WinLaufen → Abwicklung → Sprecher-PC… → Trennen** und nach der
