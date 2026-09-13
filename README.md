@@ -1,6 +1,6 @@
 # Sprecher-Web
 
-[![Version](https://img.shields.io/badge/version-0.4.1-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
+[![Version](https://img.shields.io/badge/version-0.4.2-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
 [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
 
 Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
@@ -30,7 +30,7 @@ Die beiden sichtbaren Oberflächen heißen:
 - **Sprecher-Web – Bridge Control** — die Veranstalter-Oberfläche
 - **Sprecher-Web – Live-Ergebnisse** — die Ansicht für alle Zuschauer
 
-> **Status: Version 0.4.1, Prototype Baseline.** Für ausgewählte Vereine in
+> **Status: Version 0.4.2, Prototype Baseline.** Für ausgewählte Vereine in
 > **kontrollierten Netzen** gedacht, nicht für offenen Internetbetrieb. Vor dem
 > Einsatz den Abschnitt
 > [Known prototype security limitation](#known-prototype-security-limitation)
@@ -187,7 +187,7 @@ Stände gedacht.
 
 ### Installation aus dem Releasepaket — empfohlen
 
-Aktuelle Version: **0.4.1**. Die Dateinamen unten enthalten die Version; in
+Aktuelle Version: **0.4.2**. Die Dateinamen unten enthalten die Version; in
 den Befehlen steht dafür `<version>`.
 
 **Linux**
@@ -437,16 +437,23 @@ für Bediener: [Bedienerhandbuch, Kapitel 9](docs/BEDIENERHANDBUCH.md#9-die-ange
 
 ## Projektstatus
 
-**Version `0.4.1`.** Dieses Release öffnet Sprecher-Web für andere Systeme: Die
-**generische Read API** des Live Servers stellt Wettkampfzeit, Ergebnisse,
-Verbindungsstatus und den vollständigen Startlistenbestand maschinenlesbar
-bereit — für Overlay- und Timing-Systeme, Monitoring und eigene Integrationen.
-Bridge und Live Server messen dabei zu jedem WinLaufen-Uhrtelegramm, korrigieren
-aber nichts; die Auswertung bleibt beim Consumer.
+**Version `0.4.2`.** Dieses Release erweitert die WinLaufen-Kompatibilität der
+Bridge. Neben dem aktuellen Sprecher-PC-Protokoll werden ältere
+Legacy-Protokollvarianten unterstützt. Legacy-Daten werden ausschließlich am
+Eingang der Bridge normalisiert und anschließend über dieselbe kanonische
+Datenpipeline verarbeitet.
 
-Dazu kommen zwei Korrekturen aus dem realen Windows-Betrieb: Die geplanten
-Aufgaben besitzen jetzt ihre Java-Prozesse, sodass `Stop-ScheduledTask` sie
-wirklich beendet, und der Installer stellt deutsche Umlaute richtig dar.
+Bridge Control erkennt lokal, ob ein aktuelles oder ein Legacy-Protokoll
+verwendet wird. Bei Legacy erscheint eine Update-Empfehlung. Diese Diagnose
+bleibt vollständig in Bridge Control und wird weder an den Live Server noch an
+externe Verbraucher übertragen.
+
+Die Legacy-Unterstützung wurde am 13.09.2026 bei einem realen Wettkampf in
+Oederan mit Uhr- und Ergebnisdaten im End-to-End-Betrieb erfolgreich getestet.
+
+`0.4.1` führte zuvor die generische Read API des Live Servers sowie die
+Zeitmesspunkte für WinLaufen-Uhrtelegramme ein. Dazu kamen Korrekturen für den
+Windows-Betrieb und den Installer.
 
 `0.4.0` brachte zuvor den Startlistenweg — Import in Bridge Control, persistenter
 Bestand in der Bridge, Übertragung zum Live Server und klassenweise Anzeige im
