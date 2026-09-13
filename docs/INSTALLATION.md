@@ -1,319 +1,177 @@
-# Sprecher-Web — Installation
+# Sprecher-Web — Installation und Administration
 
-Dieses Dokument ist die **technische Installationsreferenz** für Linux und
-Windows 11: die beiden Installationswege, Upgrade, Profile, Plattformen, Pfade,
-Dienste, Ports, Konfiguration, Firewall, Prüfung nach der Installation und
-Deinstallation.
+**Für Anwender:** Abschnitt 1 führt durch die Installation fertiger Releasepakete,
+Abschnitt 3 durch ein Upgrade. Für Einrichtung und Wettkampfbetrieb lesen Sie
+anschließend das [Bedienerhandbuch](BEDIENERHANDBUCH.md).
 
-Die Kurzfassung der Befehle steht in der
-[README](../README.md#installation-und-upgrade); hier stehen die Details und die
-Begründungen.
+**Für Administratoren und technisch versierte Anwender:** Hier stehen die
+verbindlichen Betriebsdetails. [Dokumentationsübersicht](INDEX.md).
 
-> Wer Sprecher-Web als Veranstalter installieren und betreiben möchte, findet
-> die durchgehende Schritt-für-Schritt-Anleitung im
-> **[Bedienerhandbuch](BEDIENERHANDBUCH.md)**.
+- [Releasepakete installieren](#1-installation-aus-dem-releasepaket)
+- [Upgrade](#3-upgrade)
+- [Profile und Plattformen](#4-installationsprofile)
+- [Verzeichnisse und Zeitzone](#5-verzeichnisse)
+- [Dienste](#6-dienste)
+- [Netzwerk und Firewall](#7-ports-netzwerkvertrag-und-firewall)
+- [Prüfung und Fehlerdiagnose](#8-prüfung-nach-der-installation)
+- [Deinstallation](#9-deinstallation)
+- [Einsatzgrenzen](#einsatzgrenzen)
 
-Sprecher-Web ist keine Web-Version der Wettkampfsoftware WinLaufen.
-Es nutzt deren Sprecher-PC-Schnittstelle auf TCP 4444 und stellt die gelieferten
-Live-Ergebnisdaten webbasiert bereit.
-
-Der zentrale Grundsatz:
-
-> Installation und Netzwerk-/Runtime-Konfiguration sind getrennt. Während der
-> Installation werden keine WinLaufen-IP-Adressen, Target-IP-Adressen,
-> Hostnamen oder URLs benötigt.
-
-Ein Rechner kann damit Tage vor der Veranstaltung vollständig installiert
-werden, auch wenn das spätere Veranstaltungsnetz noch unbekannt ist.
-
-Nicht erreichbare externe Quellen und Output Targets verhindern die
-Installation nicht. Der Installer prüft nach erfolgreicher lokaler Installation
-den aktuellen Verbindungszustand und gibt Hinweise zur weiteren Konfiguration
-aus. Ein nicht verbundener lokaler All-in-One-Datenpfad wird als Warnung
-gemeldet. Lokale Dienst-, Listener- und HTTP-Fehler bleiben dagegen
-Installationsfehler.
-
-## 0. Die zwei Installationswege
-
-Es gibt zwei Wege. Sie unterscheiden sich in den Voraussetzungen und im
-installierten Versionsstand.
-
-**Releasepaket.** Ein Releasepaket ist eine bereits fertig gebaute Binary
-Distribution einer veröffentlichten Version. Es wird auf der
-[Releases-Seite](https://github.com/richtertoralf/winlaufen-web/releases) als
-Dateianhang veröffentlicht und enthält:
-
-```text
-winlaufen-web-<version>-<plattform>/
-    lib/        winlaufen-web-bridge.jar, winlaufen-web-live-server.jar
-    runtime/    plattformspezifische Java-Runtime (jlink)
-    installer/  linux/, windows/, common/
-    VERSION     Build-Kennung des Standes, aus dem gebaut wurde
-```
-
-**Ein Releasepaket ist nicht das Git-Repository.** `git clone` lädt
-ausschließlich den Quelltext und **keine** Release-Artefakte herunter; ein
-Checkout enthält weder gebaute JARs noch eine Java-Runtime. Wer ein
-Releasepaket haben will, lädt die Archivdatei von der Releases-Seite.
-
-**Quellcode.** Der Source-Weg klont das Repository, baut die JARs lokal mit dem
-Maven Wrapper und ruft denselben Installer aus dem Checkout auf.
-
-| | Releasepaket | Source-Build |
-|---|---|---|
-| Zielgruppe | Anwender und Administratoren | Entwickler |
-| Git nötig | nein | ja |
-| Maven-Build nötig | nein | ja |
-| JDK 25 nötig | nein | ja |
-| Java-Runtime enthalten | ja, im Paket unter `runtime/` | nein — System-Java ≥ 25 erforderlich |
-| Versionsstand | genau die veröffentlichte Version | der ausgecheckte Git-Stand |
-| Für Produktivrechner empfohlen | ja | eher nicht |
-| Feature-Branches testbar | nein | ja |
-
-Beide Wege verwenden **dieselben Installerskripte** und erzeugen dieselben
-Pfade, Dienste und Ports. Der Installer erkennt selbst, in welchem Layout er
-liegt: Ein entpacktes Releasepaket besitzt `lib/`, ein Source-Checkout hat
-stattdessen `bridge/target/` und `live-server/target/`.
-
-Die eine sichtbare Folge des Unterschieds ist die Java-Runtime. Liegt neben dem
-Installer ein `runtime/`-Verzeichnis — also im Releasepaket oder in einer
-selbst mit `--with-runtime` gebauten Distribution —, installiert der Installer
-diese Runtime mit und die Dienste verwenden sie. Andernfalls sucht er ein
-System-Java und verlangt mindestens Version 25.
+Installation und Einrichtung sind getrennt: Der Installer fragt nur nach der
+Rolle des Rechners. Adressen tragen Sie später in Bridge Control ein.
+Eine nicht erreichbare WinLaufen-Quelle oder ein entferntes Ziel verhindert
+die Installation nicht; lokale Dienst- und Startfehler tun dies dagegen schon.
 
 ## 1. Installation aus dem Releasepaket
 
-Empfohlen für alle Rechner, auf denen Sprecher-Web nur betrieben und nicht
-entwickelt wird.
+Laden Sie auf der [Releases-Seite](https://github.com/richtertoralf/winlaufen-web/releases)
+unter **Assets** das Paket für Ihr System herunter, nicht die Anhänge
+**Source code**. Die passende Java-Umgebung ist enthalten; eine zusätzliche
+Java-Installation ist nicht erforderlich. `<version>` steht in den Dateinamen
+für die gewählte Versionsnummer.
+
+Laden Sie für eine Prüfsummenkontrolle zusätzlich `SHA256SUMS` aus demselben
+Release herunter. Der berechnete SHA256-Wert muss mit dem Eintrag für genau
+Ihre Paketdatei übereinstimmen.
+
+Vor Installation oder Upgrade eines Profils mit Bridge (**All-in-One** oder
+**Bridge only**) eine aktive Sprecher-PC-Verbindung in WinLaufen mit
+**Abwicklung → Sprecher-PC… → Trennen** lösen. WinLaufen selbst bleibt geöffnet.
+Nach erfolgreicher Installation wieder **Verbinden** wählen. Ob ein Upgrade
+bei aktiver Verbindung zuverlässig funktioniert, ist noch nicht vollständig
+abgenommen. Für einen **Presentation Node** entfällt dieser Schritt.
 
 ### 1.1 Linux
 
-Auf der Releases-Seite `winlaufen-web-<version>-linux-amd64.tar.gz`
-herunterladen, dann:
+Voraussetzung ist ein Linux-Rechner mit systemd und Administratorrechten über
+`sudo`; unterstützte Systeme stehen unter [Plattformen](#unterstützte-plattformen).
+Das fertige Paket `winlaufen-web-<version>-linux-amd64.tar.gz` ist für
+64-Bit-PCs mit Intel- oder AMD-Prozessor bestimmt. Für Raspberry Pi/ARM gibt es
+noch kein fertiges Paket. Eine Installation dort erfordert den
+[Entwicklerweg](DEVELOPMENT.md#installation-aus-dem-quellcode).
+
+1. Öffnen Sie im Browser die Downloadliste und lassen Sie die heruntergeladene
+   Datei im Dateimanager anzeigen.
+2. Entpacken Sie das Archiv mit der Archivverwaltung.
+3. Öffnen Sie den entpackten Ordner, in dem `installer`, `lib` und `runtime`
+   liegen, und dort über das Kontextmenü ein Terminal (oft „Im Terminal öffnen“).
+4. Führen Sie für den üblichen Betrieb aus:
 
 ```sh
+sudo ./installer/linux/install.sh --profile all-in-one
+```
+
+Bei der Passwortabfrage erscheinen keine Zeichen. Weitere Profilwerte sind
+`bridge-only` und `presentation-node`; ohne `--profile` fragt der Installer
+interaktiv. Wählen Sie genau das Profil für die Rolle dieses Rechners.
+
+Für Administratoren, alternativ im Downloadordner mit den tatsächlichen
+Dateinamen anstelle von `<version>`:
+
+```sh
+sha256sum -c --ignore-missing SHA256SUMS
 tar -xzf winlaufen-web-<version>-linux-amd64.tar.gz
 cd winlaufen-web-<version>-linux-amd64
 sudo ./installer/linux/install.sh --profile all-in-one
 ```
 
-Ohne `--profile` fragt der Installer das Profil interaktiv ab; die weiteren
-Werte sind `bridge-only` und `presentation-node`.
-
-Es wird dafür **kein** `git clone`, **kein** `./mvnw clean package` und **kein**
-installiertes JDK benötigt. Die JARs aus `lib/` werden nach
-`/opt/winlaufen-web/lib/` installiert, die mitgelieferte Runtime nach
-`/opt/winlaufen-web/runtime/`; die systemd-Units starten Java aus genau diesem
-Pfad.
-
-Veröffentlicht wird derzeit nur **amd64**. Auf einem Raspberry Pi ist deshalb
-bis auf Weiteres der Source-Weg (Abschnitt 2.1) zu verwenden.
-
-Dieser Weg ist real abgenommen: Das Paket von `v0.4.0` wurde auf einer
-bereinigten Ubuntu 24.04.4 LTS ohne System-Java, ohne Maven und ohne
-Source-Checkout installiert, und der Installer verwendete die gebündelte
-Runtime. Das Protokoll steht in [SMOKE_TESTS.md](SMOKE_TESTS.md#protokoll-installation-aus-dem-releasepaket-v040).
-Prüfen Sie vor dem Entpacken die Prüfsumme gegen das ebenfalls veröffentlichte
-`SHA256SUMS`:
-
-```sh
-sha256sum -c --ignore-missing SHA256SUMS
-```
-
-Läuft auf dem Zielrechner bereits WinLaufen mit aktiver
-Sprecher-PC-Verbindung, diese vor Installation und Upgrade eines Profils mit
-Bridge trennen (**Abwicklung → Sprecher-PC… → Trennen**) und danach wieder
-verbinden. Für einen Presentation Node entfällt das.
+Kontrollieren Sie, dass die Prüfung ausdrücklich Ihr Paket als `OK` meldet.
+Der Installer verändert keine Firewall; bei Zugriff von anderen Rechnern
+beachten Sie [Netzwerk und Firewall](#7-ports-netzwerkvertrag-und-firewall).
 
 ### 1.2 Windows 11
 
-`winlaufen-web-<version>-windows-x64.zip` herunterladen und entpacken. Das ZIP
-ist eine fertige Binary Distribution mit gebündelter Java-Runtime. Es ist
-**kein** `.exe`- oder `.msi`-Installer und wird nicht über `winget`
-bereitgestellt; installiert wird mit dem enthaltenen PowerShell-Skript. Ein
-nativer Windows-Installer ist geplant, existiert aber noch nicht.
+Sie brauchen Windows 11 auf einem x64-PC und ein Administratorkonto.
+Das Paket heißt `winlaufen-web-<version>-windows-x64.zip`.
+Es enthält ein PowerShell-Skript; ein grafischer `.exe`-/`.msi`-Installer
+und eine Installation über `winget` stehen noch nicht zur Verfügung.
 
-PowerShell **als Administrator** öffnen, in das entpackte Verzeichnis wechseln:
+#### Download finden und entpacken
+
+1. Öffnen Sie nach dem Herunterladen die Downloadliste Ihres Browsers mit
+   **Strg+J**. Wählen Sie bei der ZIP-Datei **In Ordner anzeigen** oder das
+   Ordnersymbol. So finden Sie die Datei auch bei einem abweichenden Downloadpfad.
+2. Klicken Sie im Explorer mit der rechten Maustaste auf die ZIP-Datei.
+   Wählen Sie **Alle extrahieren…** und anschließend **Extrahieren**.
+3. Öffnen Sie den entpackten Ordner. Wenn darin nur ein weiterer Ordner mit dem
+   Paketnamen liegt, öffnen Sie auch diesen. Richtig sind Sie, wenn Sie
+   **installer**, **lib** und **runtime** sehen. Arbeiten Sie nicht im ZIP selbst.
+4. Klicken Sie in die Adressleiste des Explorers. Mit **Strg+C** kopieren Sie den
+   vollständigen Pfad dieses Ordners.
+
+#### Installer starten
+
+1. Suchen Sie im Windows-Startmenü nach **Windows PowerShell** und wählen Sie
+   **Als Administrator ausführen**. Bestätigen Sie die Windows-Abfrage und
+   geben Sie gegebenenfalls die Zugangsdaten des Administratorkontos ein.
+2. Die neue PowerShell mit Administratorrechten öffnet sich nicht automatisch
+   im Paketordner. Geben Sie `Set-Location -LiteralPath '` ein, fügen Sie den
+   kopierten Pfad mit **Strg+V** ein und ergänzen Sie ein abschließendes `'`.
+   Drücken Sie **Enter**. Die vollständige Zeile sieht so aus, wobei Sie den
+   Platzhalter vollständig durch Ihren Pfad ersetzen:
+
+```powershell
+Set-Location -LiteralPath 'HIER DEN KOPIERTEN ORDNERPFAD EINFÜGEN'
+```
+
+Die Anführungszeichen sorgen dafür, dass Leerzeichen im Pfad funktionieren.
+Falls Ihr Ordnername selbst ein einfaches Anführungszeichen enthält, schreiben
+Sie dieses innerhalb des Pfads zweimal (`O''Brien`).
+
+3. Erlauben Sie die Skriptausführung für dieses Fenster:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+Bestätigen Sie eine Nachfrage mit **J**. Die Freigabe endet beim Schließen
+des Fensters; es wird keine dauerhafte systemweite Richtlinie geändert.
+
+4. Starten Sie das gewählte Profil, für den Normalfall:
+
+```powershell
 .\installer\windows\Install-WinLaufenWeb.ps1 -Profile AllInOne
 ```
 
-Ohne `-Profile` fragt der Installer interaktiv; der zweite gültige Wert ist
-`BridgeOnly`. Presentation Node wird unter Windows nicht unterstützt.
+Für eine reine Bridge verwenden Sie stattdessen `-Profile BridgeOnly`.
+Ohne `-Profile` fragt der Installer nach der Rolle.
+**Presentation Node wird unter Windows nicht unterstützt.**
 
-Auch hier sind weder Git noch ein JDK erforderlich: Die Runtime aus `runtime\`
-wird nach `C:\Program Files\WinLaufen Web\runtime\` installiert und von den
-geplanten Aufgaben verwendet.
+5. Warten Sie auf die Erfolgsmeldung. Eine Warnung zur noch nicht verbundenen
+   WinLaufen-Quelle bedeutet, dass die lokale Installation gelungen ist, aber
+   die Einrichtung noch fehlt. Bei einem Abbruch beachten Sie die Fehlermeldung
+   und [Fehlerdiagnose](#fehlerdiagnose).
+6. Verbinden Sie WinLaufen wieder und fahren Sie mit
+   [WinLaufen verbinden](BEDIENERHANDBUCH.md#6-winlaufen-verbinden) fort.
 
-Zwei Windows-Besonderheiten gelten für beide Installationswege und sind in
-Abschnitt 2.2 ausführlich beschrieben: die Freigabe der **Skriptausführung**
-(sonst bricht der Installer mit `PSSecurityException` ab) und das **Trennen der
-WinLaufen-Sprecher-PC-Verbindung** vor Installation und Upgrade eines Profils
-mit Bridge.
-
-Auch dieser Weg ist real abgenommen: Das ZIP von `v0.4.0` wurde auf einem
-Windows-11-PC installiert, auf dem das originale WinLaufen weiterlief und
-System-Java aus anderen Gründen installiert blieb. Die Sprecher-Web-Dienste
-verwendeten dennoch die mitgelieferte Runtime aus dem Paket. Das Protokoll steht
-in [SMOKE_TESTS.md](SMOKE_TESTS.md#protokoll-installation-aus-dem-releasepaket-v040).
-Die Prüfsumme lässt sich vor dem Entpacken vergleichen:
+**Optionale Prüfsummenkontrolle vor dem Entpacken:** Öffnen Sie im Ordner der
+ZIP-Datei über die Explorer-Adressleiste mit `powershell` und **Enter** ein
+normales PowerShell-Fenster. Ersetzen Sie `<version>` durch die Nummer Ihrer Datei:
 
 ```powershell
 Get-FileHash .\winlaufen-web-<version>-windows-x64.zip -Algorithm SHA256
 ```
 
-> **Bekannte Anzeigeabweichung in `v0.4.0`.** Der Windows-Installer aus dem
-> veröffentlichten `v0.4.0`-ZIP stellt deutsche Umlaute in Windows PowerShell 5.1
-> falsch dar. Betroffen ist ausschließlich die Konsolenausgabe; Installation,
-> Dienste und Konfiguration sind korrekt. Ursache und Behebung stehen in
-> [Issue #5](https://github.com/richtertoralf/winlaufen-web/issues/5); der Fix ist
-> in `main` und erscheint erstmals im nächsten Release.
+Vergleichen Sie den Wert mit `SHA256SUMS` aus demselben Release.
 
-## 2. Installation aus dem Quellcode
+**Historischer Hinweis zu v0.4.0:** Dieses Paket stellte Umlaute unter Windows
+PowerShell 5.1 falsch dar. Ab 0.4.1 ist die Ausgabe korrigiert. Bestehende
+Konfigurationskommentare werden beim Upgrade beibehalten.
 
-Für Entwicklung, Tests, Feature-Branches und noch nicht veröffentlichte Stände.
-Dieser Weg installiert den **ausgecheckten Git-Stand** und damit nicht
-notwendigerweise eine veröffentlichte Version.
+## 2. Entwicklungsstände
 
-Voraussetzungen:
-
-- Git
-- JDK 25
-
-System-Maven ist keine Voraussetzung. Der Maven Wrapper verwendet die im
-Repository festgelegte Maven-Version.
-
-### 2.1 Linux
-
-```sh
-sudo apt install git openjdk-25-jdk
-git clone https://github.com/richtertoralf/winlaufen-web.git
-cd winlaufen-web
-./mvnw clean package
-sudo ./installer/linux/install.sh --profile all-in-one
-```
-
-Nicht-interaktiv stehen dieselben drei Profilwerte zur Verfügung:
-
-```sh
-sudo ./installer/linux/install.sh --profile all-in-one
-sudo ./installer/linux/install.sh --profile bridge-only
-sudo ./installer/linux/install.sh --profile presentation-node
-```
-
-Ein Source-Checkout enthält keine Java-Runtime; die Dienste verwenden dann das
-System-Java, das mindestens Version 25 sein muss. Wer aus dem Quellcode eine
-Distribution mit gebündelter Runtime erzeugen und auf einen Zielrechner
-kopieren will:
-
-```sh
-# auf dem Entwicklerrechner
-./installer/common/build-dist.sh --with-runtime
-
-# dist/ auf den Zielrechner kopieren, dort:
-sudo ./installer/linux/install.sh --profile all-in-one
-```
-
-Die Runtime ist immer plattformspezifisch: Ein Linux-Build erzeugt eine
-Linux-Runtime, ein Windows-Build eine Windows-Runtime. Ein Cross-Build wird
-bewusst nicht versucht.
-
-### 2.2 Windows 11
-
-```powershell
-winget install --id Git.Git --exact --source winget
-winget install --id Microsoft.OpenJDK.25 --exact --source winget
-# PowerShell neu öffnen, dann:
-git clone https://github.com/richtertoralf/winlaufen-web.git
-Set-Location winlaufen-web
-.\mvnw.cmd clean package
-```
-
-Anschließend PowerShell **als Administrator** starten:
-
-```powershell
-.\installer\windows\Install-WinLaufenWeb.ps1 -Profile AllInOne
-.\installer\windows\Install-WinLaufenWeb.ps1 -Profile BridgeOnly
-```
-
-`winget` dient hier ausschließlich der Installation von Git und dem JDK.
-Sprecher-Web selbst wird **nicht** über `winget` verteilt.
-
-**Skriptausführung.** Windows blockiert PowerShell-Skripte standardmäßig; der
-Installer scheitert dann mit `PSSecurityException` („Die Ausführung von Skripts
-ist auf diesem System deaktiviert"). Für das aktuelle Fenster freigeben:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\installer\windows\Install-WinLaufenWeb.ps1
-```
-
-`-Scope Process` gilt nur für dieses PowerShell-Fenster und ändert keine
-systemweite Richtlinie. Alternativ als einmaliger Aufruf:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\installer\windows\Install-WinLaufenWeb.ps1"
-```
-
-Die Installation muss in einer PowerShell mit Administratorrechten erfolgen.
-Ohne diese Rechte bricht der Installer vor Änderungen mit einem entsprechenden
-Hinweis ab.
-
-**Vor Installation und Upgrade eines Profils mit Bridge** (All-in-One, Bridge
-only) muss in WinLaufen die Sprecher-PC-Verbindung getrennt werden:
-**Abwicklung → Sprecher-PC… → Trennen**. WinLaufen selbst muss nicht beendet
-werden. Nach der Installation wieder **Verbinden**. Für einen Presentation Node
-entfällt dieser Schritt. Ob ein Upgrade auch bei aktiver Verbindung zuverlässig
-funktioniert, ist noch nicht geprüft; bis dahin gilt dieser Ablauf verbindlich.
-
-### 2.3 Java-Runtime im Detail
-
-Der Build aus dem Quellcode benötigt **JDK 25** (`maven.compiler.release=25` im
-Root-POM). Für die Installation gilt unabhängig vom Weg diese Reihenfolge:
-
-1. Liegt in der Quelle eine mitgelieferte Runtime (`runtime/` neben `lib/`,
-   also im Releasepaket oder in einer selbst gebauten Distribution), wird diese
-   installiert und verwendet. Der Rechner braucht dann kein eigenes Java.
-2. Sonst wird das System-Java geprüft. Ist es älter als Java 25, bricht der
-   Installer mit einer klaren Meldung ab und nennt beide Auswege.
-
-Eine reduzierte Runtime entsteht beim Bauen der Distribution per `jlink`:
-
-```sh
-./installer/common/build-dist.sh --with-runtime
-```
-
-```powershell
-.\installer\common\build-dist.ps1 -WithRuntime
-```
-
-Die Releasepakete werden mit genau diesen Skripten und dieser Option gebaut;
-deshalb enthalten sie immer eine Runtime.
+Installation aus dem Quellcode und deren Voraussetzungen stehen ausschließlich
+in [DEVELOPMENT.md](DEVELOPMENT.md#installation-aus-dem-quellcode).
+Die folgenden Betriebsdetails gelten auch für solche Installationen.
 
 ## 3. Upgrade
 
-### 3.0 Zwei unabhängige Fragen
+### 3.0 Erstinstallation und Upgrade
 
-Zwei Begriffspaare werden leicht verwechselt, sind aber unabhängig voneinander:
-
-| Frage | Antworten |
-|---|---|
-| **Woher** kommen die Dateien? | Releasepaket oder Source-Build |
-| **Was** wird daraus gemacht? | Erstinstallation oder Upgrade |
-
-Jede Kombination ist möglich. Ein Installer aus dem Source-Tree kann eine
-bestehende Release-Installation aktualisieren, und ein Releasepaket kann auf
-einem leeren Rechner eine Erstinstallation durchführen.
-
-**Erstinstallation** heißt: Sprecher-Web ist auf dem Rechner noch nicht
-vorhanden. Neu eingerichtet werden Programmdateien, Konfiguration,
-Datenverzeichnis, Hintergrunddienste und — unter Windows — die Firewallregeln.
-
-**Upgrade** heißt: Eine bestehende Installation wurde gefunden. Programmdateien
-und die technischen Installationsbestandteile werden aktualisiert; die
-Benutzerkonfiguration und die Veranstaltungsdaten bleiben erhalten.
+Der Installer erkennt eine bestehende Installation automatisch. Bei einer
+Erstinstallation richtet er Programmdateien, Konfiguration und Dienste ein;
+bei einem Upgrade aktualisiert er die Programmdateien und Dienste und erhält
+die Veranstaltungsdaten. Die WinLaufen-Installation wird nicht verändert.
 
 ### 3.1 Wie der Installer den Fall erkennt
 
@@ -381,49 +239,25 @@ bewusster Profilwechsel. Läuft auf diesem Rechner WinLaufen mit aktiver
 Sprecher-PC-Verbindung, diese vorher **trennen** und danach wieder
 **verbinden**.
 
-### 3.4 Upgrade einer Installation aus dem Releasepaket
+### 3.4 Upgrade aus einem neuen Releasepaket
 
-Linux:
+Laden Sie das neue Paket herunter und folgen Sie erneut der
+[Linux-Anleitung](#11-linux) oder [Windows-Anleitung](#12-windows-11).
+Verwenden Sie dasselbe Profil wie bisher. So ist auch der Wechsel in den
+richtigen entpackten Ordner beschrieben.
 
-```sh
-tar -xzf winlaufen-web-<neue-version>-linux-amd64.tar.gz
-cd winlaufen-web-<neue-version>-linux-amd64
-sudo ./installer/linux/install.sh --profile all-in-one
-```
+Das alte entpackte Paket kann nach erfolgreichem Upgrade entfernt werden.
+Bewahren Sie das neue Paket für eine spätere Deinstallation auf.
+Für Updates eines Entwicklungsstands siehe
+[Entwicklerinstallation aktualisieren](DEVELOPMENT.md#entwicklerinstallation-aktualisieren).
 
-Windows, in einer PowerShell mit Administratorrechten im entpackten neuen ZIP:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\installer\windows\Install-WinLaufenWeb.ps1 -Profile AllInOne
-```
-
-Eine Git-Arbeitskopie wird dafür nicht benötigt. Das alte entpackte Paket kann
-nach erfolgreichem Upgrade gelöscht werden; die installierten Dateien liegen
-unter `/opt/winlaufen-web` bzw. `C:\Program Files\WinLaufen Web`.
-
-### 3.5 Upgrade einer Entwicklerinstallation
-
-```sh
-cd ~/winlaufen-web
-git status                       # keine ungesicherten eigenen Änderungen?
-git pull --ff-only
-./mvnw clean package
-sudo ./installer/linux/install.sh --profile all-in-one
-```
-
-Unter Windows entsprechend mit `git pull --ff-only`, `.\mvnw.cmd clean package`
-und dem Installer aus dem Checkout.
-
-Dieser Weg aktualisiert auf den ausgecheckten Git-Stand und nicht
-notwendigerweise auf einen veröffentlichten Release.
-
-### 3.6 Getrennte Rechner: erst Live Server, dann Bridge
+### 3.5 Getrennte Rechner: erst Live Server, dann Bridge
 
 Stehen Bridge und Live Server auf **verschiedenen** Rechnern — Profile
 **Bridge only** und **Presentation Node** —, laufen sie beim Upgrade kurz in
-verschiedenen Versionen. Das ist nur in einer Richtung unkritisch: Eine ältere
-Bridge kann an einen neueren Live Server liefern, umgekehrt nicht.
+verschiedenen Versionen. Für den Übergang von 0.4.0 auf die Versionen mit
+Zeitmesspunkten kann eine ältere Bridge an einen neueren Live Server liefern, umgekehrt nicht. Daraus folgt
+keine allgemeine Kompatibilitätszusage für beliebige künftige Versionen.
 
 **Deshalb zuerst den Live Server aktualisieren, danach die Bridge.** In der
 Zwischenzeit läuft alles weiter; es fehlen höchstens Angaben, die die ältere
@@ -434,7 +268,7 @@ stellt sich die Frage nicht.
 
 Hintergrund und Nachweis: [RELEASE.md](RELEASE.md#upgrade-reihenfolge-bei-getrennten-rechnern).
 
-### 3.7 Was das Upgrade erhält und was es ersetzt
+### 3.6 Was das Upgrade erhält und was es ersetzt
 
 Für beide Installationswege identisch. Die Pfade in der Tabelle sind die von
 Linux; unter Windows gilt dasselbe Verhalten für `C:\Program Files\WinLaufen Web\`
@@ -443,8 +277,8 @@ systemd-Units.
 
 | Gegenstand | Verhalten |
 |---|---|
-| `bridge.properties` | bleibt unverändert; Defaults entstehen nur bei einer echten Erstinstallation |
-| `live-server.env` | bleibt unverändert |
+| `bridge.properties` | individuelle Einstellungen bleiben erhalten; Ausnahme: Migration früherer Installer-Netzwerkdefaults (siehe unten) |
+| `live-server.env` / `live-server.properties` | individuelle Einstellungen bleiben erhalten; Ausnahme: Migration früherer Installer-Netzwerkdefaults |
 | `startlist.properties` | bleibt unverändert — die importierte Startliste überlebt das Upgrade, ein erneuter Import ist nicht nötig |
 | `/var/lib/winlaufen-web/` | bleibt unverändert |
 | JARs unter `/opt/winlaufen-web/lib/` | werden ersetzt |
@@ -505,10 +339,6 @@ einträgt. Läuft WinLaufen auf demselben Rechner, ist das ein Zero-Config-Fall.
 Andernfalls wird nach der Installation nur der WinLaufen-Host in Bridge Control
 angepasst.
 
-Das lokale Target verwendet denselben Bridge→Live-Server-Pfad wie ein entferntes
-Ziel, inklusive Snapshot, ACK, Retry und Full Resync. Es gibt keinen zweiten
-„local shortcut".
-
 ### Bridge only
 
 ```text
@@ -555,8 +385,7 @@ Der Node darf im LAN stehen oder eine für einige Stunden gemietete Cloud-VM mit
 öffentlicher IPv4-Adresse sein. Für den Cloud-Fall gibt es eine eigene
 Kurzanleitung: [QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md). Dort werden nur
 TCP 44440 und TCP 44441 freigegeben; TCP 44442 gehört nicht dazu. Die
-verbindlichen Grenzen dieses Betriebs stehen in README.md, Abschnitt
-„Known prototype security limitation".
+verbindlichen Grenzen dieses Betriebs stehen in [Einsatzgrenzen](#einsatzgrenzen).
 
 Der Installer zeigt am Ende die aktuell erkannten lokalen IP-Adressen als
 Hinweis an. Diese Adressen werden **nicht** dauerhaft als Konfiguration
@@ -578,7 +407,7 @@ Presentation Node bitte Linux verwenden.
 
 Die Tabelle nennt die unterstützten Plattformen, nicht die veröffentlichten
 Releasepakete: Als fertiges Paket erscheinen derzeit Linux amd64 und
-Windows x64. Raspberry Pi OS auf ARM wird über den Source-Weg installiert.
+Windows x64. Für Raspberry Pi OS auf ARM ist der [Entwicklerweg](DEVELOPMENT.md#installation-aus-dem-quellcode) erforderlich.
 
 ## 5. Verzeichnisse
 
@@ -603,6 +432,7 @@ C:\Program Files\WinLaufen Web\runtime\    gebündelte Java-Runtime, falls die Q
 C:\ProgramData\WinLaufen Web\
     bridge.properties                      Veranstalter-Konfiguration
     live-server.properties                 technische Live-Server-Parameter
+    startlist.properties                   importierte Startliste (nach Import)
 ```
 
 ### Wettkampf-Zeitzone
@@ -646,15 +476,13 @@ trotzdem, verwendet wieder `Europe/Berlin` und zeigt in Bridge Control eine
 Warnung mit dem falschen Wert und beiden Konfigurationspfaden. Es wird **nicht**
 auf die Zeitzone des Rechners zurückgefallen.
 
-Es gibt **keine NTP- und keine Internetpflicht**: Sprecher-Web funktioniert
-vollständig in einem vom Internet getrennten Netz. Die API meldet dann bei den
-Zeitmessungen `UNVERIFIED`, was kein Fehlerzustand ist. Details:
+Sprecher-Web funktioniert auch ohne Internet oder eingerichteten Zeitserver.
+Die Bedeutung für externe Anwendungen beschreibt das [Zeitmodell](API.md#5-zeitmodell).
+Weitere Details:
 [API.md](API.md#5-zeitmodell).
 
 `startlist.properties` entsteht erst beim ersten erfolgreichen
-Startlistenimport in Bridge Control. Die Bridge schreibt sie über eine
-temporäre Datei im selben Verzeichnis und ersetzt sie dann in einem Zug, damit
-nie ein halb geschriebener Stand gelesen wird. Der Installer legt diese Datei
+Startlistenimport in Bridge Control. Der Installer legt diese Datei
 nicht an und fasst sie nicht an; sie überlebt jedes Upgrade.
 
 Der Live Server hält weder den Wettkampfstand noch die Startliste auf Platte.
@@ -723,8 +551,8 @@ Start-ScheduledTask   -TaskName 'WinLaufen Web Bridge'
 |---|---|---|---|
 | Bridge | WinLaufen-PC | TCP 4444 | WinLaufen Sprecher-PC-Protokoll |
 | Viewer | Live Server | TCP 44440 | Web View / Public HTTP / API |
-| Browser | Live Server | TCP 44441 | Live WebSocket auf `/live/v1` |
-| Bridge | Live Server | TCP 44441 | authentifizierter Bridge-Ingest auf `/bridge/v1/channels/<channel>` |
+| Browser | Live Server | TCP 44441 | Live-Aktualisierung im Browser |
+| Bridge | Live Server | TCP 44441 | Datenübertragung der Bridge |
 | Admin | Bridge | TCP 44442 | Bridge Control |
 
 Welche Endpunkte auf welchem Port liegen — HTTP wie WebSocket —, steht
@@ -760,10 +588,10 @@ erzwingt sie auch im Testmodus.
 
 Der bekannte Prototyp-Ingest-Secret bleibt eine Sicherheitsbegrenzung. Port
 44441 darf nicht unkontrolliert ins Internet weitergeleitet werden; Details
-stehen in README.md unter „Known prototype security limitation".
+stehen in [Einsatzgrenzen](#einsatzgrenzen).
 
 TCP 44442 ist der Administrationsport der Bridge. Bridge Control besitzt in
-v0.1 bewusst keine Benutzer- oder Login-Authentifizierung. Jeder Teilnehmer im
+dieser Prototypversion bewusst keine Benutzer- oder Login-Authentifizierung. Jeder Teilnehmer im
 erreichbaren Netz kann die Oberfläche grundsätzlich öffnen und Konfigurationen
 ändern. Der Port gehört daher nur in ein vertrauenswürdiges LAN, nicht in ein
 Gäste-WLAN, hinter eine unkontrollierte Portweiterleitung oder direkt ins
@@ -842,7 +670,25 @@ Browseradressen, Statusanzeigen, Verhalten bei Ausfällen — steht im
 Für einen zusätzlichen Live-Server im Internet siehe
 [QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md).
 
+### Fehlerdiagnose
+
+| Beobachtung | Prüfung und nächster Schritt |
+|---|---|
+| PowerShell findet den Installer nicht | Im Explorer den entpackten Ordner mit `installer`, `lib`, `runtime` öffnen und den Pfad wie in Abschnitt 1.2 erneut übernehmen. |
+| `PSSecurityException` | Skriptausführung im selben Fenster wie in Abschnitt 1.2 freigeben. Erzwingt eine Organisationsrichtlinie die Sperre, muss die zuständige Administration helfen. |
+| Fehlende Administratorrechte | Windows PowerShell ausdrücklich über „Als Administrator ausführen“ starten. |
+| Ein Port ist belegt | Genannten Prozess/Dienst prüfen; keinen fremden Dienst ungeprüft beenden. Sprecher-Web wechselt nicht selbst auf andere Ports. |
+| Dienste starten nicht | Unter Linux `journalctl -u winlaufen-bridge -u winlaufen-live-server` prüfen; unter Windows Aufgabenstatus aus Abschnitt 6.2 und Installerfehlermeldung prüfen. |
+| Lokal erreichbar, aus dem WLAN nicht | Adressen, Routing und Firewall prüfen. Unter Windows gelten Freigaben nur für Privat/Domäne; nur ein tatsächlich vertrauenswürdiges Veranstaltungsnetz als Privat einstufen. |
+| Installation erfolgreich, Quelle oder Ziel nicht verbunden | Adresse in Bridge Control, WinLaufen-Sprecher-PC-Funktion und Netzwerkfreigaben prüfen; Bedienablauf im Handbuch. |
+
 ## 9. Deinstallation
+
+Öffnen Sie das entpackte Releasepaket wie in Abschnitt 1 beschrieben. Unter
+Windows benötigen Sie wieder eine PowerShell mit Administratorrechten und
+die Freigabe der Skriptausführung. Wählen Sie jeweils **einen** der Befehle:
+Ohne Löschoption bleiben Ihre Einstellungen und die Startliste erhalten,
+mit `--purge` bzw. `-Purge` werden sie ebenfalls gelöscht.
 
 Linux:
 
@@ -880,11 +726,113 @@ Stelle: im entpackten Releasepaket unter `installer/` und im Checkout ebenso.
   Konfiguration.
 * Er erzeugt **kein** eigenes Ingest-Secret. Es bleibt beim dokumentierten
   Prototyp-Default, damit Bridge und Presentation Node auf getrennten Rechnern
-  ohne zusätzlichen Abgleich zusammenarbeiten. Siehe README.md, Abschnitt
-  „Known prototype security limitation".
+  ohne zusätzlichen Abgleich zusammenarbeiten. Siehe [Einsatzgrenzen](#einsatzgrenzen).
 
 ## 11. Installationsstatus
 
-Der aktuelle Abnahmestand steht in der [README](../README.md#projektstatus);
+Der aktuelle Abnahmestand steht im [technischen Projektstatus](STATUS.md);
 die manuellen Abnahmetests und ihre protokollierten Nachweise in
 [SMOKE_TESTS.md](SMOKE_TESTS.md).
+
+## Einsatzgrenzen
+
+**Diese Einschränkungen sind bekannt, bewusst akzeptiert und noch nicht behoben.**
+
+### Bridge Control auf TCP 44442 hat keine Anmeldung
+
+Diese Oberfläche besitzt bewusst keine Benutzer- oder Login-Authentifizierung.
+Wer den Port erreicht, kann Bridge Control öffnen und die Konfiguration ändern —
+WinLaufen-Quelle, Output Targets und die öffentliche Darstellung. Target-Secrets
+gibt die Control-API nicht aus; das ersetzt jedoch keine Zugriffsbeschränkung.
+44442 darf deshalb nur in einem vertrauenswürdigen LAN erreichbar sein: nicht im
+Gäste-WLAN, nicht über unkontrollierte Portweiterleitungen, nicht direkt aus dem
+Internet.
+
+### Die Read API ist unauthentifiziert und zeigt Teilnehmerdaten
+
+Die Read API auf TCP 44440 ist **read-only** — niemand kann darüber etwas
+ändern. Das sagt aber nichts darüber, wer sie **lesen** darf, und
+die Schnittstelle liefert reale Teilnehmerdaten: Vorname, Nachname,
+Jahrgang, Verein, Verband, Nation, Startnummer, Klasse, Startzeit und Strecke.
+
+Das ist ein vollständiger Teilnehmerbestand, nicht nur der öffentlich angezeigte
+Wettkampfstand — auf demselben unauthentifizierten Port wie der Web Viewer. Port
+44440 gehört deshalb nur in Netze oder hinter Zugänge, in denen diese Daten
+gelesen werden dürfen. Wer einen Presentation Node öffentlich betreibt,
+veröffentlicht damit auch die Startliste.
+
+### Der Bridge-Ingest verwendet ein bekanntes Secret
+
+Der Ingest des Live Servers ist authentifiziert, verwendet aber weiterhin ein
+**bekanntes Development-Secret**
+(`local-development-secret`), solange `winlaufen.live.secret` nicht gesetzt ist.
+Der Live Server bindet seinen WebSocket-Port standardmäßig auf `0.0.0.0`, und
+auch der Installer erzeugt bewusst kein eigenes Secret.
+
+**Jeder Teilnehmer, der den Ingest-WebSocket auf Port 44441 erreichen kann und
+das bekannte Secret kennt, kann sich gegenüber dem Live Server als Bridge
+ausgeben.** Er kann damit den kompletten veröffentlichten Stand ersetzen und
+insbesondere fälschen:
+
+- Wettkampfdaten und Wettkampfstruktur,
+- die angezeigte Uhrzeit,
+- Ergebnisse und Ranglisten,
+- Klassenstände und Current-Finish-Markierung,
+- öffentliche WinLaufen-Nachrichten.
+
+Gefälschte Daten werden angenommen, bestätigt und sofort an **alle** verbundenen
+Browser ausgeliefert. Die echte Bridge bemerkt das nicht.
+
+### Verbindliche Einsatzgrenzen dieser Prototypversion
+
+Es werden drei Betriebsarten unterschieden. Sie haben unterschiedliche Grenzen.
+
+**1. Kontrolliertes LAN — der Normalfall**
+
+- Einsatz in kontrollierten Vereins- bzw. Veranstaltungsnetzen.
+- Bridge und Live Server sind nur im vertrauenswürdigen Netz erreichbar.
+- Kein Betrieb in offenen Gäste-WLANs oder gemeinsam genutzten Netzen.
+- **Keine Portweiterleitung** der LAN-Installation ins öffentliche Internet.
+- Die Windows-Firewallregeln bleiben bewusst auf Private und Domain beschränkt.
+
+**2. Temporärer Selfhost-Presentation-Node mit öffentlicher IPv4**
+
+Ein Verein mietet für einige Stunden eine Cloud-VM, installiert dort das Profil
+Presentation Node und verbindet die eigene Bridge über die öffentliche
+IP-Adresse. Das ist ausdrücklich vorgesehen — siehe
+[QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md) — und unterliegt diesen
+Grenzen:
+
+- Öffentlich freigegeben werden **nur** TCP 44440 (Web View) und TCP 44441
+  (Bridge-Ingest) **des gemieteten Nodes**.
+- **TCP 44442 gehört dort nicht hin.** Bridge Control hat keine Anmeldung und
+  darf niemals öffentlich erreichbar sein — weder auf dem Node noch über eine
+  Portweiterleitung zur Bridge im Vereinsnetz.
+- Die Bridge im Vereinsnetz bleibt unverändert unerreichbar von außen; sie
+  verbindet ausgehend.
+- Die Übertragung ist **unverschlüsselt**. Mitgelesen werden können deshalb
+  sowohl die übertragenen Daten als auch der **Verbindungsschlüssel**.
+- Wer den Verbindungsschlüssel kennt oder mitliest und 44441 erreicht, kann
+  unerwünschte Daten einspeisen und damit den kompletten veröffentlichten Stand
+  ersetzen (siehe oben). Solange der bekannte Standardschlüssel aktiv ist,
+  genügt dafür die Kenntnis der IP-Adresse.
+- Für einen temporären Selfhost-/Testserver ist dieser bewusst einfache Betrieb
+  vertretbar. Für einen dauerhaften oder zentral betriebenen Dienst ist
+  verschlüsselte Übertragung vorgesehen (siehe Punkt 3).
+- Deshalb: nur für die Dauer der Veranstaltung betreiben, danach die VM
+  **abschalten oder löschen**, und wo möglich `winlaufen.live.secret` auf dem
+  Node und den Verbindungsschlüssel des Targets in Bridge Control auf einen
+  eigenen Wert setzen.
+- Keine Eignung für Anmeldungen oder vertrauliche Daten. Auch die vollständige
+  importierte Startliste wird öffentlich lesbar. Importieren Sie hier nur
+  Teilnehmerdaten, die für diese Veröffentlichung vorgesehen sind; das Ausblenden
+  von Spalten in der Browseransicht beschränkt den Schnittstellenzugriff nicht.
+
+**3. Dauerhafter abgesicherter WAN-Betrieb**
+
+Für produktiven Dauerbetrieb über WAN
+sind **WSS mit gültigem Zertifikat sowie individuell provisionierte Secrets pro
+Target** erforderlich. Das ist bewusst nicht Teil dieser Prototype Baseline und
+bleibt ein offenes Production-Hardening-Thema.
+
+Der Live Server weist beim Start ausdrücklich auf das aktive Default-Secret hin.

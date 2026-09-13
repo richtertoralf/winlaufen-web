@@ -1,5 +1,8 @@
 # Sprecher-Web — Release-Prozess
 
+Zielgruppe: Entwickler und Integratoren sowie Maintainer.
+[Dokumentationsübersicht](INDEX.md) · [Schnittstellenreferenz](API.md).
+
 Aktuelle Version: `0.4.2`.
 
 Ein Release wird ausschließlich aus einem Git-Tag im Format `vX.Y.Z` gebaut.
@@ -51,8 +54,8 @@ den Tag statt der Commit-ID liefert.
    ```
 
 2. Die Version-Badge oben in `README.md` auf `X.Y.Z` setzen und die
-   Versionsangaben in `README.md` (Statuszeile, Abschnitt Projektstatus) sowie
-   in diesem Dokument nachziehen:
+   Versionsangaben in `README.md` (Projektstatus und Lizenz),
+   `docs/STATUS.md` sowie in diesem Dokument nachziehen:
 
    ```text
    ![Version](https://img.shields.io/badge/version-X.Y.Z-blue)
@@ -79,6 +82,25 @@ Linux amd64 und Windows x64 werden auf den jeweiligen GitHub-Runnern separat
 gebaut. Beide Distributionen verwenden die vorhandenen `build-dist`-Skripte
 und enthalten eine plattformspezifische `jlink`-Runtime. Erst wenn beide Pakete
 erfolgreich vorliegen, erzeugt der Workflow `SHA256SUMS` und das GitHub Release.
+
+## Lokale Distribution erzeugen
+
+Nach dem [Quellcode-Build](DEVELOPMENT.md#aus-dem-quellcode-bauen) kann eine
+Distribution mit gebündelter Java-Runtime erstellt werden:
+
+```sh
+./installer/common/build-dist.sh --with-runtime
+```
+
+```powershell
+.\installer\common\build-dist.ps1 -WithRuntime
+```
+
+Die Skripte bauen mit dem Maven Wrapper und schreiben standardmäßig nach
+`dist/`. `--skip-build` bzw. `-SkipBuild` verwendet bereits gebaute Artefakte.
+Die Runtime entsteht mit `jlink` für das System, auf dem gebaut wird;
+ein Cross-Build wird nicht vorgenommen. Ohne die Runtime-Option benötigt
+der Zielrechner System-Java ≥ 25. Veröffentlichte Pakete enthalten die Runtime.
 
 ## Erzeugte Artefakte
 

@@ -3,12 +3,13 @@
 **Live-Ergebnisse aus WinLaufen**
 
 Diese Anleitung richtet sich an Vereine und Veranstalter. Sie führt von der
-Installation über die Einrichtung bis zum Betrieb an einem Wettkampftag. Sie
+Einrichtung bis zum Betrieb an einem Wettkampftag; die Installation ist verlinkt. Sie
 brauchen dafür keine Programmierkenntnisse und müssen keine Architektur- oder
 Entwicklerdokumente lesen.
 
-Wer die technischen Hintergründe sucht, findet sie in
-[INSTALLATION.md](INSTALLATION.md) und [DEVELOPMENT.md](DEVELOPMENT.md).
+Für Installation, Updates und technische Störungen verwenden Sie
+[INSTALLATION.md](INSTALLATION.md). Alle Zielgruppen finden ihren Einstieg in der
+[Dokumentationsübersicht](INDEX.md).
 
 ---
 
@@ -75,273 +76,38 @@ Sie bedienen zwei Oberflächen:
 
 ### Für einen Linux-Rechner
 
-* Debian, Ubuntu 24.04 LTS, Ubuntu 26.04 LTS oder Raspberry Pi OS
+WinLaufen bleibt auf dem Windows-PC. Für Sprecher-Web auf einem separaten
+Linux-PC benötigen Sie eines der [unterstützten Systeme](INSTALLATION.md#unterstützte-plattformen).
+Fertige Pakete gibt es für Windows x64 und Linux amd64; die benötigte
+Java-Umgebung ist enthalten. Für Raspberry Pi gibt es noch kein fertiges Paket.
 
-Andere Distributionen werden vom Installer nicht abgelehnt, aber als nicht
-getestet gemeldet.
-
-### Kein Java, kein Git — wenn Sie das Releasepaket nehmen
-
-Es gibt **zwei Wege**, Sprecher-Web zu installieren. Für Veranstalter ist nur
-der erste gedacht:
-
-| Weg | Für wen | Was Sie brauchen |
-|---|---|---|
-| **Releasepaket** herunterladen und entpacken | **Sie als Veranstalter** | nur einen Browser zum Herunterladen |
-| **Quellcode** holen und selbst bauen | Entwickler | zusätzlich Git und JDK 25 |
-
-Ein **Releasepaket** ist eine fertig gebaute Version zum Herunterladen. Es
-enthält bereits das fertige Programm **und** die passende Java-Umgebung, es
-muss also nichts übersetzt und kein Java installiert werden. Die Pakete liegen
-unter
-[github.com/richtertoralf/winlaufen-web/releases](https://github.com/richtertoralf/winlaufen-web/releases):
-
-* Windows: `winlaufen-web-<version>-windows-x64.zip`
-* Linux: `winlaufen-web-<version>-linux-amd64.tar.gz`
-
-Für einen **Raspberry Pi** gibt es noch kein fertiges Paket; dort ist derzeit
-der Weg über den Quellcode nötig.
-
-Dieses Handbuch beschreibt in den Kapiteln 4 und 5 zuerst den Weg über das
-Releasepaket und nennt den Entwicklerweg jeweils darunter als Alternative.
 
 ---
 
 ## 3. Welche Installation passt zu Ihnen?
 
-Bei der Installation wählen Sie genau **eine** Sache: die Rolle des Rechners.
-Adressen und Ziele tragen Sie erst danach in Bridge Control ein. Sie können
-einen Rechner deshalb schon Tage vor der Veranstaltung fertig einrichten.
-
-| | Profil | Wann Sie es wählen |
-|---|---|---|
-| **[1]** | **All-in-One** | **Der Normalfall.** Alles auf einem Rechner — am einfachsten direkt auf dem PC, auf dem WinLaufen läuft. |
-| **[2]** | **Bridge only** | Nur, wenn die Ergebnisanzeige bewusst auf einem anderen Rechner laufen soll. |
-| **[3]** | **Presentation Node** | Nur Ergebnisanzeige, ohne WinLaufen-Anbindung — typisch ein gemieteter Server im Internet. **Nur unter Linux.** |
-
-### Empfohlener Einstieg: All-in-One auf dem WinLaufen-PC
-
-```text
-Windows-PC
-├─ WinLaufen
-└─ Sprecher-Web (All-in-One)
-        │
-        ▼  http://<IP-des-PCs>:44440/
-   Notebooks, Tablets, Smartphones im WLAN
-```
-
-Vorteile: eine einzige Installation, keine zusätzliche Hardware, sofort
-testbar, und die Zuschauergeräte im Veranstaltungsnetz sehen die Ergebnisse.
-
-### Variante: WinLaufen auf einem anderen Rechner
-
-Sprecher-Web muss **nicht** auf dem WinLaufen-PC laufen. Sie können All-in-One
-auch auf einem anderen Rechner im selben Netz installieren und dort in Bridge
-Control die Adresse des WinLaufen-PCs eintragen. Sprecher-Web verbindet sich
-dann über TCP 4444 dorthin.
-
-### Variante: zusätzlicher Server im Internet
-
-Zusätzlich zum lokalen Betrieb können Sie einen **Presentation Node** auf einem
-gemieteten Ubuntu-Server betreiben, damit auch Zuschauer außerhalb des
-Veranstaltungsnetzes mitlesen können. Siehe Kapitel 12.
-
----
+Für die meisten Vereine passt **All-in-One auf dem WinLaufen-PC**.
+All-in-One kann auch auf einem separaten Rechner im selben Netz laufen.
+Die [Variantenübersicht](../README.md#welche-variante-brauche-ich) hilft bei der
+Auswahl; die [Installationsprofile](INSTALLATION.md#4-installationsprofile)
+beschreiben die Rollen für technisch versierte Anwender.
 
 ## 4. Windows: All-in-One installieren
 
-### Schritt 1 — Releasepaket herunterladen und entpacken
+Folgen Sie der [Windows-Installationsanleitung](INSTALLATION.md#12-windows-11).
+Sie erklärt den gesamten Weg vom Download über das Entpacken und Kopieren
+des Ordnerpfads bis zum Starten des Installers mit Administratorrechten.
+Wählen Sie **AllInOne**. Danach geht es hier mit Kapitel 6 weiter.
 
-Öffnen Sie im Browser
-[github.com/richtertoralf/winlaufen-web/releases](https://github.com/richtertoralf/winlaufen-web/releases)
-und laden Sie beim obersten Eintrag die Datei
-
-```text
-winlaufen-web-<version>-windows-x64.zip
-```
-
-herunter. Entpacken Sie die ZIP-Datei, zum Beispiel im Ordner „Downloads".
-Dabei entsteht ein Ordner mit demselben Namen.
-
-Es ist **kein** Setup-Programm im gewohnten Sinn: Sprecher-Web bringt heute
-noch keinen `.exe`-Installer mit. Die Installation erfolgt gleich mit einem
-mitgelieferten PowerShell-Skript.
-
-Sie müssen dafür **weder Git noch Java installieren**: Die passende
-Java-Umgebung liegt im Paket, und Git wird nur für den Entwicklerweg gebraucht.
-
-### Schritt 2 — Alternative: aus dem Quellcode bauen
-
-Diesen Schritt brauchen Sie **nur**, wenn Sie bewusst einen
-Entwicklungsstand testen wollen. Sonst weiter mit Schritt 3.
-
-```powershell
-winget install --id Git.Git --exact --source winget
-winget install --id Microsoft.OpenJDK.25 --exact --source winget
-```
-
-Danach **PowerShell schließen und neu öffnen**, damit die geänderten
-Umgebungsvariablen wirksam werden. Anschließend prüfen:
-
-```powershell
-git --version
-java -version
-javac -version
-```
-
-```powershell
-git clone https://github.com/richtertoralf/winlaufen-web.git
-Set-Location winlaufen-web
-.\mvnw.cmd clean package
-```
-
-Der erste Build lädt einmalig Abhängigkeiten aus dem Internet und dauert
-einige Minuten. Am Ende muss `BUILD SUCCESS` stehen. Dieser Weg installiert
-den aktuellen Entwicklungsstand — nicht unbedingt eine veröffentlichte
-Version.
-
-### Schritt 3 — WinLaufen-Verbindung trennen
-
-> ### ⚠ Vor der Installation unbedingt ausführen
->
-> Trennen Sie in WinLaufen die Sprecher-PC-Verbindung:
->
-> **WinLaufen → Abwicklung → Sprecher-PC… → Trennen**
->
-> **WinLaufen selbst müssen Sie nicht beenden** — nur die Verbindung trennen.
->
-> Das gilt für die Profile **All-in-One** und **Bridge only**, weil dort die
-> Bridge installiert oder ersetzt wird. Für einen **Presentation Node** ist es
-> nicht nötig.
-
-### Schritt 4 — Installer als Administrator ausführen
-
-PowerShell über das Startmenü mit **„Als Administrator ausführen"** neu
-starten und in den entpackten Ordner wechseln — beim Releasepaket ist das der
-Ordner aus Schritt 1, beim Quellcode-Weg das Repository:
-
-```powershell
-Set-Location $HOME\Downloads\winlaufen-web-<version>-windows-x64
-```
-
-**Skriptausführung für dieses Fenster erlauben.** Windows blockiert das
-Ausführen von PowerShell-Skripten standardmäßig. Ohne diesen Schritt bricht
-der Installer mit einer Meldung wie *„Die Datei … kann nicht geladen werden, da
-die Ausführung von Skripts auf diesem System deaktiviert ist"*
-(`PSSecurityException`) ab.
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-```
-
-Das gilt **nur für dieses eine PowerShell-Fenster**. Sobald Sie es schließen,
-gilt wieder die vorherige Einstellung Ihres Systems. Es wird keine dauerhafte
-systemweite Richtlinie geändert. Sie brauchen die Einstellung bei jeder
-Installation erneut — das ist beabsichtigt.
-
-Danach den Installer starten:
-
-```powershell
-.\installer\windows\Install-WinLaufenWeb.ps1
-```
-
-Alternativ als einmaliger Aufruf ohne vorherige Umstellung, falls Ihnen das
-lieber ist:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\installer\windows\Install-WinLaufenWeb.ps1"
-```
-
-Der Installer fragt nur nach dem Profil. Wählen Sie **[1] All-in-One**. Er
-fragt **keine** IP-Adresse, keinen Hostnamen und keine Internetadresse ab —
-das kommt später in Bridge Control.
-
-> **Nur bei Version 0.4.0:** Dort erschienen deutsche Umlaute des Installers in
-> der Windows-PowerShell verstümmelt, zum Beispiel „lÃ¤uft" statt „läuft". Das
-> war eine reine Anzeigefrage — Installation, Dienste und Konfiguration waren
-> nicht betroffen. **Ab 0.4.1 behoben.** Eine Konfigurationsdatei, die damals
-> angelegt wurde, behält ihre verstümmelten Kommentare; das Upgrade lässt sie
-> bewusst unangetastet und ändert nichts an der Funktion.
-
-### Schritt 5 — WinLaufen wieder verbinden
-
-Nach erfolgreicher Installation in WinLaufen:
-
-**WinLaufen → Abwicklung → Sprecher-PC… → Verbinden**
-
-### Was der Installer eingerichtet hat
-
-Bridge und Live Server laufen als **geplante Aufgaben** mit dem Trigger „Beim
-Systemstart". Sie starten nach einem Neustart automatisch, ohne dass sich
-jemand anmelden muss und ohne offenes Konsolenfenster.
-
-Die Windows-Firewall wird für die Netzwerkprofile **Privat** und **Domäne**
-freigegeben, bewusst **nicht** für **Öffentlich**. Falls Ihr Veranstaltungs-WLAN
-als „Öffentliches Netzwerk" eingestuft ist, erreichen die Zuschauergeräte den
-PC nicht — stellen Sie das Netzwerk in den Windows-Einstellungen auf „Privates
-Netzwerk" um.
-
-### Upgrade auf eine neuere Version
-
-Genau derselbe Ablauf wie die Installation, mit demselben Profil.
-
-* **Releasepaket:** neues ZIP herunterladen, entpacken, Verbindung trennen
-  (Schritt 3), Installer aus dem **neuen** Ordner ausführen, Verbindung wieder
-  herstellen.
-* **Quellcode:** Verbindung trennen, `git pull --ff-only`,
-  `.\mvnw.cmd clean package`, Installer erneut ausführen, Verbindung wieder
-  herstellen.
-
-Ihre Konfiguration bleibt in beiden Fällen erhalten — ebenso die importierte
-Startliste. Bleiben Sie bei dem Weg, mit dem Sie installiert haben.
-
----
+Für eine neuere Version folgen Sie dem [Upgrade-Ablauf](INSTALLATION.md#3-upgrade).
+Sprecher-Web startet nach erfolgreicher Installation automatisch mit Windows.
 
 ## 5. Linux: All-in-One oder Bridge only installieren
 
-**Mit dem Releasepaket — der normale Weg.** Von der
-[Releases-Seite](https://github.com/richtertoralf/winlaufen-web/releases) das
-Archiv `winlaufen-web-<version>-linux-amd64.tar.gz` herunterladen, dann:
-
-```sh
-tar -xzf winlaufen-web-<version>-linux-amd64.tar.gz
-cd winlaufen-web-<version>-linux-amd64
-sudo ./installer/linux/install.sh
-```
-
-Git, Maven und Java müssen dafür nicht installiert sein; die Java-Umgebung
-liegt im Paket. Für ein Upgrade laden Sie später einfach das neue Paket
-herunter und führen den Installer daraus erneut mit demselben Profil aus.
-
-**Aus dem Quellcode — nur für Entwicklungsstände.**
-
-```sh
-sudo apt install git openjdk-25-jdk
-git clone https://github.com/richtertoralf/winlaufen-web.git
-cd winlaufen-web
-./mvnw clean package
-sudo ./installer/linux/install.sh
-```
-
-Auf einem Raspberry Pi ist dies derzeit der einzige Weg, weil noch kein
-ARM-Paket veröffentlicht wird.
-
-> Auch hier gilt: Läuft WinLaufen bereits und ist die Sprecher-PC-Verbindung
-> aktiv, vorher **WinLaufen → Abwicklung → Sprecher-PC… → Trennen** und nach der
-> Installation wieder **Verbinden**.
-
-Der Installer fragt nach dem Profil. Bridge und Live Server laufen anschließend
-als `systemd`-Dienste und starten nach einem Neustart automatisch:
-
-```sh
-systemctl status winlaufen-bridge
-systemctl status winlaufen-live-server
-```
-
-Der Linux-Installer verändert **keine** Firewall. Er nennt nur die Ports, die
-Sie gegebenenfalls selbst freigeben müssen.
-
----
+Folgen Sie der [Linux-Installationsanleitung](INSTALLATION.md#11-linux).
+Wählen Sie **all-in-one**, wenn dieser Rechner auch die Ergebnisseite
+bereitstellen soll, oder **bridge-only**, wenn bereits ein separater
+Live-Server vorgesehen ist. Danach geht es hier mit Kapitel 6 weiter.
 
 ## 6. WinLaufen verbinden
 
@@ -593,9 +359,9 @@ hält und dass Sie nichts von Hand nachstarten müssen.
 | **Der ganze Server-Rechner startet neu** | nach wenigen Sekunden roter Hinweis | Sobald der Rechner zurück ist, verbindet der Browser von selbst. Kein Reload nötig. |
 | **WinLaufen wird getrennt** | kein roter Hinweis, Status `STALE`/`DISCONNECTED`, Wettkampfzeit steht | Ergebnisse bleiben sichtbar. Nach **Verbinden** in WinLaufen läuft alles von selbst weiter. |
 | **Sprecher-Web-Bridge hält an oder startet neu** | Status `DISCONNECTED`, Wettkampfzeit steht, Ergebnisse bleiben sichtbar | Nach dem Neustart läuft die Wettkampfzeit wieder. Die bisherigen Ergebnisse bleiben stehen, bis WinLaufen den nächsten Ergebnisstand liefert. |
-| **Der Browser wird geschlossen** | — | Nichts. Andere Browser und die Aufzeichnung laufen unverändert weiter. |
+| **Der Browser wird geschlossen** | — | Nichts. Andere Browser und WinLaufen laufen unverändert weiter. |
 
-Der letzte Fall verdient eine Erklärung: Nach einem Neustart der Bridge kennt
+Der Neustart der Bridge verdient eine Erklärung: Nach einem Neustart der Bridge kennt
 Sprecher-Web zuerst nur die Wettkampfzeit wieder, noch nicht die Ergebnisliste
 — WinLaufen sendet Ergebnisse nur, wenn sich etwas ändert. Die zuletzt
 bekannten Ergebnisse bleiben deshalb bewusst stehen, bis der nächste
@@ -605,41 +371,14 @@ Zieleinlauf sie ersetzt.
 
 ## 12. Zusätzlicher Live-Server im Internet
 
-Wenn auch Zuschauer außerhalb des Veranstaltungsnetzes mitlesen sollen, können
-Sie zusätzlich einen kleinen Server im Internet betreiben — typischerweise für
-die Dauer der Veranstaltung gemietet.
+Ein temporärer Internetserver kann die Ergebnisse auch Zuschauern außerhalb
+des Veranstaltungsnetzes zugänglich machen. Das erfordert Netzwerkkenntnisse.
+Die vollständige Einrichtung steht ausschließlich in der
+[Cloud-Kurzanleitung](QUICKSTART_CLOUD.md).
 
-```text
-WinLaufen-PC ──► Sprecher-Web Bridge ──► gemieteter Server ──► Zuschauer weltweit
-   (Ihr Netz)         (Ihr Netz)          (öffentliche IPv4)
-```
+Dabei sind auch importierte Teilnehmerdaten öffentlich lesbar. Vor dem Einsatz
+müssen die [Einsatzgrenzen](INSTALLATION.md#einsatzgrenzen) geprüft werden.
 
-Sie brauchen dafür **keine eigene Domain**. Die öffentliche IPv4-Adresse
-genügt.
-
-Kurz zusammengefasst:
-
-1. Ubuntu-Server mieten, dort Sprecher-Web mit Profil **[3] Presentation Node**
-   installieren.
-2. In der Firewall des Anbieters **TCP 44440** und **TCP 44441** freigeben.
-   **TCP 44442 gehört dort nicht hin.**
-3. In Bridge Control auf Ihrem Rechner unter „Weitere Übertragung" die
-   **IP-Adresse** des gemieteten Servers eintragen und speichern.
-4. Die Adresse `http://<öffentliche-IP>:44440/` an die Zuschauer weitergeben.
-5. Nach der Veranstaltung den Server abschalten oder löschen.
-
-Die vollständige Schritt-für-Schritt-Anleitung steht in
-[QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md).
-
-> **Was Sie dabei wissen müssen:** In diesem bewusst einfachen Betrieb ist die
-> Übertragung unverschlüsselt. Mitgelesen werden können deshalb sowohl die
-> übertragenen Daten als auch der Verbindungsschlüssel — und wer den
-> Verbindungsschlüssel kennt oder mitliest, kann unter Umständen unerwünschte
-> Daten einspeisen. Für einen temporären Selfhost- oder Testserver an einem
-> Wettkampftag ist dieser einfache Betrieb vertretbar. Für einen dauerhaften
-> oder zentral betriebenen Dienst ist verschlüsselte Übertragung vorgesehen.
-> Die verbindlichen Grenzen stehen in der
-> [README](../README.md#known-prototype-security-limitation).
 
 ---
 
@@ -678,10 +417,10 @@ Netzwerkstörungen.
 
 | Beobachtung | Wahrscheinliche Ursache |
 |---|---|
-| Installer bricht mit `PSSecurityException` ab | `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` im selben Fenster vergessen (Kapitel 4). |
+| Installer bricht mit `PSSecurityException` ab | [Skriptausführung prüfen](INSTALLATION.md#installer-starten). |
 | Installer meldet fehlende Administratorrechte | PowerShell nicht über „Als Administrator ausführen" gestartet. |
 | Bridge Control zeigt dauerhaft „Nicht verbunden" | In WinLaufen fehlt **Abwicklung → Sprecher-PC… → Verbinden**, oder die eingetragene Adresse des WinLaufen-PCs stimmt nicht. |
-| Ergebnisseite lokal erreichbar, aus dem WLAN nicht | Windows-Netzwerkprofil steht auf „Öffentlich". Auf „Privat" umstellen. |
+| Ergebnisseite lokal erreichbar, aus dem WLAN nicht | Netzwerkprofil oder Firewall prüfen; nur ein vertrauenswürdiges Netz als „Privat“ einstufen. [Netzwerkhilfe](INSTALLATION.md#fehlerdiagnose). |
 | Zeit läuft, aber keine Ergebnisse | WinLaufen hat noch keinen Ergebnisstand gesendet. Erscheint mit dem ersten Zieleinlauf. |
 | Wettkampfzeit steht still, Status `CONNECTED` | Sollte nicht auftreten. Ergebnisseite einmal neu laden und den Zustand melden. |
 | Seite zeigt roten Verbindungshinweis | Der Browser erreicht den Live-Server nicht. Nichts tun — die Seite verbindet selbst neu. |
@@ -706,46 +445,19 @@ Sie als Betreiber wichtig:
   Ausnahme des temporären Servers aus Kapitel 12.
 
 Die vollständigen und verbindlichen Einsatzgrenzen stehen in der
-[README](../README.md#known-prototype-security-limitation).
+[Installationsreferenz](INSTALLATION.md#einsatzgrenzen).
 
 ---
 
 ## Andere Systeme anbinden
 
-Sprecher-Web kann seinen aktuellen Stand zusätzlich **maschinenlesbar**
-bereitstellen, damit andere Anwendungen ihn verwenden können — zum Beispiel eine
-Grafikeinblendung im Livestream. Für Sie als Veranstalter ändert sich dadurch
-nichts: Sie müssen nichts einschalten und nichts einstellen.
+Die dokumentierte Schnittstelle steht zusätzlich zur Browseranzeige bereit.
+Für deren Nutzung wenden sich Entwickler und Integratoren an [API.md](API.md).
 
-**Auch die Wettkampf-Zeitzone müssen Sie nicht einstellen.** Sprecher-Web
-verwendet `Europe/Berlin`; Bridge Control zeigt das im Abschnitt WinLaufen als
-„Standard für WinLaufen" an. Das ist keine Warnung, sondern die normale Anzeige.
-
-Nur wenn Ihre Veranstaltung **in einer anderen Zeitzone** stattfindet, tragen Sie
-diese einmalig in der Konfigurationsdatei der Bridge ein:
-
-Windows:
-
-```powershell
-notepad "C:\ProgramData\WinLaufen Web\bridge.properties"
-```
-
-Linux:
-
-```sh
-sudo nano /etc/winlaufen-web/bridge.properties
-```
-
-Zeile ergänzen, zum Beispiel:
-
-```properties
-competition.timezone=America/New_York
-```
-
-Danach die Bridge neu starten. Steht dort ein Tippfehler, läuft Sprecher-Web
-weiter, verwendet `Europe/Berlin` und zeigt Ihnen in Bridge Control eine
-Warnung. Einzelheiten stehen in [INSTALLATION.md](INSTALLATION.md) und
-[API.md](API.md).
+Für Veranstaltungen in Deutschland müssen Sie keine Zeitzone einstellen:
+`Europe/Berlin` und die Anzeige „Standard für WinLaufen“ sind der Normalfall.
+Für Veranstaltungen im Ausland beschreibt die
+[Installationsreferenz](INSTALLATION.md#wettkampf-zeitzone) die Einstellung.
 
 ## Protokollanzeige in Bridge Control
 
@@ -767,4 +479,4 @@ Verbraucher erhalten sie nicht.
 | [QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md) | Server im Internet Schritt für Schritt |
 | [INSTALLATION.md](INSTALLATION.md) | technische Installationsreferenz, Pfade, Dienste, Deinstallation |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Build und Entwicklungsbetrieb |
-| [../README.md](../README.md) | Überblick, Projektstatus, Sicherheitshinweise, Lizenz |
+| [../README.md](../README.md) | Produkteinstieg, Varianten, Schnellinstallation, Lizenz |

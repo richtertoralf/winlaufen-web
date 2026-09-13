@@ -1497,9 +1497,9 @@ assert_contains "$repository_root/installer/common/build-dist.ps1" "'mvnw.cmd'" 
 
 echo
 echo "=== Dokumentationsvertrag ==="
-assert_contains "$repository_root/README.md" "./mvnw clean package" \
-    "README dokumentiert den Wrapper-Build"
-assert_contains "$repository_root/docs/INSTALLATION.md" ".\\mvnw.cmd clean package" \
+assert_contains "$repository_root/docs/DEVELOPMENT.md" "./mvnw clean package" \
+    "Entwicklerdokumentation dokumentiert den Wrapper-Build"
+assert_contains "$repository_root/docs/DEVELOPMENT.md" ".\\mvnw.cmd clean package" \
     "Windows-Developer-Build verwendet den Wrapper"
 assert_contains "$repository_root/docs/INSTALLATION.md" \
     "| Bridge | WinLaufen-PC | TCP 4444 |" "Installation dokumentiert TCP 4444 als ausgehendes Ziel"

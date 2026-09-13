@@ -1,5 +1,8 @@
 # Sprecher-Web — Schnittstellenreferenz
 
+Zielgruppe: Entwickler und Integratoren. Dies ist die primäre Referenz für
+HTTP-/WebSocket-Endpunkte und Datenformate. [Dokumentationsübersicht](INDEX.md).
+
 Dieses Dokument beschreibt **alle** öffentlichen und administrativen
 Schnittstellen von Sprecher-Web: die generische Read API des Live Servers für
 externe Consumer, die Browser-Schnittstellen des Web Viewers, den
@@ -955,9 +958,15 @@ Der Laufzeitzustand:
 |---|---|
 | `sourceRevision` | aktuelle Revision des kanonischen Zustands |
 | `sourceHealth` | `CONNECTED`, `STALE` oder `DISCONNECTED` |
+| `protocolVariant` | lokale Erkennung: `UNKNOWN`, `CURRENT` oder `LEGACY`; wird bei jedem neuen Verbindungsversuch zurückgesetzt |
+| `protocolWarning` | bei `LEGACY`: „Legacy-Protokoll erkannt – Update auf WinLaufen 18+ empfohlen.“; sonst `null` |
 | `clock` | zuletzt gemeldete Wettkampfzeit oder `null` |
 | `outputs` | je Ziel: `targetId`, `state`, `lastAckedSourceRevision`, `retryAttempt`, `lastError` |
 | `startList` | `generation`, `source`, `sourceLabel`, `entryCount`, `classCount` |
+
+Die Protokolldiagnose bleibt in Bridge Control. Sie wird nicht an den Live
+Server oder dessen externe Verbraucher übertragen. Erkennung und Evidenz:
+[WINLAUFEN_PROTOCOL.md](WINLAUFEN_PROTOCOL.md).
 
 ### POST /api/v1/config
 
@@ -1056,11 +1065,11 @@ Die Viewer-Ressourcen werden mit `Cache-Control: no-cache` ausgeliefert.
 **Bekannte Prototyp-Einschränkung:** Der Bridge-Ingest verwendet weiterhin ein
 bekanntes Default-Secret, solange keines gesetzt ist. Wer Port 44441 erreicht und
 das Secret kennt, kann sich als Bridge ausgeben und den veröffentlichten Stand
-ersetzen. Verbindliche Einsatzgrenzen: README.md, Abschnitt
-[Known prototype security limitation](../README.md#known-prototype-security-limitation).
+ersetzen. Verbindliche Einsatzgrenzen: [Installation und Administration](INSTALLATION.md#einsatzgrenzen).
 
-Die Read API ist nicht authentifiziert, weil sie auf demselben Port dieselben
-Daten liefert wie der öffentliche Web Viewer.
+Die Read API teilt den unauthentifizierten HTTP-Port mit dem öffentlichen Web
+Viewer. Ihr vollständiger Startlistenbestand geht über die in der
+Browseransicht ausgewählten Spalten hinaus.
 
 ### „Read-only" heißt nicht „beliebig freigeben"
 

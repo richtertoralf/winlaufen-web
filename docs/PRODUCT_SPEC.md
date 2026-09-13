@@ -1,5 +1,8 @@
 # Sprecher-Web — Produktspezifikation
 
+Zielgruppe: Entwickler und Integratoren.
+[Dokumentationsübersicht](INDEX.md) · [Schnittstellenreferenz](API.md).
+
 ## 1. Zweck
 
 Sprecher-Web ist eine kleine, quelloffene Bridge für WinLaufen.
@@ -428,15 +431,9 @@ nicht im Gäste-WLAN, über unkontrollierte Portweiterleitungen oder direkt aus
 dem öffentlichen Internet. Die Control-API gibt Target-Secrets nicht aus; dies
 ersetzt keine Zugriffsbeschränkung auf Netzwerkebene.
 
-HTTP und WebSocket verwenden bewusst unterschiedliche Ports. Eine Seite, die von
-`http://<live-server>:44440` geladen wird, verbindet sich zu
-`ws://<live-server>:44441/live/v1`; ihr Browser-Origin ist damit
-`http://<live-server>:44440`. Der Origin-Hostname bzw. die IP muss dem Host der
-WebSocket-Anfrage entsprechen. Origin-Port 44440 wird für den WebSocket auf Port
-44441 akzeptiert; Gleichheit mit dem WebSocket-Port ist nicht erforderlich.
-Fremde Origins und Anfragen ohne Origin werden abgelehnt. Der Bridge-Ingest
-verwendet den eigenen Pfad `/bridge/v1/channels/<channel>` und
-Bearer-Authentifizierung statt eines Browser-Origins.
+HTTP und WebSocket verwenden unterschiedliche Ports. Browser-Verbindungen und
+Bridge-Ingest haben getrennte Handshake-Regeln; die verbindliche
+Schnittstellenbeschreibung steht in [API.md](API.md).
 
 Klartext-`ws` wird für `localhost` und für Loopback-, Link-Local- und private
 IP-Adressliterale akzeptiert. Ein `SELFHOST`-Target darf zusätzlich per `ws` auf
@@ -452,7 +449,7 @@ Browser-Verbindungen auf eine kleine Nutzlast.
 
 Diese Prototypversion hält ein bekanntes Default-Ingest-Secret funktionsfähig.
 Das konkrete Manipulationsrisiko und die verbindlichen Einsatzgrenzen sind in
-README.md unter „Known prototype security limitation" dokumentiert.
+[INSTALLATION.md, Einsatzgrenzen](INSTALLATION.md#einsatzgrenzen) dokumentiert.
 
 ## 16. Browser-Synchronisation
 
@@ -463,13 +460,12 @@ Der normale Start läuft so ab:
 3. unmittelbar nach der Verbindung einen vollständigen Snapshot erhalten,
 4. Live-Updates empfangen.
 
-`GET /api/v1/state` liefert den vollständigen Initial-/Fallback-State. Jeder
+Die [Read API](API.md#7-get-apiv1state) liefert den vollständigen Initial-/Fallback-State. Jeder
 veröffentlichte State besitzt eine monoton steigende `publicationRevision`;
 Live-WebSocket-Nachrichten sind vollständige autoritative Snapshots.
 
 Derselbe Endpunkt ist zugleich die **generische Read API** für externe
-Consumer, ergänzt um `GET /api/v1/startlist` für den vollständigen
-Startlistenbestand. Beide Antworten führen die aktuelle Wettkampfzeit, deren
+Consumer und stellt auch den vollständigen Startlistenbestand bereit. Beide Antworten führen die aktuelle Wettkampfzeit, deren
 Beobachtungszeitpunkt und den Verbindungsstatus der Kette WinLaufen → Bridge →
 Live Server mit; sie sind read-only und fragen WinLaufen nicht pro Request ab.
 Die API ist bewusst nicht auf einen einzelnen Consumer zugeschnitten und
@@ -489,7 +485,7 @@ bei jeder neuen Verbindung zurück — sonst verwürfe er nach einem Neustart de
 Live Servers jeden neuen Snapshot als veraltet.
 
 Der Live Server sendet Browsern zusätzlich alle 2 s ein zustandsloses
-Lebenszeichen `{"type":"heartbeat"}`. Es ist das einzige Signal, an dem ein
+Lebenszeichen Browser-Heartbeat gemäß [API.md](API.md#11-websocket-livev1--browser). Es ist das einzige Signal, an dem ein
 Browser einen verschwundenen Live Server erkennen kann: eine tote
 TCP-Verbindung meldet sich nicht, WebSocket-Ping/Pong ist für Seitenskripte
 unsichtbar, und der veröffentlichte State taugt nicht als Ersatz, weil die
@@ -506,7 +502,7 @@ selbständig neu (sofort, 2 s, 5 s, dann 10 s).
 | | technisches Lebenszeichen | fachliches Lebenszeichen |
 |---|---|---|
 | Frage | Trägt die Verbindung Browser ↔ Live Server? | Liefert WinLaufen noch aktuelle Daten? |
-| Träger | `{"type":"heartbeat"}` alle 2 s | WinLaufen-Wettkampfzeit im Snapshot |
+| Träger | Browser-Heartbeat gemäß [API.md](API.md#11-websocket-livev1--browser) alle 2 s | WinLaufen-Wettkampfzeit im Snapshot |
 | Grenzwert | 6 s ohne Nachricht | `SourceHealth` der Bridge, 4 s ohne Uhrentelegramm |
 | Anzeige | roter Verbindungshinweis, Daten abgeblendet | `CONNECTED` / `STALE` / `DISCONNECTED` |
 

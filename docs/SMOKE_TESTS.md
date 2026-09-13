@@ -1,5 +1,8 @@
 # Sprecher-Web — Manuelle Abnahmetests
 
+Zielgruppe: Entwickler und Integratoren sowie Maintainer.
+[Dokumentationsübersicht](INDEX.md) · [Schnittstellenreferenz](API.md).
+
 Diese Szenarien lassen sich nicht sinnvoll automatisieren, weil sie echte
 Windows-Rechner, mehrere Maschinen und eine reale WinLaufen-Installation
 benötigen. Sie sind vor dem ersten produktiven Einsatz durchzuführen.
@@ -12,15 +15,8 @@ Ein Szenario mit WinLaufen setzt voraus, dass die Sprecher-PC-Schnittstelle in
 WinLaufen unter **Abwicklung → Sprecher-PC… → Verbinden** aktiviert wurde. Vorher
 ist `Nicht verbunden` der erwartete Zustand und kein Fehler.
 
-Erwartete Endpunkte in allen Szenarien:
-
-```text
-Bridge Control:  http://<bridge>:44442/
-Live-Ergebnisse: http://<live-server>:44440/
-Browser-Live:    ws://<live-server>:44441/live/v1
-Bridge-Ingest:   ws://<live-server>:44441/bridge/v1/channels/local
-WinLaufen:       <winlaufen-host>:4444   (read-only)
-```
+Erwartete HTTP-/WebSocket-Endpunkte: [API.md](API.md#2-ports-und-endpunkte).
+WinLaufen wird read-only über TCP 4444 angesprochen.
 
 TCP 44440/44441 müssen für die vorgesehenen Viewer im LAN/WLAN erreichbar
 sein, TCP 44442 für die vorgesehenen Administrationsgeräte. TCP 4444 ist nur
@@ -138,8 +134,7 @@ Real bestätigt:
 | 10 | Bridge stop/start: Quelle wird `DISCONNECTED`, der letzte Ergebnisstand bleibt sichtbar |
 | 11 | nach dem Bridge-Neustart bleiben die bisherigen Ergebnisse sichtbar, bis WinLaufen einen neuen Klassensnapshot liefert |
 
-Offen aus diesem Testlauf, siehe README, Abschnitt „Bekannte technische Punkte
-für den nächsten Arbeitsblock": belegter TCP-Port 4444 im `WinLaufenClient`-Test,
+Offen aus diesem Testlauf, siehe [technischer Projektstatus](STATUS.md#bekannte-technische-punkte-für-den-nächsten-arbeitsblock): belegter TCP-Port 4444 im `WinLaufenClient`-Test,
 Umlautdarstellung des Installers unter Windows PowerShell 5.1 und die Frage, ob
 ein Upgrade bei aktiver Sprecher-PC-Verbindung zuverlässig funktioniert.
 
@@ -307,7 +302,8 @@ separater Presentation Node
    * WinLaufen-Host auf den WinLaufen-PC setzen,
    * über **Weiteren Live-Server verbinden** die IP-Adresse von Rechner 2
      eintragen. Daraus müssen
-     `ws://<rechner-2>:44441/bridge/v1/channels/local`, Channel `local` und
+     der [Ingest-Endpunkt](API.md#12-websocket-bridgev1channelschannel--bridge-ingest)
+     auf Rechner 2 mit Channel `local` und
      eine deterministische ID entstehen; der Verbindungsschlüssel entspricht
      dem Standardwert aus `/etc/winlaufen-web/live-server.env` auf Rechner 2.
      Ein abweichender Schlüssel wird unter Erweiterte Einstellungen eingetragen.

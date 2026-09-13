@@ -1,5 +1,8 @@
 # Kurzanleitung: Live-Ergebnisse über einen Cloud-Server
 
+Zielgruppe: Administratoren und technisch versierte Anwender mit Erfahrung
+in SSH und Firewallkonfiguration. [Dokumentationsübersicht](INDEX.md).
+
 Diese Anleitung beschreibt einen bewusst einfachen Fall: Ein Verein mietet für
 einige Stunden einen kleinen Server im Internet und zeigt darüber die
 Live-Ergebnisse. Zuschauer brauchen dann kein WLAN vor Ort, sondern rufen die
@@ -8,7 +11,7 @@ Ergebnisse von überall auf.
 Eine eigene Domain ist dafür **nicht** nötig. Es genügt die öffentliche
 IPv4-Adresse des gemieteten Servers.
 
-Vorher lesen: [Verbindliche Einsatzgrenzen dieser Prototypversion](../README.md#known-prototype-security-limitation).
+Vorher lesen: [Verbindliche Einsatzgrenzen dieser Prototypversion](INSTALLATION.md#einsatzgrenzen).
 Die Übertragung ist in diesem einfachen Betrieb unverschlüsselt.
 
 Diese Anleitung ergänzt das [Bedienerhandbuch](BEDIENERHANDBUCH.md); die
@@ -29,13 +32,14 @@ Vereinsnetz bleibt, wie sie ist, und schickt die Ergebnisse von sich aus dorthin
 **1. Cloud-Server erstellen**
 
 Beim Anbieter Ihrer Wahl eine kleine VM mit **Ubuntu 24.04** und öffentlicher
-IPv4-Adresse anlegen. Die kleinste Größe genügt. Notieren Sie die IP-Adresse,
+IPv4-Adresse anlegen. Wählen Sie eine amd64-/x86-64-VM passend zum Releasepaket und prüfen Sie
+Ihren Aufbau vor der Veranstaltung; eine allgemeine Kapazitätszusage gibt es nicht. Notieren Sie die IP-Adresse,
 zum Beispiel `203.0.113.7`.
 
 **2. Auf dem Cloud-Server anmelden und das Releasepaket holen**
 
 Das Releasepaket ist eine fertig gebaute Version mit eigener Java-Umgebung.
-Git, Maven und Java müssen dafür nicht installiert werden. Den Dateinamen der
+Eine zusätzliche Java-Installation ist nicht erforderlich. Den Dateinamen der
 gewünschten Version finden Sie auf der
 [Releases-Seite](https://github.com/richtertoralf/winlaufen-web/releases).
 
@@ -51,23 +55,13 @@ cd winlaufen-web-<version>-linux-amd64
 sudo ./installer/linux/install.sh
 ```
 
-> Alternativ der Entwicklerweg aus dem Quellcode, wenn Sie bewusst einen noch
-> nicht veröffentlichten Stand testen wollen:
->
-> ```sh
-> sudo apt update && sudo apt install git openjdk-25-jdk
-> git clone https://github.com/richtertoralf/winlaufen-web.git
-> cd winlaufen-web
-> ./mvnw clean package
-> sudo ./installer/linux/install.sh
-> ```
-
 Bei der Frage nach der Rolle des Rechners das Profil **[3] Presentation Node**
 wählen. Es wird nach keiner Adresse gefragt.
 
-**4. Firewall des Anbieters öffnen**
+**4. Firewall prüfen**
 
-In der Firewall Ihres Cloud-Anbieters eingehend freigeben:
+In der Firewall Ihres Cloud-Anbieters und einer gegebenenfalls aktiven lokalen
+Firewall eingehend freigeben. Der Linux-Installer ändert keine Firewallregeln:
 
 | Port | Wofür |
 |---|---|
@@ -109,6 +103,11 @@ Den gemieteten Server **abschalten oder löschen**, wenn er nur für diesen Tag
 gebraucht wurde. Das beendet die Kosten und den offenen Zugang zugleich.
 
 ## Was Sie wissen sollten
+
+Auch die vollständige importierte Startliste ist über diesen Server öffentlich
+lesbar. Ausgeblendete Spalten der Browseranzeige sind keine Zugriffsbeschränkung.
+Veröffentlichen Sie hier nur dafür vorgesehene Teilnehmerdaten.
+
 
 Die Verbindung zwischen Ihrer Bridge und dem Cloud-Server ist in diesem
 einfachen Betrieb **unverschlüsselt**, und der Verbindungsschlüssel ist ein

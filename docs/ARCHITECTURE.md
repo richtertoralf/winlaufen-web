@@ -1,5 +1,8 @@
 # Sprecher-Web — Architecture
 
+Zielgruppe: Entwickler und Integratoren.
+[Dokumentationsübersicht](INDEX.md) · [Schnittstellenreferenz](API.md).
+
 Kurzer IST-Stand der in [MODULAR_ARCHITECTURE.md](MODULAR_ARCHITECTURE.md)
 festgelegten Zielarchitektur. Vollständige Entscheidungen, Contract-Felder
 und Sicherheitsregeln stehen ausschließlich dort — hier keine Duplikate.
@@ -147,13 +150,10 @@ liefert sie den Bestand beim Reconnect von selbst erneut, ohne erneuten Import.
 Vor-/Zurück-Navigation und direkter Klassenauswahl. Reihenfolge der Klassen und
 der Teilnehmer bleibt die des Imports.
 
-**Read API** — der Live Server stellt beides zusätzlich generisch über HTTP
-bereit: `GET /api/v1/state` mit Zeitblock, Ergebnissen, Verbindungsstatus und
-Startlisten-**Metadaten**, `GET /api/v1/startlist` mit dem vollständigen
-Bestand. Beide Antworten führen denselben aktuellen Zeitblock und den Zustand
-der Kette WinLaufen → Bridge → Live Server mit; die Startliste wird erst beim
-HTTP-Read mit dem laufenden State zusammengeführt, nie eingefroren
-mitgespeichert. Vollständig: [API.md](API.md).
+**Read API** — der Live Server stellt den veröffentlichten Zustand zusätzlich
+über die [in API.md beschriebene Schnittstelle](API.md) bereit. Die Startliste
+wird erst beim HTTP-Read mit dem laufenden State zusammengeführt, nie mit einem
+eingefrorenen Zeitblock gespeichert.
 
 Details: MODULAR_ARCHITECTURE.md §5 (State Ownership), §5.1 (Startliste), §6
 (Contract inkl. Startlistennachricht), §9 (Konfigurationsbesitz).
@@ -216,4 +216,4 @@ Internet getrennten Vereinsnetz der Normalfall und kein Fehlerzustand ist.
 
 Bridge-Ingest ist authentifiziert, nutzt in der Prototype Baseline aber
 weiterhin ein bekanntes Default-Secret. Verbindliche Details und
-Einsatzgrenzen: README.md, Abschnitt "Known prototype security limitation".
+Einsatzgrenzen: [INSTALLATION.md, Einsatzgrenzen](INSTALLATION.md#einsatzgrenzen).

@@ -1,5 +1,8 @@
 # WinLaufen Sprecher-PC LAN-Protokoll
 
+Zielgruppe: Entwickler und Integratoren.
+[Dokumentationsübersicht](INDEX.md) · [Schnittstellenreferenz](API.md).
+
 ## Status
 
 Dieses Dokument trennt verifizierte Beobachtungen von unbekanntem Verhalten.
@@ -470,12 +473,10 @@ Die erste erkannte Variante bleibt für diese Verbindung bestehen. Wiederholunge
 Logwarnung, ohne Daten zu verwerfen oder einen Reconnect auszulösen.
 
 `BridgeMain` verbindet `source::protocolVariant` direkt mit Bridge Control.
-Nur die lokale Status-API `GET /api/v1/status` ergänzt `protocolVariant` und
-`protocolWarning`. Bei `LEGACY` lautet die Warnung:
-„Legacy-Protokoll erkannt – Update auf WinLaufen 18+ empfohlen.“
-Bei `UNKNOWN` und `CURRENT` ist sie `null`. Die lokale UI zeigt
-„Protokoll: Erkennung läuft“, „Protokoll: Aktuell“ bzw. „Protokoll: Legacy“
-und übernimmt den Warntext ausschließlich aus dem Backend.
+Die lokale Statusschnittstelle und die Darstellung der Diagnose sind in
+[API.md](API.md#get-apiv1status) und im
+[Bedienerhandbuch](BEDIENERHANDBUCH.md#protokollanzeige-in-bridge-control)
+beschrieben.
 
 Die Legacy-Normalisierung bleibt am Source Boundary. `ResultBlock`,
 `CanonicalStateStore`, Canonical Snapshot, Startlistenmodell, Contract,

@@ -1,5 +1,8 @@
 # Modulare Zielarchitektur: Bridge, Live Server und Web Viewer
 
+Zielgruppe: Entwickler und Integratoren.
+[Dokumentationsübersicht](INDEX.md) · [Schnittstellenreferenz](API.md).
+
 Status: implementierte und verbindliche Architektur, umgesetzt im
 Refactoring-Block auf Basis des Checkpoints `6481a3b`. Der Weg vom früheren
 Monolithen dorthin ist nicht mehr Teil dieses Dokuments — siehe Git-Historie.
@@ -116,8 +119,8 @@ All-in-One:
 |---|---|---|---|
 | Bridge | WinLaufen-PC | TCP 4444 | read-only Sprecher-PC-Protokoll; nur ausgehend |
 | Viewer | Live Server | TCP 44440, Bind `0.0.0.0` | Web View / Public HTTP / API |
-| Browser | Live Server | TCP 44441, Bind `0.0.0.0` | `/live/v1` |
-| Bridge | Live Server | TCP 44441, gleicher Listener | `/bridge/v1/channels/<channel>` |
+| Browser | Live Server | TCP 44441, Bind `0.0.0.0` | Browser-Live |
+| Bridge | Live Server | TCP 44441, gleicher Listener | Bridge-Ingest |
 | Admin | Bridge | TCP 44442, Bind `0.0.0.0` | Bridge Control im vertrauenswürdigen LAN |
 
 - Bridge Control bindet standardmäßig an alle lokalen Interfaces
@@ -125,21 +128,9 @@ All-in-One:
 - Port 44441 bedient Browser-WebSockets und, über getrennte Pfade/
   Handshake-Regeln, Bridge-Ingestion — kein separater Listener.
 
-Pfade:
-
-- Bridge Control: `http://<bridge>:44442/`
-- Web Viewer: `http://<live-server>:44440/`
-- Read API: `GET http://<live-server>:44440/api/v1/state` und
-  `GET http://<live-server>:44440/api/v1/startlist`; read-only, ohne
-  synchronen Zugriff auf Bridge oder WinLaufen, jede Antwort mit demselben
-  aktuellen Zeitblock und dem Verbindungsstatus der Kette. Bridge und Live
-  Server sind darin Messstellen: Sie erfassen Zeitpunkte und Messdifferenzen und
-  benennen Zeitzonenherkunft und Status ihrer Zeitreferenz, treffen aber keine
-  Auswahl, kalibrieren nicht und behaupten keinen Uhrenfehler
-  (siehe [API.md](API.md))
-- Browser live: `ws://<live-server>:44441/live/v1`
-- Bridge ingest: `ws://<live-server>:44441/bridge/v1/channels/<channel-id>`;
-  über Internet zwingend `wss://...` (typischer externer Port 443)
+HTTP-/WebSocket-Pfade und Handshake-Regeln sind ausschließlich in
+[API.md](API.md#2-ports-und-endpunkte) dokumentiert. Die Schnittstelle liest den
+veröffentlichten Zustand ohne synchrone Rückfrage bei Bridge oder WinLaufen.
 
 - Installer prüft vor Start nur die Listener des gewählten Profils; TCP
   4444 ist kein lokaler Preflight-Port.
@@ -462,13 +453,13 @@ OutputTargetRuntime (flüchtig, Bridge)
   erlaubt mehrere Ziele/mehrere Instanzen desselben Typs. Deaktivierte
   Produktfähigkeit startet keinen Adapter.
 
-LOCAL ist ein normales, standardmäßig vorkonfiguriertes Target:
+LOCAL ist ein normales, standardmäßig vorkonfiguriertes Target. Der Endpoint
+verwendet den lokalen Ingest aus [API.md](API.md#12-websocket-bridgev1channelschannel--bridge-ingest):
 
 ```text
 id=local
 type=LOCAL
 enabled=true
-endpoint=ws://127.0.0.1:44441/bridge/v1/channels/local
 channelId=local
 ```
 
@@ -622,8 +613,7 @@ Vier unabhängige Zustandsmaschinen sind verbindlich:
   anschließend unpublizierbar wäre.
 - **Bekannte Prototyp-Einschränkung:** In der Prototype Baseline bleibt ein
   bekanntes Default-Ingest-Secret bewusst funktionsfähig. Konkrete
-  Manipulationsmöglichkeit und Einsatzgrenzen: README.md, "Known prototype
-  security limitation". Individuell provisionierte Secrets pro Target
+  Manipulationsmöglichkeit und Einsatzgrenzen: [INSTALLATION.md, Einsatzgrenzen](INSTALLATION.md#einsatzgrenzen). Individuell provisionierte Secrets pro Target
   bleiben Voraussetzung für produktiven Internetbetrieb.
 - Browser- und Bridge-WebSocket-Pfade haben getrennte Handshake-Policies:
   Browser benötigen gültige Same-Host-Origin; Bridge-Ingest benötigt

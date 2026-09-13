@@ -1,14 +1,25 @@
-# Sprecher-Web — Entwicklung und Betrieb
+# Sprecher-Web — Entwicklung
 
-Details, die für die Einrichtung nicht nötig sind, aber beim Entwickeln,
-Diagnostizieren und beim Betrieb einzelner Runtimes gebraucht werden. Der
-Einstieg steht in [../README.md](../README.md), die Installation in
-[INSTALLATION.md](INSTALLATION.md).
+Zielgruppe: Entwickler und Integratoren. Hier stehen Voraussetzungen,
+Quellcode-Build, Entwicklungsbetrieb und Tests. Für fertige Software verwenden
+Anwender die [Installationsanleitung](INSTALLATION.md).
+[Dokumentationsübersicht](INDEX.md) · [Schnittstellenreferenz](API.md) ·
+[Architektur](ARCHITECTURE.md) · [Release-Erzeugung](RELEASE.md).
 
 ## Aus dem Quellcode bauen
 
 Voraussetzungen: Git und JDK 25. System-Maven ist nicht erforderlich, der
 Wrapper liefert die im Repository festgelegte Maven-Version.
+
+Repository erstmals auschecken:
+
+```sh
+git clone https://github.com/richtertoralf/winlaufen-web.git
+cd winlaufen-web
+```
+
+Prüfen Sie `java -version` und `javac -version` auf JDK 25.
+Unter Windows anschließend denselben Build mit dem Windows-Wrapper ausführen.
 
 ```sh
 ./mvnw clean package
@@ -25,18 +36,56 @@ bridge/target/winlaufen-web-bridge.jar
 live-server/target/winlaufen-web-live-server.jar
 ```
 
-Plattformspezifisches Distributionsarchiv mit optionaler `jlink`-Runtime:
+Distributionsarchive mit gebündelter, plattformspezifischer Runtime und deren
+Veröffentlichung beschreibt [RELEASE.md](RELEASE.md).
+
+## Installation aus dem Quellcode
+
+Ein Checkout installiert den ausgecheckten Entwicklungsstand, nicht zwingend
+eine veröffentlichte Version. Nach erfolgreichem Build den Installer aus dem
+Repository ausführen; jeweils genau ein passendes Profil wählen:
 
 ```sh
-./installer/common/build-dist.sh --with-runtime
+sudo ./installer/linux/install.sh --profile all-in-one
 ```
+
+Unter Windows in einer PowerShell mit Administratorrechten im Repository:
 
 ```powershell
-.\installer\common\build-dist.ps1 -WithRuntime
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\installer\windows\Install-WinLaufenWeb.ps1 -Profile AllInOne
 ```
 
-Die Runtime ist immer plattformspezifisch; ein Cross-Build wird bewusst nicht
-versucht.
+Öffnen Sie den Checkout-Ordner mit `pom.xml` im Explorer und übernehmen Sie
+dessen Pfad in die erhöhte PowerShell wie in der
+[Windows-Anleitung](INSTALLATION.md#installer-starten). Verwenden Sie hier
+den Checkout statt des dort beschriebenen Paketordners. Eine aktive
+Sprecher-PC-Verbindung vor der Installation trennen und danach wieder verbinden.
+Profilwerte, Dienstverwaltung und Pfade werden dort zentral beschrieben.
+
+Ein Checkout enthält keine gebündelte Runtime: Die Installer erkennen
+`bridge/target/` und `live-server/target/` und verlangen System-Java ≥ 25.
+Bei einer Distribution mit `runtime/` wird dagegen diese Runtime installiert
+und verwendet. Eine selbst gebaute Distribution kann damit auch auf einem
+Rechner ohne System-Java installiert werden. Auf Raspberry Pi ist derzeit
+ein passender Build nötig, da kein ARM-Releasepaket bereitsteht.
+
+## Entwicklerinstallation aktualisieren
+
+Im vorhandenen Checkout zunächst eigene Änderungen prüfen und sichern:
+
+```sh
+git status
+git pull --ff-only
+./mvnw clean package
+sudo ./installer/linux/install.sh --profile all-in-one
+```
+
+Unter Windows stattdessen `.\mvnw.cmd clean package` und danach den
+Windows-Installer wie oben verwenden. Das gewählte Profil beibehalten.
+Ein Wechsel auf ein fertiges Releasepaket ist möglich: Beide Installerwege
+schreiben in dieselben Installationspfade. Erhalt der Konfiguration und
+Reihenfolge bei getrennten Rechnern: [Upgrade](INSTALLATION.md#3-upgrade).
 
 ## Entwicklungsbetrieb
 
@@ -94,11 +143,10 @@ Die einzige Veranstalter-Konfiguration liegt in der Bridge. Bridge Control
 verwaltet Quelle, Output Targets und die öffentliche Darstellung.
 Target-Secrets werden nie über die Control-API an den Browser zurückgegeben.
 
-| Installationsart | Ort der Bridge-Konfiguration |
-|---|---|
-| Linux-Dienst | `/etc/winlaufen-web/bridge.properties` |
-| Windows-Dienst | `C:\ProgramData\WinLaufen Web\bridge.properties` |
-| Entwicklungsbetrieb | `${user.home}/.winlaufen-web/config.properties` |
+Installierte Konfigurationspfade und Dienstparameter stehen in
+[INSTALLATION.md](INSTALLATION.md#5-verzeichnisse). Im Entwicklungsbetrieb
+liegt die Bridge-Konfiguration standardmäßig unter
+`${user.home}/.winlaufen-web/config.properties`.
 
 Der Pfad wird über die Systemproperty `winlaufen.bridge.config` gesetzt; ohne
 sie gilt der Ort im Benutzerprofil. Das Dateiformat ist in allen Fällen
@@ -116,10 +164,7 @@ winlaufen.live.channel         default local
 winlaufen.live.secret          default local-development-secret
 ```
 
-Ein Live Server bedient genau einen Channel. Der Wert aus
-`winlaufen.live.channel` bestimmt den Ingest-Pfad
-`/bridge/v1/channels/<channel>` und wird zusätzlich gegen den Channel im
-Snapshot geprüft.
+Ein Live Server bedient genau einen Channel. Die Channelbindung des Ingest beschreibt [API.md](API.md).
 
 ## Transportregel für Output Targets
 
@@ -165,3 +210,23 @@ Die damaligen Ports 8080, 8081 und 8090 sind **historisch** und keine aktuellen
 Standardwerte. Der Installer migriert ausschließlich diese exakten früheren
 Installer-Defaults einmalig auf den festen Portblock 44440–44442; individuelle
 Werte außerhalb dieser ehemaligen Defaults bleiben unverändert.
+
+## Technische Namen
+
+Sichtbar heißt das Produkt **Sprecher-Web**. Der Name lehnt sich bewusst an
+den etablierten WinLaufen-„Sprecher-PC" an. Die öffentliche Oberfläche trägt den
+Untertitel **Live-Ergebnisse aus WinLaufen** — das beschreibt die Herkunft der
+angezeigten Daten. Die Browsertitel lauten **Live-Ergebnisse · Sprecher-Web**
+und **Bridge Control · Sprecher-Web**.
+
+Technische Bezeichner bleiben aus Kompatibilitätsgründen zunächst unverändert,
+damit bestehende Befehle, Upgrade-Pfade und Deinstallationen weiter
+funktionieren:
+
+- Maven-Artefakte und JARs `winlaufen-web-*`
+- Java-Packages `de.winlaufen.web.*`
+- Installationspfade `/opt/winlaufen-web`, `/etc/winlaufen-web`,
+  `C:\Program Files\WinLaufen Web`
+- systemd-Units `winlaufen-bridge.service`, `winlaufen-live-server.service`
+- geplante Aufgaben `WinLaufen Web Bridge`, `WinLaufen Web Live Server`
+- Firewall-Regel-IDs `WinLaufenWeb-*`

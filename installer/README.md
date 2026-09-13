@@ -1,7 +1,9 @@
 # WinLaufen Web — Installer
 
-Rollenbasierter Installer für Linux und Windows 11. Die ausführliche Anleitung
-steht in [../docs/INSTALLATION.md](../docs/INSTALLATION.md).
+Zielgruppe: Entwickler und Maintainer der Installer.
+Anwender installieren fertige Releasepakete nach
+[INSTALLATION.md](../docs/INSTALLATION.md).
+[Dokumentationsübersicht](../docs/INDEX.md).
 
 ## Einstiegspunkte
 
@@ -12,18 +14,9 @@ Pro Plattform gibt es genau einen Einstiegspunkt:
 | Linux | `linux/install.sh` | `linux/uninstall.sh` |
 | Windows 11 | `windows/Install-WinLaufenWeb.ps1` | `windows/Uninstall-WinLaufenWeb.ps1` |
 
-Vorher wird die Distribution gebaut:
-
-| Plattform | Build |
-|---|---|
-| Linux | `common/build-dist.sh [--with-runtime]` |
-| Windows | `common/build-dist.ps1 [-WithRuntime]` |
-
-Die Build-Skripte verwenden `mvnw`/`mvnw.cmd`; ein separat installiertes Maven
-ist nicht erforderlich. Developer benötigen Git und JDK 25. Endanwender laden
-später das passende Release-Archiv herunter und benötigen weder Git noch Maven
-oder einen Source Checkout. Bei gebündelter `jlink`-Runtime ist auch kein
-separates Laufzeit-JDK nötig.
+Distributionspakete erstellen und veröffentlichen:
+[RELEASE.md](../docs/RELEASE.md). Für Quellcode-Builds und Voraussetzungen siehe
+[DEVELOPMENT.md](../docs/DEVELOPMENT.md).
 
 ## Struktur
 
@@ -50,13 +43,8 @@ beide mit dem Anwendungscode übereinstimmen.
 
 ## Profile
 
-| Profil | Linux | Windows 11 | Installiert |
-|---|---|---|---|
-| All-in-One | ja | ja | Bridge + Live Server |
-| Bridge only | ja | ja | nur Bridge |
-| Presentation Node | ja | nein | nur Live Server / Web View |
-
-All-in-One ist die Default-Auswahl.
+Die unterstützten Rollen und Plattformen stehen zentral in
+[INSTALLATION.md](../docs/INSTALLATION.md#4-installationsprofile).
 
 ## Grundsatz
 
@@ -65,8 +53,8 @@ WinLaufen-IP, Target-IP, Hostnamen, URL, Domain oder WSS-Adresse und blockiert
 die Installation nicht, wenn diese Angaben noch unbekannt sind. Sie gehören in
 die spätere Runtime-Konfiguration über Bridge Control.
 
-Vorhandene Konfiguration wird nie überschrieben. Defaults entstehen nur bei
-einer echten Erstinstallation.
+Individuelle Einstellungen bleiben erhalten. Die einmalige Migration früherer
+Installer-Netzwerkdefaults beschreibt [INSTALLATION.md](../docs/INSTALLATION.md#3-upgrade).
 
 Vor dem Service-Start werden nur die profilabhängigen lokalen Listener 44440,
 44441 und/oder 44442 geprüft. TCP 4444 ist das ausgehende Ziel der Bridge und

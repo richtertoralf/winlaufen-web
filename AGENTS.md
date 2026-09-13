@@ -39,11 +39,13 @@ changing the corresponding area.
 - `docs/SMOKE_TESTS.md` — manual acceptance tests that need real hardware
   and a real WinLaufen installation.
 - `docs/BEDIENERHANDBUCH.md` — the operator manual and the single place for
-  the organiser-facing narrative: installation walkthrough, Bridge Control,
+  the organiser-facing narrative: installation links, Bridge Control,
   status displays, competition time, behaviour during outages, event-day
   checklist. `docs/QUICKSTART_CLOUD.md` covers the temporary cloud node.
-  Keep user-facing changes here instead of duplicating them into README.md
-  or `docs/INSTALLATION.md`, which stay overview and technical reference.
+  Keep user-facing changes here instead of duplicating them into README.md,
+  which stays the end-user product overview. `docs/INSTALLATION.md` owns the
+  release installation walkthrough and administration reference; source builds
+  belong to `docs/DEVELOPMENT.md`. `docs/INDEX.md` maps the target audiences.
 
 ## Repository map
 
@@ -139,8 +141,8 @@ Before changing module communication, read `docs/MODULAR_ARCHITECTURE.md`.
 
 - The prototype's bridge ingest deliberately keeps a well-known default
   secret (`local-development-secret`) working. This is documented and
-  accepted for the prototype baseline (see README.md for the binding
-  deployment limits). Do not present it as solved, and do not build a
+  accepted for the prototype baseline (binding deployment limits:
+  docs/INSTALLATION.md, "Einsatzgrenzen"). Do not present it as solved, and do not build a
   provisioning or pairing system for it without an explicit request.
 
 ### Dependencies and simplicity
