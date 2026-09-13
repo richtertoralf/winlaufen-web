@@ -58,6 +58,10 @@ class OutputFanOutTest {
             store.clock("10:00:00");
             await(() -> first.revision.get() >= 1 && two.revision.get() >= 1);
 
+            assertTrue(first.messages.stream().noneMatch(text ->
+                    text.contains("protocolVariant") || text.contains("protocolWarning")));
+            assertTrue(two.messages.stream().noneMatch(text ->
+                    text.contains("protocolVariant") || text.contains("protocolWarning")));
             first.stopServer();
             store.clock("10:00:01");
             await(() -> two.clock.get().equals("10:00:01"));
@@ -98,6 +102,7 @@ class OutputFanOutTest {
     /** Minimal live-server stand-in: validates the contract and acknowledges every snapshot. */
     private static final class Fake extends WebSocketServer {
 
+        final List<String> messages = new CopyOnWriteArrayList<>();
         final AtomicLong revision = new AtomicLong(-1);
         final AtomicReference<String> clock = new AtomicReference<>("");
         /** Every start list this fake live server received, in arrival order. */
@@ -134,6 +139,7 @@ class OutputFanOutTest {
 
         @Override
         public void onMessage(WebSocket connection, String text) {
+            messages.add(text);
             try {
                 // Like the real live server: route by type. A start list is not acknowledged.
                 if (StartListEnvelope.TYPE.equals(ContractJson.typeOf(text))) {

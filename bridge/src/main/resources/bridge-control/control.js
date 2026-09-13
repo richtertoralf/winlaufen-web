@@ -443,6 +443,12 @@ function showStatus(status) {
   const sourceStatus = document.querySelector('#source-status');
   sourceStatus.textContent = sourceHealthText(status.sourceHealth);
   sourceStatus.className = stateClass(status.sourceHealth);
+  const protocolLabels = {UNKNOWN: 'Erkennung läuft', CURRENT: 'Aktuell', LEGACY: 'Legacy'};
+  document.querySelector('#protocol-variant').textContent =
+    `Protokoll: ${protocolLabels[status.protocolVariant] || protocolLabels.UNKNOWN}`;
+  const protocolWarning = document.querySelector('#protocol-warning');
+  protocolWarning.textContent = status.protocolWarning || '';
+  protocolWarning.hidden = !status.protocolWarning;
   document.querySelector('#source-help').hidden = status.sourceHealth !== 'DISCONNECTED';
 
   showCompetitionTimeZone(status.competitionTimeZone);

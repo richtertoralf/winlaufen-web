@@ -25,6 +25,50 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class WinLaufenClientTest {
     @Test @Timeout(10)
+    void protocolDiagnosisIsStableWithinConnectionAndResetsOnReconnect() throws Exception {
+        for (boolean legacyFirst : List.of(false, true)) {
+            try (var server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+                server.setSoTimeout(2_000);
+                var store = new CanonicalStateStore(PresentationConfig.defaults(), null);
+                try (var client = new WinLaufenClient("localhost", server.getLocalPort(), store)) {
+                    assertEquals(ProtocolVariant.UNKNOWN, client.protocolVariant());
+                    client.start();
+                    try (var socket = server.accept();
+                         var output = new ObjectOutputStream(socket.getOutputStream())) {
+                        assertEquals(ProtocolVariant.UNKNOWN, client.protocolVariant());
+                        var expected = legacyFirst ? ProtocolVariant.LEGACY : ProtocolVariant.CURRENT;
+                        for (int i = 0; i < 4; i++) {
+                            String clock = "10:00:0" + i;
+                            boolean legacy = i < 2 ? legacyFirst : !legacyFirst;
+                            output.writeObject(legacy ? new java.util.Vector<>(List.of(clock)) : "Uhr" + clock);
+                            // Message acts as a barrier after the diagnosis callback.
+                            output.writeObject(new java.util.Vector<>(List.of("barrier" + i, "nachricht")));
+                            output.flush();
+                            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+                            while (!("barrier" + i).equals(store.get().state().message())
+                                    && System.nanoTime() < deadline) Thread.sleep(5);
+                            assertEquals("barrier" + i, store.get().state().message());
+                            assertEquals(clock, store.get().state().clock());
+                            assertEquals(expected, client.protocolVariant());
+                        }
+                    }
+                    try (var socket = server.accept();
+                         var output = new ObjectOutputStream(socket.getOutputStream())) {
+                        assertEquals(ProtocolVariant.UNKNOWN, client.protocolVariant());
+                        output.writeObject(new java.util.Vector<>(List.of("fresh", "nachricht")));
+                        output.flush();
+                        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+                        while (!"fresh".equals(store.get().state().message())
+                                && System.nanoTime() < deadline) Thread.sleep(5);
+                        assertEquals("fresh", store.get().state().message());
+                        assertEquals(ProtocolVariant.UNKNOWN, client.protocolVariant());
+                    }
+                }
+            }
+        }
+    }
+
+    @Test @Timeout(10)
     void legacyResultsAndUnknownVectorsKeepConnectionButEofReconnects() throws Exception {
         try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             server.setSoTimeout(2_000);

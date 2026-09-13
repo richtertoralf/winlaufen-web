@@ -1,5 +1,7 @@
 package de.winlaufen.web.bridge.control;
 
+import de.winlaufen.web.bridge.source.winlaufen.ProtocolVariant;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import de.winlaufen.web.bridge.config.BridgeConfig;
@@ -39,6 +41,7 @@ public final class BridgeControlServer implements AutoCloseable {
     private static final int MAX_BODY_BYTES = 32_768;
     private static final int MAX_TARGETS = 32;
 
+    private final Supplier<ProtocolVariant> protocolVariant;
     private final HttpServer server;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final CanonicalStateStore state;
@@ -65,6 +68,18 @@ public final class BridgeControlServer implements AutoCloseable {
                                Supplier<List<OutputTargetRuntime>> runtimes,
                                Consumer<BridgeConfig> changed,
                                Supplier<List<String>> configNotices) throws IOException {
+        this(bind, port, state, store, startLists, config, runtimes, changed, configNotices,
+                () -> ProtocolVariant.UNKNOWN);
+    }
+
+    public BridgeControlServer(String bind, int port, CanonicalStateStore state,
+                               BridgeConfigStore store, StartListStore startLists,
+                               Supplier<BridgeConfig> config,
+                               Supplier<List<OutputTargetRuntime>> runtimes,
+                               Consumer<BridgeConfig> changed,
+                               Supplier<List<String>> configNotices,
+                               Supplier<ProtocolVariant> protocolVariant) throws IOException {
+        this.protocolVariant = protocolVariant;
         this.state = state;
         this.store = store;
         this.startLists = startLists;
@@ -116,7 +131,7 @@ public final class BridgeControlServer implements AutoCloseable {
             case "/api/v1/status" -> json(exchange, 200,
                     BridgeControlJson.status(state.get(), runtimes.get(), startLists.current(),
                             state.competitionTimeZone(), state.competitionTimeZoneSource(),
-                            configNotices.get()));
+                            configNotices.get(), protocolVariant.get()));
             default -> text(exchange, 404, "Nicht gefunden");
         }
     }

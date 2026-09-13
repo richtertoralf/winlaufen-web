@@ -1,5 +1,6 @@
 package de.winlaufen.web.bridge.control;
 
+import de.winlaufen.web.bridge.source.winlaufen.ProtocolVariant;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.winlaufen.web.bridge.config.BridgeConfig;
@@ -40,6 +41,8 @@ class BridgeControlConfigZoneTest {
     @TempDir
     Path temp;
 
+    private final AtomicReference<ProtocolVariant> protocolVariant =
+            new AtomicReference<>(ProtocolVariant.UNKNOWN);
     private Path configFile;
     private BridgeConfigStore store;
     private BridgeControlServer server;
@@ -61,13 +64,40 @@ class BridgeControlConfigZoneTest {
                 new CanonicalStateStore(PresentationConfig.defaults(),
                         current.get().competitionTimeZone()),
                 store, StartListStore.besideConfig(configFile),
-                current::get, List::of, current::set, List::of);
+                current::get, List::of, current::set, List::of, protocolVariant::get);
         server.start();
     }
 
     @AfterEach
     void stop() {
         server.close();
+    }
+
+    @Test
+    void protocolDiagnosisIsOnlyInLocalStatusAndWarningComesFromBackend() throws Exception {
+        for (var variant : ProtocolVariant.values()) {
+            protocolVariant.set(variant);
+            var response = get("/api/v1/status");
+            assertEquals(200, response.statusCode());
+            JsonNode status = MAPPER.readTree(response.body());
+            assertEquals(variant.name(), status.get("protocolVariant").asText());
+            if (variant == ProtocolVariant.LEGACY) {
+                assertEquals("Legacy-Protokoll erkannt – Update auf WinLaufen 18+ empfohlen.",
+                        status.get("protocolWarning").asText());
+            } else {
+                assertTrue(status.get("protocolWarning").isNull());
+            }
+            assertTrue(!get("/api/v1/config").body().contains("protocolVariant"));
+        }
+        String html = get("/").body();
+        String js = get("/assets/control.js").body();
+        assertTrue(html.contains("id=\"protocol-variant\""));
+        assertTrue(html.contains("id=\"protocol-warning\" class=\"warn\" hidden"));
+        assertTrue(js.contains("CURRENT: 'Aktuell', LEGACY: 'Legacy'"));
+        assertTrue(js.contains("UNKNOWN: 'Erkennung läuft'"));
+        assertTrue(js.contains("protocolWarning.textContent = status.protocolWarning || '';"));
+        assertTrue(js.contains("protocolWarning.hidden = !status.protocolWarning;"));
+        assertTrue(!js.contains("Update auf WinLaufen"));
     }
 
     @Test
