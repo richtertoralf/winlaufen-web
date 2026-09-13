@@ -64,7 +64,7 @@ public final class BridgeMain {
             control[0] = new BridgeControlServer(config.get().controlBindAddress(),
                     config.get().controlPort(), state, configStore, startLists, config::get,
                     outputs::runtimes, next -> apply(config, next, source, state, outputs),
-                    loaded::notices);
+                    loaded::notices, source::protocolVariant);
             control[0].start();
             outputs.start();
             source.start();

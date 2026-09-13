@@ -14,6 +14,7 @@ import de.winlaufen.web.contract.ContractJson;
 import de.winlaufen.web.contract.PresentationConfig;
 
 import java.util.List;
+import de.winlaufen.web.bridge.source.winlaufen.ProtocolVariant;
 
 /**
  * JSON views of the Bridge Control API.
@@ -61,7 +62,8 @@ public final class BridgeControlJson {
 
     public record StatusView(long sourceRevision, String sourceHealth, String clock,
                              List<OutputView> outputs, StartListView startList,
-                             TimeZoneView competitionTimeZone, List<String> notices) { }
+                             TimeZoneView competitionTimeZone, List<String> notices,
+                             ProtocolVariant protocolVariant, String protocolWarning) { }
 
     /**
      * The zone the bridge actually reads the competition time in, and where it came from.
@@ -90,6 +92,14 @@ public final class BridgeControlJson {
                                 CanonicalStartList startList, String competitionTimeZone,
                                 CompetitionTimeZoneSource competitionTimeZoneSource,
                                 List<String> notices) {
+        return status(snapshot, runtimes, startList, competitionTimeZone,
+                competitionTimeZoneSource, notices, ProtocolVariant.UNKNOWN);
+    }
+
+    public static String status(CanonicalSnapshot snapshot, List<OutputTargetRuntime> runtimes,
+                                CanonicalStartList startList, String competitionTimeZone,
+                                CompetitionTimeZoneSource competitionTimeZoneSource,
+                                List<String> notices, ProtocolVariant protocolVariant) {
         List<OutputView> outputs = runtimes.stream()
                 .map(runtime -> new OutputView(runtime.targetId(), runtime.state().name(),
                         runtime.lastAckedSourceRevision(), runtime.retryAttempt(), runtime.lastError()))
@@ -98,7 +108,8 @@ public final class BridgeControlJson {
                 snapshot.state().sourceHealth().name(), snapshot.state().clock(), outputs,
                 startList(startList),
                 new TimeZoneView(competitionTimeZone, competitionTimeZoneSource.name()),
-                List.copyOf(notices)));
+                List.copyOf(notices), protocolVariant, protocolVariant == ProtocolVariant.LEGACY
+                        ? "Legacy-Protokoll erkannt – Update auf WinLaufen 18+ empfohlen." : null));
     }
 
     /** The result of one accepted import, shown to the operator right after the upload. */

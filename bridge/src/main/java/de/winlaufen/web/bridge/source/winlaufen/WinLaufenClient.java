@@ -9,11 +9,17 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class WinLaufenClient implements AutoCloseable {
     /** The port WinLaufen serves its Sprecher-PC interface on. Never configurable. */
     private static final int WINLAUFEN_PORT = 4444;
 
+    private static final System.Logger LOG = System.getLogger(WinLaufenClient.class.getName());
+    private final AtomicReference<ProtocolVariant> protocolVariant =
+            new AtomicReference<>(ProtocolVariant.UNKNOWN);
+    // Owned by the source thread, reset for every connection.
+    private boolean protocolConflictReported;
     private final CanonicalStateStore store;
     private final AtomicBoolean running = new AtomicBoolean();
     private final int port;
@@ -36,6 +42,23 @@ public final class WinLaufenClient implements AutoCloseable {
         this.host = host;
         this.port = port;
         this.store = store;
+    }
+
+    public ProtocolVariant protocolVariant() {
+        return protocolVariant.get();
+    }
+
+    private void recognizeProtocolVariant(ProtocolVariant detected) {
+        if (detected == ProtocolVariant.UNKNOWN) return;
+        protocolVariant.compareAndSet(ProtocolVariant.UNKNOWN, detected);
+        ProtocolVariant previous = protocolVariant.get();
+        if (previous != detected && !protocolConflictReported) {
+            protocolConflictReported = true;
+            LOG.log(System.Logger.Level.WARNING,
+                    "Widersprüchliche WinLaufen-Protokollerkennung: {0}, danach {1}. "
+                            + "Bisherige Diagnose bleibt bestehen; Datenverarbeitung läuft weiter.",
+                    previous, detected);
+        }
     }
 
     public void start() {
@@ -67,6 +90,8 @@ public final class WinLaufenClient implements AutoCloseable {
     }
 
     private void consumeConnection(String targetHost) throws Exception {
+        protocolVariant.set(ProtocolVariant.UNKNOWN);
+        protocolConflictReported = false;
         Socket connection = new Socket();
         socket = connection;
         connection.connect(new InetSocketAddress(targetHost, port), 5_000);
@@ -76,7 +101,7 @@ public final class WinLaufenClient implements AutoCloseable {
         WinLaufenProtocolReader reader = new WinLaufenProtocolReader(objects, clock -> {
             heartbeat.accept(System.nanoTime());
             store.clock(clock.wireValue());
-        }, store::result, store::message);
+        }, store::result, store::message, this::recognizeProtocolVariant);
         while (running.get() && targetHost.equals(host)) {
             try { reader.readNext(); }
             catch (WinLaufenProtocolReader.ProtocolException ignored) {

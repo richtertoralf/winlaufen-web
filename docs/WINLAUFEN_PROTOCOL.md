@@ -444,3 +444,41 @@ Aufzeichnungsstream ist.
 
 Neues Verhalten muss anhand realer Protokollevidenz dokumentiert werden, bevor
 produktive Logik davon abhängt.
+
+## Lokale Protokolldiagnose
+
+`ProtocolVariant` ist ausschließlich eine lokale Diagnose der Bridge:
+
+- `UNKNOWN`: noch keine positive Evidenz auf dieser TCP-Verbindung.
+- `CURRENT`: erfolgreich verarbeiteter `UhrHH:MM:SS`-String oder vollständig
+  durch `readResultBlock()` validierter aktueller Ergebnisblock.
+- `LEGACY`: erfolgreich verarbeiteter Vector mit genau einem `HH:MM:SS`-String
+  oder strukturell passender Ergebnis-Vector mit separatem `ende`, erfolgreicher
+  Normalisierung und vollständiger Validierung durch denselben Ergebnisparser.
+
+Ein nackter Clock-String ohne `Uhr` ist kein dokumentiertes aktuelles
+Uhrtelegramm. Unbekannte Objekte, unvollständige oder ungültige Ergebnisblöcke
+und versionsneutrale `nachricht`-Vectoren liefern keine positive Evidenz.
+Aus dem Wire-Format lässt sich keine zuverlässige WinLaufen-Versionsnummer
+ableiten; insbesondere bedeutet `LEGACY` nicht „WinLaufen 14 erkannt“.
+
+Der Reader meldet positive Erkennung über einen `Consumer<ProtocolVariant>`.
+Der `WinLaufenClient` hält sie thread-safe, getrennt vom fachlichen Zustand.
+Jeder neue Verbindungsversuch einschließlich Reconnect startet mit `UNKNOWN`.
+Die erste erkannte Variante bleibt für diese Verbindung bestehen. Wiederholungen
+ändern sie nicht; widersprüchliche Evidenz erzeugt einmalig pro Verbindung eine
+Logwarnung, ohne Daten zu verwerfen oder einen Reconnect auszulösen.
+
+`BridgeMain` verbindet `source::protocolVariant` direkt mit Bridge Control.
+Nur die lokale Status-API `GET /api/v1/status` ergänzt `protocolVariant` und
+`protocolWarning`. Bei `LEGACY` lautet die Warnung:
+„Legacy-Protokoll erkannt – Update auf WinLaufen 18+ empfohlen.“
+Bei `UNKNOWN` und `CURRENT` ist sie `null`. Die lokale UI zeigt
+„Protokoll: Erkennung läuft“, „Protokoll: Aktuell“ bzw. „Protokoll: Legacy“
+und übernimmt den Warntext ausschließlich aus dem Backend.
+
+Die Legacy-Normalisierung bleibt am Source Boundary. `ResultBlock`,
+`CanonicalStateStore`, Canonical Snapshot, Startlistenmodell, Contract,
+Output-Fanout und WebSocket-Ausgaben enthalten keine Protokolldiagnose.
+Live Server, dessen APIs und Oberflächen sowie FSO und andere Verbraucher
+kennen ausschließlich kanonische Wettkampfdaten.

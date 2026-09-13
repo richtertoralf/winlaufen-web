@@ -747,6 +747,18 @@ weiter, verwendet `Europe/Berlin` und zeigt Ihnen in Bridge Control eine
 Warnung. Einzelheiten stehen in [INSTALLATION.md](INSTALLATION.md) und
 [API.md](API.md).
 
+## Protokollanzeige in Bridge Control
+
+Im WinLaufen-Verbindungsstatus zeigt Bridge Control „Protokoll: Erkennung läuft“,
+bis ein eindeutiges Telegramm eingetroffen ist. Danach steht dort „Protokoll:
+Aktuell“ oder „Protokoll: Legacy“. Bei Legacy erscheint zusätzlich:
+„Legacy-Protokoll erkannt – Update auf WinLaufen 18+ empfohlen.“
+Die unterstützten Wettkampfdaten werden weiterhin verarbeitet. Die Anzeige
+bezeichnet das Protokollformat, keine zuverlässig erkannte Versionsnummer.
+Nach einem Verbindungsneuaufbau beginnt die Erkennung erneut.
+Diese Diagnose bleibt in Bridge Control; die Live-Ergebnisseite und externe
+Verbraucher erhalten sie nicht.
+
 ## Weiterführende Dokumentation
 
 | Dokument | Inhalt |

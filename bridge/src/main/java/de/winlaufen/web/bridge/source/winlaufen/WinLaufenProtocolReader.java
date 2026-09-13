@@ -15,6 +15,7 @@ public final class WinLaufenProtocolReader {
     private final Consumer<ClockValue> clocks;
     private final Consumer<ResultBlock> results;
     private final Consumer<String> messages;
+    private final Consumer<ProtocolVariant> protocolVariant;
     private Vector<?> pendingLegacyResult;
 
     public WinLaufenProtocolReader(ObjectInputStream input, Consumer<ClockValue> clocks,
@@ -24,6 +25,13 @@ public final class WinLaufenProtocolReader {
 
     public WinLaufenProtocolReader(ObjectInputStream input, Consumer<ClockValue> clocks,
                                    Consumer<ResultBlock> results, Consumer<String> messages) {
+        this(input, clocks, results, messages, ignored -> { });
+    }
+
+    public WinLaufenProtocolReader(ObjectInputStream input, Consumer<ClockValue> clocks,
+                                   Consumer<ResultBlock> results, Consumer<String> messages,
+                                   Consumer<ProtocolVariant> protocolVariant) {
+        this.protocolVariant = protocolVariant;
         this.input = input;
         this.clocks = clocks;
         this.results = results;
@@ -38,18 +46,25 @@ public final class WinLaufenProtocolReader {
             pendingLegacyResult = null;
             if ("ende".equals(first)) {
                 readLegacyResult(vector);
+                protocolVariant.accept(ProtocolVariant.LEGACY);
                 return;
             }
             // Missing terminator: discard the incomplete block, not the following object.
         }
         if (first instanceof String string) {
             ClockValue clock = ClockValue.parse(string);
-            if (clock != null) clocks.accept(clock);
-            else if (!"ende".equals(string)) readResultBlock(string, input::readObject);
+            if (clock != null) {
+                clocks.accept(clock);
+                protocolVariant.accept(ProtocolVariant.CURRENT);
+            } else if (!"ende".equals(string)) {
+                readResultBlock(string, input::readObject);
+                protocolVariant.accept(ProtocolVariant.CURRENT);
+            }
         } else if (first instanceof Vector<?> vector) {
             if (vector.size() == 1 && vector.get(0) instanceof String value
                     && value.matches("\\d{2}:\\d{2}:\\d{2}")) {
                 clocks.accept(new ClockValue(value));
+                protocolVariant.accept(ProtocolVariant.LEGACY);
             } else if (isLegacyResult(vector)) {
                 // Keep the block pending across socket timeouts until its separate terminator.
                 pendingLegacyResult = vector;
