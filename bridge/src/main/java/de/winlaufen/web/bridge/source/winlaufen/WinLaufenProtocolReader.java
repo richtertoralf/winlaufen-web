@@ -15,6 +15,7 @@ public final class WinLaufenProtocolReader {
     private final Consumer<ClockValue> clocks;
     private final Consumer<ResultBlock> results;
     private final Consumer<String> messages;
+    private Vector<?> pendingLegacyResult;
 
     public WinLaufenProtocolReader(ObjectInputStream input, Consumer<ClockValue> clocks,
                                    Consumer<ResultBlock> results) {
@@ -32,31 +33,89 @@ public final class WinLaufenProtocolReader {
 
     public void readNext() throws IOException, ClassNotFoundException {
         Object first = input.readObject();
+        if (pendingLegacyResult != null) {
+            Vector<?> vector = pendingLegacyResult;
+            pendingLegacyResult = null;
+            if ("ende".equals(first)) {
+                readLegacyResult(vector);
+                return;
+            }
+            // Missing terminator: discard the incomplete block, not the following object.
+        }
         if (first instanceof String string) {
             ClockValue clock = ClockValue.parse(string);
             if (clock != null) clocks.accept(clock);
-            else readResultBlock(string);
+            else if (!"ende".equals(string)) readResultBlock(string, input::readObject);
         } else if (first instanceof Vector<?> vector) {
-            consumeMessage(vector);
+            if (vector.size() == 1 && vector.get(0) instanceof String value
+                    && value.matches("\\d{2}:\\d{2}:\\d{2}")) {
+                clocks.accept(new ClockValue(value));
+            } else if (isLegacyResult(vector)) {
+                // Keep the block pending across socket timeouts until its separate terminator.
+                pendingLegacyResult = vector;
+            } else {
+                consumeMessage(vector);
+            }
         } else {
             throw new ProtocolException("Unexpected top-level object: " + type(first));
         }
     }
 
-    private void readResultBlock(String competitionType) throws IOException, ClassNotFoundException {
+    private static boolean isLegacyResult(Vector<?> vector) {
+        return vector.size() == 11
+                && vector.get(0) instanceof String
+                && vector.get(1) instanceof Integer
+                && vector.get(2) instanceof Integer
+                && vector.get(3) instanceof String[]
+                && vector.get(4) instanceof int[]
+                && vector.get(5) instanceof Integer
+                && vector.get(6) instanceof Integer
+                && vector.get(7) instanceof Integer
+                && vector.get(8) instanceof Integer
+                && vector.get(9) instanceof Object[][]
+                && vector.get(10) instanceof String[];
+    }
+
+    private void readLegacyResult(Vector<?> vector) throws IOException, ClassNotFoundException {
+        // Normalize only the wire envelope. The existing parser validates and publishes it.
+        List<Object> fields = new ArrayList<>(vector.subList(1, 9));
+        Object[][] table = (Object[][]) vector.get(9);
+        if (table.length > ContractLimits.MAX_ROWS) throw new ProtocolException("Too many rows");
+        for (Object[] row : table) {
+            if (row == null) throw new ProtocolException("Missing result row");
+            Object[] cells = row.clone();
+            for (int column = 0; column < Math.min(2, cells.length); column++) {
+                if (cells[column] instanceof Integer value) cells[column] = value.toString();
+            }
+            fields.add(cells);
+        }
+        fields.add("tabelle");
+        fields.add(vector.get(10));
+        fields.add("ende"); // The real, separate terminator has already been consumed.
+        var normalized = fields.iterator();
+        readResultBlock((String) vector.get(0), normalized::next);
+    }
+
+    @FunctionalInterface
+    private interface WireFields {
+        Object read() throws IOException, ClassNotFoundException;
+    }
+
+    private void readResultBlock(String competitionType, WireFields fields)
+            throws IOException, ClassNotFoundException {
         text(competitionType, ContractLimits.MAX_NAME_CHARS, "competition type");
-        int evaluationMode = integer("evaluation mode");
-        int classCount = integer("class count");
+        int evaluationMode = integer(fields, "evaluation mode");
+        int classCount = integer(fields, "class count");
         if (classCount < 1 || classCount > ContractLimits.MAX_CLASSES) {
             throw new ProtocolException("Invalid class count");
         }
-        String[] classNames = object(String[].class, "class names");
+        String[] classNames = object(fields, String[].class, "class names");
         for (String className : classNames) text(className, ContractLimits.MAX_NAME_CHARS, "class name");
-        int[] rounds = object(int[].class, "round/team values");
-        int winSpringenPosition = integer("WinSpringen position");
-        int classIndex = integer("speaker class index");
-        int roundOrHeat = integer("round/heat");
-        int currentFinish = integer("current finish");
+        int[] rounds = object(fields, int[].class, "round/team values");
+        int winSpringenPosition = integer(fields, "WinSpringen position");
+        int classIndex = integer(fields, "speaker class index");
+        int roundOrHeat = integer(fields, "round/heat");
+        int currentFinish = integer(fields, "current finish");
         if (classNames.length != classCount || rounds.length != classCount
                 || classIndex < 0 || classIndex >= classCount) {
             throw new ProtocolException("Inconsistent class metadata");
@@ -64,7 +123,7 @@ public final class WinLaufenProtocolReader {
 
         List<List<String>> rows = new ArrayList<>();
         Object next;
-        while ((next = input.readObject()) instanceof Object[] row) {
+        while ((next = fields.read()) instanceof Object[] row) {
             List<String> cells = new ArrayList<>(row.length);
             for (Object cell : row) {
                 if (!(cell instanceof String)) throw new ProtocolException("Non-string table cell");
@@ -75,9 +134,9 @@ public final class WinLaufenProtocolReader {
             if (rows.size() > ContractLimits.MAX_ROWS) throw new ProtocolException("Too many rows");
         }
         if (!"tabelle".equals(next)) throw new ProtocolException("Missing tabelle marker");
-        String[] headers = object(String[].class, "table headers");
+        String[] headers = object(fields, String[].class, "table headers");
         for (String header : headers) text(header, ContractLimits.MAX_CELL_CHARS, "table header");
-        if (!"ende".equals(input.readObject())) throw new ProtocolException("Missing ende marker");
+        if (!"ende".equals(fields.read())) throw new ProtocolException("Missing ende marker");
         if (headers.length == 0 || headers.length > ContractLimits.MAX_HEADERS
                 || rows.stream().anyMatch(row -> row.size() != headers.length)
                 || currentFinish < 0 || currentFinish >= rows.size()) {
@@ -106,12 +165,12 @@ public final class WinLaufenProtocolReader {
         if (value.length() > limit) throw new ProtocolException(name + " exceeds size limit");
     }
 
-    private int integer(String name) throws IOException, ClassNotFoundException {
-        return object(Integer.class, name);
+    private int integer(WireFields fields, String name) throws IOException, ClassNotFoundException {
+        return object(fields, Integer.class, name);
     }
 
-    private <T> T object(Class<T> expected, String name) throws IOException, ClassNotFoundException {
-        Object value = input.readObject();
+    private <T> T object(WireFields fields, Class<T> expected, String name) throws IOException, ClassNotFoundException {
+        Object value = fields.read();
         if (!expected.isInstance(value)) throw new ProtocolException("Invalid " + name + ": " + type(value));
         return expected.cast(value);
     }

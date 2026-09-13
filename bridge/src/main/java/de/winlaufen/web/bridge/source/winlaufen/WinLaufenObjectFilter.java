@@ -5,7 +5,7 @@ import java.util.Set;
 
 public final class WinLaufenObjectFilter {
     private static final Set<Class<?>> ALLOWED = Set.of(
-            String.class, Integer.class, Number.class, Object[].class,
+            String.class, Integer.class, Number.class, Object[].class, Object[][].class,
             String[].class, int[].class, java.util.Vector.class
     );
 

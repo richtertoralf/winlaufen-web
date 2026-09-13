@@ -98,6 +98,75 @@ class ProtocolReaderTest {
         assertEquals("KREISSL Tommy", results.getFirst().rows().getFirst().get(2));
     }
 
+    @Test void legacyClockUsesLogicalVectorSizeAndSharesStreamWithMessagesAndResults() throws Exception {
+        Vector<String> legacy = new Vector<>(10);
+        legacy.add("09:33:50");
+        assertEquals(1, legacy.size());
+        assertEquals(10, legacy.capacity());
+        byte[] bytes = stream(out -> {
+            out.writeObject(legacy);
+            out.writeObject(new Vector<>(List.of("Hallo", "nachricht")));
+            out.writeObject("Standardwettkampf");
+            out.writeObject(1);
+            out.writeObject(1);
+            out.writeObject(new String[]{"Klasse"});
+            out.writeObject(new int[]{0});
+            out.writeObject(0);
+            out.writeObject(0);
+            out.writeObject(0);
+            out.writeObject(0);
+            out.writeObject(new Object[]{"1"});
+            out.writeObject("tabelle");
+            out.writeObject(new String[]{"Rang"});
+            out.writeObject("ende");
+            out.writeObject("Uhr09:33:51");
+            out.writeObject(legacy); // Reused serialization handle on the same stream.
+        });
+        var store = new de.winlaufen.web.bridge.state.CanonicalStateStore(
+                de.winlaufen.web.contract.PresentationConfig.defaults(), null);
+        try (var input = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
+            var reader = new WinLaufenProtocolReader(input,
+                    clock -> store.clock(clock.wireValue()), store::result, store::message);
+            reader.readNext();
+            assertEquals("09:33:50", store.get().state().clock());
+            assertEquals(de.winlaufen.web.contract.SourceHealth.CONNECTED,
+                    store.get().state().sourceHealth());
+            reader.readNext();
+            reader.readNext();
+            var before = store.get().state();
+            reader.readNext();
+            assertEquals("09:33:51", store.get().state().clock());
+            reader.readNext();
+            var after = store.get().state();
+            assertEquals("09:33:50", after.clock());
+            assertEquals("Hallo", after.message());
+            assertEquals(List.of(List.of("1")),
+                    after.competition().classes().getFirst().snapshot().rows());
+            assertEquals(before.competition(), after.competition());
+            assertEquals(before.currentFinish(), after.currentFinish());
+        }
+    }
+
+    @Test void rejectsVectorsOutsideExactLegacyClockShape() throws Exception {
+        List<Vector<?>> invalid = List.of(
+                new Vector<>(), new Vector<>(List.of("foo")),
+                new Vector<>(List.of("09:33:50", "foo")), new Vector<>(List.of(123)),
+                new Vector<>(java.util.Collections.singletonList(null)),
+                new Vector<>(List.of("9:33:50")), new Vector<>(List.of("09:3:50")),
+                new Vector<>(List.of("09:33:5")), new Vector<>(List.of("09:33:50\n")),
+                new Vector<>(List.of(" 09:33:50")), new Vector<>(List.of("09:33:50 ")),
+                new Vector<>(List.of("Uhr09:33:50")), new Vector<>(List.of("AA:33:50")));
+        for (Vector<?> vector : invalid) {
+            byte[] bytes = stream(out -> out.writeObject(vector));
+            try (var input = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
+                var reader = new WinLaufenProtocolReader(input,
+                        ignored -> fail("Unexpected clock"), ignored -> fail("Unexpected result"),
+                        ignored -> fail("Unexpected message"));
+                assertThrows(WinLaufenProtocolReader.ProtocolException.class, reader::readNext);
+            }
+        }
+    }
+
     private static byte[] blockStream(String[] classes, Object[][] rows, String[] headers) throws Exception {
         return stream(out -> { out.writeObject("Standardwettkampf"); out.writeObject(1); out.writeObject(classes.length); out.writeObject(classes); out.writeObject(new int[classes.length]); out.writeObject(0); out.writeObject(0); out.writeObject(0); out.writeObject(0); for (Object[] row : rows) out.writeObject(row); out.writeObject("tabelle"); out.writeObject(headers); out.writeObject("ende"); });
     }

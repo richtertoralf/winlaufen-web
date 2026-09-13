@@ -25,6 +25,104 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class WinLaufenClientTest {
     @Test @Timeout(10)
+    void legacyResultsAndUnknownVectorsKeepConnectionButEofReconnects() throws Exception {
+        try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            server.setSoTimeout(2_000);
+            var store = new CanonicalStateStore(PresentationConfig.defaults(), null);
+            var updates = new java.util.concurrent.LinkedBlockingQueue<
+                    de.winlaufen.web.bridge.state.CanonicalSnapshot>();
+            store.addListener(updates::add);
+            try (var client = new WinLaufenClient("localhost", server.getLocalPort(), store)) {
+                client.start();
+                try (var connection = server.accept();
+                     var output = new ObjectOutputStream(connection.getOutputStream())) {
+                    output.writeObject(new java.util.Vector<>(List.of("10:29:27")));
+                    output.flush();
+                    assertEquals("10:29:27", updates.poll(2, TimeUnit.SECONDS).state().clock());
+                    output.writeObject(LegacyProtocolFixture.result());
+                    output.flush();
+                    // The separate terminator may arrive after the client's 500ms read timeout.
+                    Thread.sleep(700);
+                    assertNull(store.get().state().competition());
+                    output.writeObject("ende");
+                    output.flush();
+                    var result = updates.poll(2, TimeUnit.SECONDS);
+                    assertNotNull(result);
+                    assertEquals(List.of(LegacyProtocolFixture.ROW),
+                            result.state().competition().classes().get(10).snapshot().rows());
+                    output.writeObject(new java.util.Vector<>(List.of("unbekannt", 123)));
+                    output.writeObject(new java.util.Vector<>(List.of("10:29:28")));
+                    output.writeObject(new java.util.Vector<>(List.of("10:29:29")));
+                    output.flush();
+                    for (String time : List.of("10:29:28", "10:29:29")) {
+                        var update = updates.poll(2, TimeUnit.SECONDS);
+                        assertNotNull(update);
+                        assertEquals(time, update.state().clock());
+                        assertEquals(SourceHealth.CONNECTED, update.state().sourceHealth());
+                        assertEquals(result.state().competition(), update.state().competition());
+                    }
+                    connection.setSoTimeout(200);
+                    assertThrows(SocketTimeoutException.class, () -> connection.getInputStream().read());
+                    server.setSoTimeout(200);
+                    assertThrows(SocketTimeoutException.class, server::accept);
+                }
+                // Server closes the established socket: this real EOF must still reconnect.
+                server.setSoTimeout(2_000);
+                try (var next = server.accept();
+                     var output = new ObjectOutputStream(next.getOutputStream())) {
+                    var disconnected = updates.poll(2, TimeUnit.SECONDS);
+                    assertNotNull(disconnected);
+                    assertEquals(SourceHealth.DISCONNECTED, disconnected.state().sourceHealth());
+                    output.writeObject(new java.util.Vector<>(List.of("10:29:30")));
+                    output.flush();
+                    var recovered = updates.poll(2, TimeUnit.SECONDS);
+                    assertNotNull(recovered);
+                    assertEquals("10:29:30", recovered.state().clock());
+                    assertEquals(SourceHealth.CONNECTED, recovered.state().sourceHealth());
+                }
+            }
+        }
+    }
+
+    @Test @Timeout(15)
+    void legacyClocksKeepOneConnectionAliveBeyondInitialHeartbeatDeadline() throws Exception {
+        try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            server.setSoTimeout(2_000);
+            CanonicalStateStore store = new CanonicalStateStore(PresentationConfig.defaults(), null);
+            var updates = new java.util.concurrent.LinkedBlockingQueue<String>();
+            List<SourceHealth> health = new CopyOnWriteArrayList<>();
+            store.addListener(event -> {
+                health.add(event.state().sourceHealth());
+                if (event.state().clock() != null) updates.add(event.state().clock());
+            });
+            try (WinLaufenClient client = new WinLaufenClient("localhost", server.getLocalPort(), store)) {
+                client.start();
+                try (var connection = server.accept();
+                     var output = new ObjectOutputStream(connection.getOutputStream())) {
+                    for (String time : List.of("09:33:50", "09:33:51", "09:33:52", "09:33:53")) {
+                        var vector = new java.util.Vector<String>(10);
+                        vector.add(time);
+                        output.writeObject(vector);
+                        output.flush();
+                        assertEquals(time, updates.poll(2, TimeUnit.SECONDS));
+                        assertEquals(time, store.get().state().clock());
+                        assertEquals(SourceHealth.CONNECTED, store.get().state().sourceHealth());
+                        Thread.sleep(1_100);
+                    }
+                    // More than four seconds since connection establishment: heartbeat refreshed.
+                    assertEquals(List.of(SourceHealth.CONNECTED, SourceHealth.CONNECTED,
+                            SourceHealth.CONNECTED, SourceHealth.CONNECTED), health);
+                    connection.setSoTimeout(200);
+                    assertThrows(SocketTimeoutException.class, () -> connection.getInputStream().read(),
+                            "Connection must remain open and read-only");
+                    server.setSoTimeout(200);
+                    assertThrows(SocketTimeoutException.class, server::accept, "No reconnect");
+                }
+            }
+        }
+    }
+
+    @Test @Timeout(10)
     void reconnectsWhenAValidSerializationStreamNeverSendsItsFirstClock() throws Exception {
         try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             server.setSoTimeout(8_000);

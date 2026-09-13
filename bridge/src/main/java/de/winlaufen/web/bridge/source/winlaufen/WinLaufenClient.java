@@ -79,6 +79,9 @@ public final class WinLaufenClient implements AutoCloseable {
         }, store::result, store::message);
         while (running.get() && targetHost.equals(host)) {
             try { reader.readNext(); }
+            catch (WinLaufenProtocolReader.ProtocolException ignored) {
+                // Unsupported application data does not invalidate Java serialization or TCP.
+            }
             catch (SocketTimeoutException ignored) { }
             catch (EOFException ex) { throw ex; }
             if (heartbeat.isStale(System.nanoTime())) {

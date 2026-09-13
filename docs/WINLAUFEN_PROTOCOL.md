@@ -65,6 +65,8 @@ Nicht über druckbare Strings, reguläre Ausdrücke oder feste Byte-Offsets pars
 
 ## Uhr
 
+### Bisher unterstützte Sprecher-PC-Variante
+
 WinLaufen sendet Strings der Form:
 
 UhrHH:MM:SS
@@ -76,6 +78,32 @@ Dezimalziffern, `:`, zwei Dezimalziffern, `:`, zwei Dezimalziffern. Für die
 Felder gelten keine Wertebereichsprüfungen. `Uhr99:99:99` ist damit ein
 erkanntes Telegramm und wird als `99:99:99` weitergegeben; das hält fest, was
 WinLaufen gesendet hat, und behauptet nicht, dass es eine gültige Uhrzeit ist.
+
+### Legacy-Variante (mit WinLaufen 14 beobachtet)
+
+Am 13.09.2026 wurde an einem realen WinLaufen-14-PC auf TCP 4444 nach dem
+Streamheader `AC ED 00 05` etwa einmal pro Sekunde ein `java.util.Vector`
+mit genau einem logischen Element beobachtet: `Vector["09:33:50"]`, danach
+`Vector["09:33:51"]`, `Vector["09:33:52"]` und weitere Uhrwerte.
+Die interne Kapazität betrug 10; maßgeblich ist ausschließlich `Vector.size() == 1`.
+
+Diese Variante wird nur erkannt, wenn Element 0 ein `String` ist und exakt
+`^\d{2}:\d{2}:\d{2}$` entspricht. Es gibt keine Wertebereichsprüfung.
+Andere Vector-Inhalte werden dadurch nicht zur Uhr. Die bisherige
+String-Variante bleibt unverändert; die Erkennung benötigt keinen Versionsschalter.
+Der genaue Versionswechsel ist nicht nachgewiesen. Dieses Format ist deshalb
+nicht als ausschließliches Merkmal von Version 14 zu verstehen.
+
+Quelle dieser neuen Beobachtung ist der berichtete Mitschnitt vom 13.09.2026;
+die neuen Regressionstests serialisieren dessen beschriebene Objektstruktur
+synthetisch, einschließlich Kapazität 10. Sie sind kein neues Original-PCAP.
+
+Beide Varianten verwenden denselben Clock-/Heartbeat-/Liveness-Callback.
+Ein gültiger Legacy-Vector schließt die Verbindung nicht und löst keinen
+Reconnect aus. Ein `ObjectInputStream` bleibt für die gesamte TCP-Verbindung
+erhalten, auch für aufeinanderfolgende Legacy-Telegramme.
+
+### Gemeinsame Uhr- und Heartbeat-Semantik
 
 Die WinLaufen-Uhr ist autoritativ. Jedes erkannte Uhrentelegramm wird unverändert
 veröffentlicht und zählt als Heartbeat, unabhängig davon, ob sein Wert gleich,
@@ -122,6 +150,8 @@ weder die Wettkampfzeit noch `SourceHealth` noch Ergebnisdaten verändern.
 
 ## Wettkampf-/Ergebnisblock
 
+### Bisher unterstützte Sprecher-PC-Variante
+
 Dokumentierte bzw. beobachtete logische Reihenfolge:
 
 0. String
@@ -161,6 +191,81 @@ String "tabelle"
 String[] Tabellenheader
 
 String "ende"
+
+### Legacy-Variante: mit WinLaufen 14 real beobachtet am 13.09.2026
+
+Der berichtete vollständige PCAP wurde mit Java `ObjectInputStream`
+deserialisiert. Neben der Uhr als `Vector<String>[1]` wurde folgende
+Ergebnishülle beobachtet: ein `java.util.Vector` mit **size() == 11**,
+unmittelbar gefolgt vom separaten Java-Objekt `String "ende"`.
+
+| Index | Java-Typ | Zuordnung zur vorhandenen Ergebnisstruktur | Beobachteter Wert |
+|---|---|---|---|
+| 0 | String | Wettkampftyp/-abschnitt | Standardwettkampf |
+| 1 | Integer | evaluationMode (Auswertungsmodus) | 2 |
+| 2 | Integer | Klassenanzahl | 21 |
+| 3 | String[] | Klassennamen | 21 Einträge |
+| 4 | int[] | roundsOrTeamSize | 21 Nullen |
+| 5 | Integer | winSpringenPosition | 0 |
+| 6 | Integer | classIndex (Sprecher-Klassennummer) | 10 |
+| 7 | Integer | roundOrHeat | 0 |
+| 8 | Integer | currentFinishIndex | 0 |
+| 9 | Object[][] | Ergebniszeilen | eine Zeile mit sieben Zellen |
+| 10 | String[] | Tabellenheader | sieben Header |
+
+Die Zuordnung von [0] bis [8] folgt der identischen Reihenfolge und den
+Java-Typen des bereits dokumentierten Protokolls und des vorhandenen Parsers.
+Sie ist keine aus den Beispielzahlen erratene neue Fachsemantik. Insbesondere
+wird `2` unverändert als Auswertungsmodus übernommen, ohne diesem Wert eine
+neue Bedeutung zuzuweisen. Bestehende Strukturprüfungen, etwa Klassenanzahl,
+Arraylängen und nullbasierte Indizes, gelten für beide Hüllen.
+
+Beobachtete Zeile:
+
+```text
+Integer 1 | Integer 68 | MÜLLER Rebecca-Anna | SSV-Geyer | SVSAC | 0:14:23.5 | 0:00:00.0
+```
+
+Gelieferte Header:
+
+```text
+Rang | StNr | Name, Vorname | Verein | Vbd | Laufzeit | Rückstand
+```
+
+Der Source-Adapter überführt nur die Hülle in die vorhandene logische
+Feldfolge: [1..8], einzelne Zeilen, Tabellenmarker und Header. Integer-Zellen
+werden ausschließlich in den ersten beiden Spalten (Rang und Startnummer)
+in ihre dezimale String-Darstellung überführt. Bereits vorhandene String-Zellen
+bleiben unverändert; andere Zelltypen werden nicht allgemein mit `toString()`
+akzeptiert. Der vorhandene Ergebnisparser prüft und erzeugt anschließend
+denselben `ResultBlock`; kanonischer Vertrag und Snapshot-Verarbeitung ändern
+sich nicht. Der Filter lässt zusätzlich genau den benötigten Typ `Object[][]` zu.
+
+Auf dem Legacy-Wire gibt es an dieser Stelle keinen separaten `tabelle`-Marker.
+Das folgende separate `ende` wird konsumiert, bevor der Block veröffentlicht
+wird. Ein Socket-Lesetimeout zwischen Vector und Abschluss lässt den Block
+weiter auf seinen Abschluss warten. Fehlt `ende` und folgt ein anderes Objekt,
+wird der unvollständige Block verworfen und dieses Folgeobjekt normal behandelt.
+
+Der genaue Versionswechsel ist unbekannt; dieses Format wird nicht als
+exklusives Merkmal von WinLaufen 14 behauptet. Die neue Test-Fixture bildet die
+berichtete deserialisierte Struktur synthetisch nach. Nicht vollständig
+mitgeteilte Klassennamen sind ausdrücklich synthetische Platzhalter. Ein
+Original-PCAP dieser Sitzung ist damit nicht als Repository-Fixture behauptet.
+
+### Fachlich unbekannte Telegramme und Verbindungslebensdauer
+
+Ein erfolgreich deserialisierter, fachlich unbekannter Vector bzw. eine
+`ProtocolException` der fachlichen Strukturprüfung löst keinen TCP-Reconnect
+aus und veröffentlicht keine fehlerhaften Ergebnisse. Ein isoliertes `ende`
+wird ebenfalls konsumiert. Solche Objekte sind keine Uhr und erneuern den
+Heartbeat nicht. Die bisherige Viersekunden-Heartbeat-Überwachung bleibt bestehen.
+
+EOF, Socket-/Transportfehler, beschädigte Java-Serialisierung und Ablehnungen
+des restriktiven Deserialisierungsfilters führen weiterhin zum Reconnect.
+Pro Verbindung bleibt genau ein `ObjectInputStream` erhalten. Die Regression
+prüft Ergebnis-Vector, verzögertes `ende`, unbekannten Vector und anschließende
+Legacy-Uhren auf derselben Verbindung sowie Reconnect nach echtem EOF.
 
 ## Indexsemantik
 
@@ -287,7 +392,9 @@ Die offizielle Protokolldokumentation beschreibt Servernachrichten als
 
 v0.1 muss diese dokumentierte Vector-Struktur bei der sicheren Deserialisierung
 eng begrenzt zulassen und sie konsumieren, ohne die Protokollverbindung zu
-zerstören. Andere Vector-Inhalte werden abgelehnt. Eine weitergehende
+zerstören. Die oben beschriebenen Legacy-Uhr- und Ergebnis-Vectoren werden separat erkannt.
+Andere Vector-Inhalte werden fachlich abgelehnt, ohne allein deshalb die
+TCP-Verbindung zu schließen. Eine weitergehende
 Nachrichten-Oberfläche ist nicht erforderlich.
 
 ## WinSpringen
