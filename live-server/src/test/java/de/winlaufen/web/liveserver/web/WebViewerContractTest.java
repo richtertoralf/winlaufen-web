@@ -147,6 +147,12 @@ class WebViewerContractTest {
         assertTrue(script.indexOf("node.createTHead()") < script.indexOf("node.createTBody()"));
         assertTrue(css.contains("th{position:sticky;top:0;"));
         assertTrue(css.contains(".table-wrap{width:100%;overflow:auto"));
+        assertTrue(css.contains("table{width:100%;border-collapse:collapse;font-size:16px;"),
+                "table content stays readable on the standard display");
+        assertTrue(css.contains("th{position:sticky;top:0;background:var(--head);color:#fff;font-size:13px;"),
+                "headers remain smaller than table content");
+        assertTrue(css.contains("th:first-child,td:first-child,th:nth-child(2),td:nth-child(2)"),
+                "numeric-leading columns are right aligned");
         assertTrue(script.contains("function displayRoundOrHeat(rawRoundOrHeat) { return rawRoundOrHeat + 1; }"));
         assertTrue(script.contains("displayRoundOrHeat(state.competition.roundOrHeat)"));
     }
