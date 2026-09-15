@@ -151,8 +151,12 @@ class WebViewerContractTest {
                 "table content stays readable on the standard display");
         assertTrue(css.contains("th{position:sticky;top:0;background:var(--head);color:#fff;font-size:13px;"),
                 "headers remain smaller than table content");
-        assertTrue(css.contains("th:first-child,td:first-child,th:nth-child(2),td:nth-child(2)"),
-                "numeric-leading columns are right aligned");
+        assertTrue(css.contains("th.numeric-cell,td.numeric-cell{text-align:right}"),
+                "numeric cells are right aligned semantically");
+        assertFalse(css.contains("nth-child(2),td:nth-child(2)"),
+                "alignment does not depend on global column positions");
+        assertTrue(script.contains("const NUMERIC_COLUMNS = new Set"),
+                "renderer marks numeric and time columns explicitly");
         assertTrue(script.contains("function displayRoundOrHeat(rawRoundOrHeat) { return rawRoundOrHeat + 1; }"));
         assertTrue(script.contains("displayRoundOrHeat(state.competition.roundOrHeat)"));
     }

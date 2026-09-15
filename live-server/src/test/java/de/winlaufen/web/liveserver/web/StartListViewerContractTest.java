@@ -175,7 +175,7 @@ class StartListViewerContractTest {
         String script = resource("/web-viewer/viewer.js");
         String startListPart = script.substring(script.indexOf("--- Startliste ---"));
 
-        assertTrue(startListPart.contains("row.insertCell().textContent = column.value(entry)"));
+        assertTrue(startListPart.contains("td.textContent = column.value(entry)"));
         // The property access, not the word: a comment may well name what is deliberately avoided.
         assertFalse(startListPart.contains(".innerHTML"),
                 "participant values come from a foreign file and are never parsed as HTML");

@@ -131,17 +131,32 @@ function visibleColumn(header) {
   if (header === 'Schießen') return display.showShooting;
   return true;
 }
+const NUMERIC_COLUMNS = new Set([
+  'Rang', 'StNr', 'Startzeit', 'Jahrgang', 'Strecke',
+  'Schießen', 'Laufzeit', 'Gesamtzeit', 'Rückstand'
+]);
+function isNumericColumn(header) { return NUMERIC_COLUMNS.has(header); }
 function table(target, snapshot, highlighted, emptyText) {
   if (!snapshot) { target.innerHTML = `<div class="compact-empty">${emptyText}</div>`; return; }
   const columns = snapshot.headers.map((header, index) => ({header, index})).filter(column => visibleColumn(column.header));
   const node = document.createElement('table');
   const head = node.createTHead().insertRow();
-  columns.forEach(column => { const th = document.createElement('th'); th.scope = 'col'; th.textContent = column.header; head.append(th); });
+  columns.forEach(column => {
+    const th = document.createElement('th');
+    th.scope = 'col';
+    th.textContent = column.header;
+    if (isNumericColumn(column.header)) th.className = 'numeric-cell';
+    head.append(th);
+  });
   const body = node.createTBody();
   snapshot.rows.forEach((row, index) => {
     const tr = body.insertRow();
     if (index === highlighted) { tr.className = 'current'; tr.setAttribute('aria-current', 'true'); }
-    columns.forEach(column => { const td = tr.insertCell(); td.textContent = row[column.index]; });
+    columns.forEach(column => {
+      const td = tr.insertCell();
+      td.textContent = row[column.index];
+      if (isNumericColumn(column.header)) td.className = 'numeric-cell';
+    });
   });
   target.replaceChildren(node);
 }
@@ -249,13 +264,18 @@ function renderStartList() {
     const th = document.createElement('th');
     th.scope = 'col';
     th.textContent = column.header;
+    if (isNumericColumn(column.header)) th.className = 'numeric-cell';
     head.append(th);
   });
   const body = node.createTBody();
   item.entries.forEach(entry => {
     const row = body.insertRow();
     // textContent statt innerHTML: Teilnehmerdaten kommen aus einer fremden Datei.
-    columns.forEach(column => { row.insertCell().textContent = column.value(entry) || ''; });
+    columns.forEach(column => {
+      const td = row.insertCell();
+      td.textContent = column.value(entry) || '';
+      if (isNumericColumn(column.header)) td.className = 'numeric-cell';
+    });
   });
   target.replaceChildren(node);
 }

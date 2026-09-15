@@ -44,7 +44,7 @@ body.link-lost #clock,body.link-lost .view{opacity:.5}
 table{width:100%;border-collapse:collapse;font-size:16px;font-variant-numeric:tabular-nums}
 th,td{max-width:24vw;padding:5px 10px;overflow:hidden;text-align:left;text-overflow:ellipsis;white-space:nowrap;border-bottom:1px solid var(--line)}
 th{position:sticky;top:0;background:var(--head);color:#fff;font-size:13px;font-weight:700;border-bottom-color:var(--head)}
-th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-last-child(-n+2),td:nth-last-child(-n+2){text-align:right}
+th.numeric-cell,td.numeric-cell{text-align:right}
 tbody tr:nth-child(even){background:var(--surface-alt)}
 tbody tr.current{background:#cfe9dc;box-shadow:inset 4px 0 var(--accent);animation:arrival 8s ease-out}
 tbody tr.current td{font-weight:700;border-bottom-color:#a7d1bd}
