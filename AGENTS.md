@@ -253,3 +253,14 @@ and tests together with behavioral changes.
 
 User-facing and operations documentation (README.md and docs/) is written
 in German. Established technical terms stay as they are.
+
+## P2-Scope und Runtime-Koexistenz
+
+- Implementiere nur den ausdrücklich beauftragten lokalen Fehler. Architektur-
+  texte autorisieren keine repoübergreifende Harmonisierung.
+- Eine normale, produktionsfähige Runtime pro Host bleibt die Grundlage. Keine
+  vorsorgliche Änderung etablierter Ports, Units, Pfade oder Dateilayouts.
+- Tests verwenden die vorhandenen Staging-/No-systemd- und dynamischen
+  Testressourcen; normale Listener, Publish-Ziele und laufende Dienste bleiben
+  unangetastet.
+- Größere Architekturverbesserungen als Follow-up melden.
