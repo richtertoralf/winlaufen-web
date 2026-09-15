@@ -66,7 +66,7 @@ public final class WinLaufenClient implements AutoCloseable {
         thread = Thread.ofPlatform().name("winlaufen-client").start(this::run);
     }
 
-    public void reconnectTo(String newHost) {
+    public synchronized void reconnectTo(String newHost) {
         host = newHost;
         closeSocket();
         if (thread != null) thread.interrupt();
@@ -75,6 +75,13 @@ public final class WinLaufenClient implements AutoCloseable {
     private void run() {
         int failure = 0;
         while (running.get()) {
+            if (host.isEmpty()) {
+                failure = 0;
+                protocolVariant.set(ProtocolVariant.UNKNOWN);
+                store.health(SourceHealth.DISCONNECTED);
+                sleep(500);
+                continue;
+            }
             long delay = switch (failure) { case 0 -> 0; case 1 -> 2_000; case 2 -> 5_000; default -> 10_000; };
             if (!sleep(delay)) continue;
             try {
@@ -90,10 +97,17 @@ public final class WinLaufenClient implements AutoCloseable {
     }
 
     private void consumeConnection(String targetHost) throws Exception {
-        protocolVariant.set(ProtocolVariant.UNKNOWN);
-        protocolConflictReported = false;
-        Socket connection = new Socket();
-        socket = connection;
+        Socket connection;
+        synchronized (this) {
+            // A configuration change may have happened after the worker selected this host.
+            // Publish the socket under the same lock as reconnectTo, so disabling the source
+            // closes it even when connect has not started yet.
+            if (targetHost.isEmpty() || !targetHost.equals(host)) return;
+            protocolVariant.set(ProtocolVariant.UNKNOWN);
+            protocolConflictReported = false;
+            connection = new Socket();
+            socket = connection;
+        }
         connection.connect(new InetSocketAddress(targetHost, port), 5_000);
         connection.setSoTimeout(500);
         ObjectInputStream objects = new ObjectInputStream(connection.getInputStream());
@@ -121,7 +135,7 @@ public final class WinLaufenClient implements AutoCloseable {
         catch (InterruptedException ignored) { return running.get(); }
     }
 
-    private void closeSocket() {
+    private synchronized void closeSocket() {
         Socket value = socket;
         socket = null;
         if (value != null) try { value.close(); } catch (Exception ignored) { }

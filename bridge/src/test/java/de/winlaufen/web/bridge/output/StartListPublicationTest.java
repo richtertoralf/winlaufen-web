@@ -1,5 +1,14 @@
 package de.winlaufen.web.bridge.output;
 
+import de.winlaufen.web.bridge.config.BridgeConfig;
+import de.winlaufen.web.bridge.config.BridgeConfigStore;
+import de.winlaufen.web.bridge.control.BridgeControlServer;
+import de.winlaufen.web.bridge.source.winlaufen.WinLaufenClient;
+import de.winlaufen.web.contract.SourceHealth;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.concurrent.atomic.AtomicReference;
 import de.winlaufen.web.bridge.config.OutputTargetConfig;
 import de.winlaufen.web.bridge.config.OutputTargetType;
 import de.winlaufen.web.bridge.startlist.StartListFormatException;
@@ -267,6 +276,59 @@ class StartListPublicationTest {
             await(() -> !later.startLists.isEmpty());
             assertEquals(1, later.startLists.getFirst().generation());
             assertEquals(3, later.startLists.getFirst().entries().size());
+        }
+    }
+
+    @Test
+    void preEventImportAndOutputSaveConnectWithoutAConfiguredSource() throws Exception {
+        var configStore = new BridgeConfigStore(
+                temp.resolve("bridge.properties"));
+        var current = new AtomicReference<>(
+                new BridgeConfig("WINLAUFEN", "", "127.0.0.1",
+                        44442, List.of(), PresentationConfig.defaults()));
+        configStore.save(current.get());
+        StartListStore lists = startLists();
+        CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
+        try (Fake live = new Fake();
+             var source = new WinLaufenClient("", state);
+             OutputTargetManager manager = new OutputTargetManager(List.of(), "pre-event", state, lists);
+             var control = new BridgeControlServer(
+                     "127.0.0.1", 0, state, configStore, lists, current::get, manager::runtimes,
+                     next -> {
+                         current.set(next);
+                         manager.reconfigure(next.targets());
+                     }, List::of)) {
+            source.start();
+            manager.start();
+            control.start();
+            String base = "http://127.0.0.1:" + control.port();
+            var client = HttpClient.newHttpClient();
+            var imported = client.send(HttpRequest.newBuilder(
+                    URI.create(base + "/api/v1/startlist?name=Startliste.csv"))
+                    .header("Origin", base).header("Content-Type", "application/octet-stream")
+                    .POST(HttpRequest.BodyPublishers.ofString(PROLOGUE)).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, imported.statusCode(), imported.body());
+            String body = "scope=outputs&sourceHost=&targetCount=1&target.0.id=remote"
+                    + "&target.0.type=SELFHOST&target.0.enabled=on&target.0.channelId=local"
+                    + "&target.0.secret=12345678&target.0.endpoint=ws://127.0.0.1:"
+                    + live.port() + "/bridge/v1/channels/local";
+            var saved = client.send(HttpRequest.newBuilder(
+                    URI.create(base + "/api/v1/config"))
+                    .header("Origin", base)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, saved.statusCode(), saved.body());
+            await(() -> !live.startLists.isEmpty()
+                    && manager.runtimes().getFirst().state() == OutputConnectionState.CONNECTED);
+            assertEquals(3, live.startLists.getFirst().entries().size());
+            assertEquals("Anna", live.startLists.getFirst().entries().getFirst().firstName());
+            assertEquals("", configStore.load().sourceHost());
+            assertEquals(current.get().targets(), configStore.load().targets());
+            assertEquals(SourceHealth.DISCONNECTED,
+                    state.get().state().sourceHealth());
+            org.junit.jupiter.api.Assertions.assertNull(state.get().state().clock());
         }
     }
 

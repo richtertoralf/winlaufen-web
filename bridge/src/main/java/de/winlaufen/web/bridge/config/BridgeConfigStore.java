@@ -104,7 +104,7 @@ public final class BridgeConfigStore {
             }
         }
         List<String> notices = new ArrayList<>();
-        String host = validateHost(
+        String host = validateConfiguredHost(
                 values.getProperty("source.host", values.getProperty("winlaufen.host", "localhost")));
         int count = integer(values.getProperty("outputs.count"), -1);
 
@@ -202,7 +202,7 @@ public final class BridgeConfigStore {
     }
 
     public void save(BridgeConfig config) throws IOException {
-        validateHost(config.sourceHost());
+        validateConfiguredHost(config.sourceHost());
         Properties values = new Properties();
         values.setProperty("config.version", "2");
         values.setProperty("source.type", config.sourceType());
@@ -259,6 +259,11 @@ public final class BridgeConfigStore {
                 endpoint,
                 required(values, prefix + "channelId"),
                 required(values, prefix + "secret"));
+    }
+
+    /** Empty means the remote source is not configured; it is never a connection host. */
+    public static String validateConfiguredHost(String raw) {
+        return "".equals(raw) ? "" : validateHost(raw);
     }
 
     public static String validateHost(String raw) {

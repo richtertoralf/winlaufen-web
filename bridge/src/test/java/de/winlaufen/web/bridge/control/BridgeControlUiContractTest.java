@@ -134,7 +134,7 @@ class BridgeControlUiContractTest {
                 "an author rule must not defeat the hidden attribute");
         assertTrue(script.contains("hostField.hidden = !remote"),
                 "the host block follows the choice");
-        assertTrue(script.contains("hostInput.required = remote"),
+        assertTrue(script.contains("hostInput.required = false"),
                 "a hidden field never blocks the form with an invisible validation error");
     }
 
@@ -435,6 +435,25 @@ class BridgeControlUiContractTest {
                 "a hidden or stale address must not block the form as a required field");
         assertTrue(script.contains("if (event.target.closest('[data-role=advanced]')) advanced(node).open = true;"),
                 "an invalid field inside the collapsed block opens it instead of blocking silently");
+    }
+
+    @Test
+    void savesOutputsIndependentlyAndDistinguishesUnsavedTargets() throws Exception {
+        String html = resource("/bridge-control/index.html");
+        String script = resource("/bridge-control/control.js");
+        assertTrue(html.contains("id=\"save-outputs\" formnovalidate"));
+        assertTrue(script.contains("input.reportValidity()"));
+        assertTrue(script.contains("body.set('scope', 'outputs')"));
+        assertTrue(script.contains("node.dataset.saved === 'false'"));
+        assertTrue(script.contains("Nicht gespeichert"));
+        assertTrue(script.contains("Gespeichert · Noch kein Status"));
+        assertTrue(script.contains("Quelländerung ist nicht gespeichert"));
+        assertTrue(script.contains("savedSourceHost === ''"));
+        assertTrue(script.contains("die bisherige Quelle bleibt aktiv"));
+        assertTrue(script.contains("Gespeichert; Aktualisieren der Anzeige fehlgeschlagen"));
+        assertTrue(script.contains("persisted = true;"));
+        assertTrue(script.contains("showConfig(savedConfig, !outputsOnly)"));
+        assertTrue(script.contains("addTarget(value, true)"));
     }
 
     private static String between(String value, String start, String end) {

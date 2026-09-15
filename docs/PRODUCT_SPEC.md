@@ -416,7 +416,9 @@ ist in allen Fällen identisch.
 
 Es wird keine Datenbank verwendet. Eine fokussierte JSON-Abhängigkeit ist auf
 den versionierten Bridge-Live-Server-Vertrag beschränkt. Der WinLaufen-Zielhost
-muss validiert werden. Sein Port ist fest auf 4444.
+muss validiert werden. Ein ausdrücklich leerer `source.host` bezeichnet eine noch
+nicht konfigurierte Remote-Quelle; dafür startet kein Verbindungsversuch. Ein
+fehlender Schlüssel behält den Default `localhost`. Sein Port ist fest auf 4444.
 
 Bridge Control und der öffentliche Webdienst aktivieren kein CORS.
 Konfigurationsänderungen in Bridge Control verwenden ausschließlich `POST` mit

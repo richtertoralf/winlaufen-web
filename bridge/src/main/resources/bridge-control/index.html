@@ -25,6 +25,7 @@
     <!-- Der POST-Vertrag bleibt unverändert: gesendet wird weiterhin genau sourceHost. -->
     <input type="hidden" name="sourceHost">
     <p class="hint">Sprecher-PC-Schnittstelle · TCP 4444</p>
+    <p id="source-config-warning" class="warn" hidden></p>
     <p id="source-status"></p>
     <p id="protocol-variant">Protokoll: Erkennung läuft</p>
     <p id="protocol-warning" class="warn" hidden></p>
@@ -62,6 +63,7 @@
     <label><input type="checkbox" name="showPublicMessages"> WinLaufen-Nachrichten anzeigen</label>
   </section>
   <button type="submit">Speichern</button>
+  <button type="submit" id="save-outputs" formnovalidate>Übertragungsziele speichern</button>
   <span id="message" role="status"></span>
 </form>
 <!-- Bewusst außerhalb von #config: der Import ist eine eigene Aktion und darf nie

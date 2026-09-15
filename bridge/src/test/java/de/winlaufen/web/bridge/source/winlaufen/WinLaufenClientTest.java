@@ -24,6 +24,43 @@ import static org.junit.jupiter.api.Assertions.*;
  * is doing its job. The production default is unchanged and lives in the client.
  */
 class WinLaufenClientTest {
+    @Test
+    void anEmptySourceNeverConnectsAndCanBeConfiguredLater() throws Exception {
+        try (ServerSocket server = new ServerSocket(0)) {
+            server.setSoTimeout(300);
+            CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
+            try (WinLaufenClient client = new WinLaufenClient("", server.getLocalPort(), state)) {
+                client.start();
+                org.junit.jupiter.api.Assertions.assertThrows(java.net.SocketTimeoutException.class,
+                        server::accept);
+                assertEquals(SourceHealth.DISCONNECTED, state.get().state().sourceHealth());
+                assertNull(state.get().state().clock());
+                client.reconnectTo("localhost");
+                server.setSoTimeout(2_000);
+                try (var connection = server.accept()) {
+                    assertTrue(connection.isConnected());
+                }
+            }
+        }
+    }
+
+    @Test
+    void disablingTheSourceRejectsAPreviouslySelectedHost() throws Exception {
+        try (ServerSocket server = new ServerSocket(0)) {
+            server.setSoTimeout(300);
+            CanonicalStateStore state = new CanonicalStateStore(PresentationConfig.defaults(), null);
+            try (WinLaufenClient client = new WinLaufenClient("localhost", server.getLocalPort(), state)) {
+                // Reproduce the worker selecting a host just before the operator disables it.
+                client.reconnectTo("");
+                var consume = WinLaufenClient.class.getDeclaredMethod("consumeConnection", String.class);
+                consume.setAccessible(true);
+                consume.invoke(client, "localhost");
+                assertThrows(java.net.SocketTimeoutException.class, server::accept);
+                assertEquals(SourceHealth.DISCONNECTED, state.get().state().sourceHealth());
+            }
+        }
+    }
+
     @Test @Timeout(10)
     void protocolDiagnosisIsStableWithinConnectionAndResetsOnReconnect() throws Exception {
         for (boolean legacyFirst : List.of(false, true)) {

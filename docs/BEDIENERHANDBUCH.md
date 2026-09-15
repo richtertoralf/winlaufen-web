@@ -182,6 +182,20 @@ allen verbundenen Browsern.
 
 Zum Schluss **Speichern**.
 
+Für die Vorbereitung darf **Auf einem anderen Computer** mit leerer Adresse
+bereits mit **Speichern** übernommen werden. Dieser Zustand bleibt nach Neuladen
+und Neustart erhalten und zeigt **WinLaufen noch nicht konfiguriert**. Die Bridge
+startet dabei keine WinLaufen-Verbindung. Importierte Startlisten und konfigurierte
+Live-Server funktionieren unabhängig davon; die Startliste wird auch an später
+hinzugefügte Server übertragen. Ergänzen Sie die WinLaufen-Adresse später und
+speichern Sie erneut.
+
+Mit **Übertragungsziele speichern** speichern Sie nur die Live-Server-Targets.
+Quelle und öffentliche Darstellung werden dabei nicht geändert. Targets zeigen
+**Nicht gespeichert**, solange sie nur im Formular stehen oder geändert wurden.
+**Gespeichert · Noch kein Status** bedeutet, dass das Target gespeichert ist,
+aber noch kein Laufzeitstatus vorliegt.
+
 ### Abschnitt „Startliste"
 
 So importieren Sie eine Startliste:

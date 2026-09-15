@@ -941,7 +941,7 @@ Die aktuelle Konfiguration:
 | Feld | Inhalt |
 |---|---|
 | `sourceType` | immer `"WINLAUFEN"` |
-| `sourceHost` | Adresse des WinLaufen-PCs |
+| `sourceHost` | Adresse des WinLaufen-PCs; `""` bedeutet Remote-Quelle noch nicht konfiguriert, ohne Verbindungsversuch |
 | `sourcePort` | immer `4444` |
 | `targets` | je Ziel: `id`, `type` (`LOCAL`/`SELFHOST`/`RICHTER_PROJECTS`), `enabled`, `endpoint`, `channelId`, `secretConfigured`, `transportWarning`, `secretWarning` |
 | `presentation` | `showClub`, `showAssociation`, `showNation`, `showShooting`, `showPublicMessages` |
@@ -975,7 +975,12 @@ Speichert die Konfiguration aus dem Formular der Oberfläche.
 - `Content-Type: application/x-www-form-urlencoded`, sonst `415`
 - `Origin` muss passen, sonst `403`
 - Body maximal 32 768 Byte, sonst `413`
-- Pflichtfeld `sourceHost`; fehlende oder ungültige Felder ergeben `400` mit
+- Optionaler `scope`: `all` (Default) oder `outputs`; andere Werte ergeben `400`.
+  `outputs` validiert und ersetzt nur Targets und übernimmt die gespeicherte
+  Quelle und Darstellung unverändert.
+- Bei `all` ist `sourceHost` erforderlich. `""` speichert den Zustand
+  „Remote-Quelle noch nicht konfiguriert“. Nichtleere Hosts werden weiterhin
+  validiert; fehlende oder ungültige Felder ergeben `400` mit
   `{"error": "..."}`
 - Erfolg: `200` mit derselben Struktur wie `GET /api/v1/config`
 

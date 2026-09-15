@@ -205,6 +205,80 @@ class BridgeControlConfigZoneTest {
         assertTrue(script.contains("Standard für WinLaufen"), script.contains("Standard") + "");
     }
 
+    @Test
+    void outputsSaveIgnoresIncompleteSourceAndPreservesOtherConfiguration() throws Exception {
+        BridgeConfig old = current.get();
+        String target = "&targetCount=1&target.0.id=club&target.0.type=SELFHOST"
+                + "&target.0.enabled=on&target.0.endpoint="
+                + "wss://club.example/bridge/v1/channels/local&target.0.channelId=local";
+        assertEquals(400, post("sourceHost=http://invalid" + target).statusCode());
+        assertEquals(old, current.get());
+        assertEquals(old, store.load());
+
+        var response = post("scope=outputs&sourceHost=" + target);
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals(old.sourceHost(), current.get().sourceHost());
+        assertEquals(old.presentation(), current.get().presentation());
+        assertEquals(old.competitionTimeZone(), current.get().competitionTimeZone());
+        assertEquals(current.get(), new BridgeConfigStore(configFile).load());
+        JsonNode loaded = MAPPER.readTree(get("/api/v1/config").body());
+        assertEquals("club", loaded.get("targets").get(0).get("id").asText());
+        assertEquals(0, MAPPER.readTree(get("/api/v1/status").body()).get("outputs").size());
+
+        BridgeConfig saved = current.get();
+        assertEquals(400, post("scope=outputs" + target.replace("wss://club.example", "ws://club.example"))
+                .statusCode());
+        assertEquals(saved, current.get());
+        assertEquals(saved, store.load());
+        assertEquals(400, post("scope=unknown&targetCount=0").statusCode());
+    }
+
+    @Test
+    void outputsSaveKeepsAllInOneSourceAndLocalTarget() throws Exception {
+        assertEquals(200, post("sourceHost=localhost&targetCount=1&target.0.id=local"
+                + "&target.0.type=LOCAL&target.0.enabled=on"
+                + "&target.0.endpoint=ws://127.0.0.1:44441/bridge/v1/channels/local"
+                + "&target.0.channelId=local&target.0.secret=stored-local-secret").statusCode());
+        BridgeConfig old = current.get();
+        assertEquals(200, post("scope=outputs&targetCount=1&target.0.id=local"
+                + "&target.0.type=LOCAL&target.0.enabled=on"
+                + "&target.0.endpoint=ws://127.0.0.1:44441/bridge/v1/channels/local"
+                + "&target.0.channelId=local").statusCode());
+        assertEquals(old, current.get());
+        assertEquals(old, store.load());
+    }
+
+    @Test
+    void anUnconfiguredRemoteSourceSurvivesSaveReloadAndLaterConfiguration() throws Exception {
+        assertEquals(200, post("sourceHost=&targetCount=0").statusCode());
+        assertEquals("", store.load().sourceHost());
+        assertEquals("", MAPPER.readTree(get("/api/v1/config").body()).get("sourceHost").asText());
+        assertEquals(200, post("scope=outputs&targetCount=0").statusCode());
+        assertEquals("", current.get().sourceHost());
+        assertEquals(200, post("sourceHost=192.168.95.198&targetCount=0").statusCode());
+        assertEquals("192.168.95.198", store.load().sourceHost());
+    }
+
+    @Test
+    void concurrentOutputSavesKeepFileAndRuntimeConfigurationInSync() throws Exception {
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            List<java.util.concurrent.Future<HttpResponse<String>>> saves = new java.util.ArrayList<>();
+            for (int index = 0; index < 12; index++) {
+                String body = "scope=outputs&targetCount=1&target.0.id=target-" + index
+                        + "&target.0.type=SELFHOST&target.0.enabled=on"
+                        + "&target.0.endpoint=wss://club.example/bridge/v1/channels/local"
+                        + "&target.0.channelId=local";
+                saves.add(executor.submit(() -> post(body)));
+            }
+            for (var save : saves) {
+                assertEquals(200, save.get().statusCode());
+            }
+        }
+        assertEquals(current.get(), store.load());
+        assertEquals("192.168.95.198", current.get().sourceHost());
+        assertEquals("Europe/Berlin", current.get().competitionTimeZone());
+    }
+
     private HttpResponse<String> get(String path) throws Exception {
         return HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create(base() + path)).GET().build(),

@@ -36,6 +36,7 @@ function stateClass(state) {
 
 const hostField = document.querySelector('#source-host-field');
 const hostInput = document.querySelector('#source-host');
+let savedSourceHost;
 
 /** Der Wert, der beim ausdrücklichen Wechsel auf "Auf diesem Computer" gesendet wird. */
 const LOCAL_SOURCE_HOST = '127.0.0.1';
@@ -57,17 +58,19 @@ function sourceLocation() {
  * ändert.
  */
 function showSourceHost(host) {
+  savedSourceHost = host;
   const local = isLocalSourceHost(host);
   form.elements.sourceLocation.value = local ? 'local' : 'remote';
   hostInput.value = local ? '' : host;
   form.sourceHost.value = host;
   updateSourceHostField();
+  showSourceConfigWarning();
 }
 
 function updateSourceHostField() {
   const remote = sourceLocation() === 'remote';
   hostField.hidden = !remote;
-  hostInput.required = remote;
+  hostInput.required = false; // Ein leerer Remote-Host ist ausdrücklich noch nicht konfiguriert.
   if (!remote) {
     hostInput.setCustomValidity('');
   }
@@ -78,6 +81,7 @@ function sourceLocationChanged() {
   updateSourceHostField();
   const remote = sourceLocation() === 'remote';
   form.sourceHost.value = remote ? hostInput.value.trim() : LOCAL_SOURCE_HOST;
+  showSourceConfigWarning();
 }
 
 function sourceHostTyped() {
@@ -86,6 +90,21 @@ function sourceHostTyped() {
     ? 'Bitte nur Hostname oder IP-Adresse eingeben, ohne http:// oder https://'
     : '');
   form.sourceHost.value = value;
+  showSourceConfigWarning();
+}
+
+function showSourceConfigWarning() {
+  const warning = document.querySelector('#source-config-warning');
+  const missing = sourceLocation() === 'remote' && !hostInput.value.trim();
+  const invalid = sourceLocation() === 'remote' && !hostInput.validity.valid;
+  warning.textContent = missing
+    ? savedSourceHost === ''
+      ? 'WinLaufen noch nicht konfiguriert – es wird keine Quellverbindung gestartet.'
+      : 'WinLaufen-Adresse fehlt. Diese Quelländerung ist nicht gespeichert; die bisherige Quelle bleibt aktiv. Mit Speichern werden Quellverbindungsversuche ausgesetzt.'
+    : invalid
+    ? 'WinLaufen-Konfiguration unvollständig oder ungültig – bitte Hostname oder IP-Adresse eintragen. Diese Quelländerung ist nicht gespeichert.'
+    : '';
+  warning.hidden = !missing && !invalid;
 }
 
 for (const radio of form.elements.sourceLocation) radio.onchange = sourceLocationChanged;
@@ -215,7 +234,7 @@ function addLocalTarget(value, order) {
 
 let nextTargetOrder = 0;
 
-function addTarget(value = {}) {
+function addTarget(value = {}, saved = false) {
   const order = nextTargetOrder++;
   if (isBuiltInLocalTarget(value)) {
     addLocalTarget(value, order);
@@ -223,6 +242,12 @@ function addTarget(value = {}) {
   }
   const node = template.content.firstElementChild.cloneNode(true);
   node.dataset.order = order;
+  node.dataset.saved = String(saved);
+  node.querySelector('output').textContent = saved ? 'Gespeichert · Noch kein Status' : 'Nicht gespeichert';
+  node.addEventListener('input', () => {
+    node.dataset.saved = 'false';
+    node.querySelector('output').textContent = 'Nicht gespeichert';
+  });
   for (const input of node.querySelectorAll('[data-name]')) {
     const name = input.dataset.name;
     if (input.type === 'checkbox') input.checked = Boolean(value[name]);
@@ -424,14 +449,22 @@ async function load() {
     fetch('/api/v1/config').then(json),
     fetch('/api/v1/status').then(json)
   ]);
-  showSourceHost(config.sourceHost);
-  for (const [name, checked] of Object.entries(config.presentation)) form.elements[name].checked = checked;
+  showConfig(config);
+  showStatus(status);
+}
+
+function showConfig(config, includeSourceAndPresentation = true) {
+  if (includeSourceAndPresentation) {
+    showSourceHost(config.sourceHost);
+    for (const [name, checked] of Object.entries(config.presentation)) {
+      form.elements[name].checked = checked;
+    }
+  }
   targets.replaceChildren();
   localTargets.replaceChildren();
   nextTargetOrder = 0;
-  config.targets.forEach(value => addTarget(value));
+  config.targets.forEach(value => addTarget(value, true));
   showBrowserAddresses();
-  showStatus(status);
 }
 
 function showStatus(status) {
@@ -459,8 +492,13 @@ function showStatus(status) {
     const id = node.querySelector('[data-name=id]').value;
     const runtime = status.outputs.find(output => output.targetId === id);
     const output = node.querySelector('output');
+    if (node.dataset.saved === 'false') {
+      output.textContent = 'Nicht gespeichert';
+      output.className = 'muted';
+      return;
+    }
     if (!runtime) {
-      output.textContent = 'Noch kein Status';
+      output.textContent = 'Gespeichert · Noch kein Status';
       output.className = 'muted';
       return;
     }
@@ -569,21 +607,32 @@ document.querySelector('#add').onclick =
 
 form.onsubmit = async event => {
   event.preventDefault();
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
+  const outputsOnly = event.submitter?.id === 'save-outputs';
+  if (outputsOnly && targetNodes().some(node =>
+    [...node.querySelectorAll('input, select')].some(input => !input.reportValidity()))) return;
+  const body = values();
+  if (outputsOnly) body.set('scope', 'outputs');
+  const buttons = form.querySelectorAll('button[type="submit"]');
+  buttons.forEach(button => { button.disabled = true; });
   message.textContent = 'Speichere …';
+  let persisted = false;
   try {
-    await fetch('/api/v1/config', {
+    const savedConfig = await fetch('/api/v1/config', {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: values()
+      body
     }).then(json);
-    message.textContent = 'Gespeichert';
-    await load();
+    persisted = true;
+    message.textContent = outputsOnly ? 'Übertragungsziele gespeichert' : 'Gespeichert';
+    showConfig(savedConfig, !outputsOnly);
+    showSourceConfigWarning();
+    showStatus(await fetch('/api/v1/status').then(json));
   } catch (error) {
-    message.textContent = `Speichern fehlgeschlagen: ${error.message}`;
+    message.textContent = persisted
+      ? `Gespeichert; Aktualisieren der Anzeige fehlgeschlagen: ${error.message}`
+      : `Speichern fehlgeschlagen: ${error.message}`;
   } finally {
-    button.disabled = false;
+    buttons.forEach(button => { button.disabled = false; });
   }
 };
 

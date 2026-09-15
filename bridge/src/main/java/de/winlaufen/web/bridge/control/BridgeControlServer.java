@@ -136,7 +136,8 @@ public final class BridgeControlServer implements AutoCloseable {
         }
     }
 
-    private void update(HttpExchange exchange) throws IOException {
+    /** Serializes read, merge, persist and apply so simultaneous saves cannot lose other sections. */
+    private synchronized void update(HttpExchange exchange) throws IOException {
         String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
         if (contentType == null
                 || !contentType.toLowerCase(Locale.ROOT).startsWith("application/x-www-form-urlencoded")) {
@@ -155,11 +156,18 @@ public final class BridgeControlServer implements AutoCloseable {
         }
         Map<String, String> form = form(new String(body, StandardCharsets.UTF_8));
         BridgeConfig old = config.get();
+        String scope = form.getOrDefault("scope", "all");
+        if (!"all".equals(scope) && !"outputs".equals(scope)) {
+            throw new IllegalArgumentException("Unbekannter Speicherbereich");
+        }
+        boolean outputsOnly = "outputs".equals(scope);
         BridgeConfig next = new BridgeConfig("WINLAUFEN",
-                BridgeConfigStore.validateHost(required(form, "sourceHost")),
+                outputsOnly ? old.sourceHost()
+                        : BridgeConfigStore.validateConfiguredHost(required(form, "sourceHost")),
                 old.controlBindAddress(), old.controlPort(),
                 targets(form, old),
-                new PresentationConfig(on(form, "showClub"), on(form, "showAssociation"),
+                outputsOnly ? old.presentation()
+                        : new PresentationConfig(on(form, "showClub"), on(form, "showAssociation"),
                         on(form, "showNation"), on(form, "showShooting"),
                         on(form, "showPublicMessages")),
                 // Not on this form, and it still has to survive a save: the whole configuration is
