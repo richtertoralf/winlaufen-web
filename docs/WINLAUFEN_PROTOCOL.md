@@ -16,7 +16,10 @@ Evidenz und Herkunft werden bewusst unterschieden:
   Quelldokument selbst liegt derzeit aber nicht in diesem Repository.
 - Aufgezeichnete Wire-Evidenz: die unveränderlichen PCAP-Fixtures unter
   `testdata/protocol/`, einschließlich serialisierter Typen, Objektreihenfolge,
-  Werte und TCP-Richtung.
+  Werte und TCP-Richtung. Widersprechen sich aufgezeichnete Daten und Annahme,
+  gilt die Aufzeichnung. Eine bestehende Regressionsfixture wird nie
+  stillschweigend geändert, damit ein Test wieder grün wird; neu entdecktes
+  Protokollverhalten kommt als zusätzliche Fixture dazu.
 - Beobachtetes Anwendungsverhalten: die originale Sprecher-PC-Anzeige und die
   WinLaufen-Oberfläche bzw. der Workflow während einer Aufzeichnung. Solche
   Beobachtungen liefern Szenariokontext, sind aber keine zusätzlichen

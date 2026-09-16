@@ -137,6 +137,16 @@ Live-Test gegen eine echte WinLaufen-Quelle:
 
 Die manuellen Abnahmen stehen in [SMOKE_TESTS.md](SMOKE_TESTS.md).
 
+Die Testsuite muss über reine Unit-Tests hinaus auch Modulgrenzen und
+Laufzeitverhalten festschreiben, das ein einzelner Unit-Test nicht zeigt:
+Contract-Limits, Fan-out über echte WebSocket-Verbindungen, Failure-Isolation
+zwischen Output Targets, Retry-Backoff, Full-Snapshot-Resync nach einem Ausfall
+und den Revisionsschutz im Browser.
+
+Die realen Protokollaufzeichnungen unter `testdata/protocol/` sind für das
+Quellprotokoll maßgeblich; die Regeln dazu stehen in
+[WINLAUFEN_PROTOCOL.md](WINLAUFEN_PROTOCOL.md#status).
+
 ## Konfiguration
 
 Die einzige Veranstalter-Konfiguration liegt in der Bridge. Bridge Control

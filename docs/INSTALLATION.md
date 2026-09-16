@@ -314,6 +314,10 @@ Der Installer fragt genau eine Sache ab: das Profil.
 | **Bridge only** | nur Bridge | eigener Rechner nur für die WinLaufen-Anbindung |
 | **Presentation Node** | nur Live Server / Web View | eigener Webserver im LAN oder WAN |
 
+Diese drei Namen sind verbindlich und werden in Oberflächen, Skripten und
+Dokumentation einheitlich verwendet. Parallelbegriffe wie „Web only",
+„Renderer Mode" oder „Remote Mode" für dieselbe Rolle werden nicht eingeführt.
+
 ### All-in-One — empfohlener Standard
 
 ```text

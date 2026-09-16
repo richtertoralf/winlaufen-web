@@ -1,266 +1,73 @@
-# WinLaufen Web - Agent Instructions
+# Arbeitsregeln für Coding-Agenten
 
-## Project purpose
+## Projekt und Navigation
 
-WinLaufen Web is a small bridge for WinLaufen. It connects
-read-only to the existing WinLaufen Sprecher-PC LAN interface and provides a
-modern, responsive web interface for live results.
+Sprecher-Web stellt Live-Ergebnisse aus WinLaufen im Browser bereit.
 
-The project must remain simple, inexpensive to operate, and easy for sports
-clubs to deploy. Do not turn this into a platform, enterprise stack, or
-framework-heavy application.
+Diese Datei beschreibt, wie in diesem Repository gearbeitet wird. Fachliche und
+technische Projektregeln stehen an den jeweils zuständigen Stellen und werden
+hier nicht wiederholt. Je nach Thema sind das README.md, `docs/`, Code, Tests
+oder Konfiguration.
 
-Development happens on Linux, but production code must stay portable between
-Windows and Linux. Do not introduce Linux-only assumptions.
+Die Übersicht ist eine Orientierungshilfe. Für eine Änderung zählen die
+Dokumente des betroffenen Bereichs, nicht alle.
 
-Licensed under AGPL-3.0 (see LICENSE). Any new runtime dependency must be
-license-compatible with AGPL-3.0 (permissive licenses like MIT/Apache-2.0/ BSD are fine; 
-GPL-3.0 is compatible; verify anything else before adding it).
+| Bereich | Dokument |
+|---|---|
+| Quellprotokoll, Uhr und Wettkampfzeit, Telegramme | [WINLAUFEN_PROTOCOL.md](docs/WINLAUFEN_PROTOCOL.md) |
+| Module, Prozesse, Ports, Transport, Sicherheitsgrenzen, Repositorystruktur | [MODULAR_ARCHITECTURE.md](docs/MODULAR_ARCHITECTURE.md) |
+| Umsetzungsstand gegenüber der Zielarchitektur | [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Produktumfang, Plattformen, Sportarten, Abhängigkeiten, Anzeigeregeln | [PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) |
+| HTTP- und WebSocket-Schnittstelle, Datenformate | [API.md](docs/API.md) |
+| Installer, Profile, Dienste, Netzwerk, Einsatzgrenzen | [INSTALLATION.md](docs/INSTALLATION.md), [installer/README.md](installer/README.md) |
+| Build, Entwicklungsbetrieb, Tests, Konfiguration | [DEVELOPMENT.md](docs/DEVELOPMENT.md) |
+| Releasepakete und Veröffentlichung | [RELEASE.md](docs/RELEASE.md) |
+| Manuelle Abnahmen mit echter Hardware | [SMOKE_TESTS.md](docs/SMOKE_TESTS.md) |
+| Texte für Anwender und Veranstalter | [BEDIENERHANDBUCH.md](docs/BEDIENERHANDBUCH.md), [README.md](README.md) |
 
-## Mandatory documentation
+[docs/INDEX.md](docs/INDEX.md) nennt für jedes Thema den primären Ort.
 
-AGENTS.md holds the binding consequences. These documents hold the full
-specification, rationale and background. Read the relevant one before
-changing the corresponding area.
+## Arbeitsweise
 
-- `docs/WINLAUFEN_PROTOCOL.md` — wire protocol, clock telegrams, message
-  types, reconnect semantics. Required before changing protocol handling.
-- `docs/MODULAR_ARCHITECTURE.md` — target module, process, port and
-  transport boundaries and the rationale behind them. Required before
-  changing module communication or deployment topology.
-- `docs/ARCHITECTURE.md` — current implementation status against the target
-  architecture above. Read alongside `MODULAR_ARCHITECTURE.md`, not instead
-  of it.
-- `docs/PRODUCT_SPEC.md` — full product scope, supported use cases and
-  dependency constraints.
-- `docs/INSTALLATION.md` — installation profiles, platform support,
-  service and firewall details. Required before installer/packaging changes.
-- `docs/DEVELOPMENT.md` — full build, dev-run and diagnostic workflows.
-- `docs/SMOKE_TESTS.md` — manual acceptance tests that need real hardware
-  and a real WinLaufen installation.
-- `docs/BEDIENERHANDBUCH.md` — the operator manual and the single place for
-  the organiser-facing narrative: installation links, Bridge Control,
-  status displays, competition time, behaviour during outages, event-day
-  checklist. `docs/QUICKSTART_CLOUD.md` covers the temporary cloud node.
-  Keep user-facing changes here instead of duplicating them into README.md,
-  which stays the end-user product overview. `docs/INSTALLATION.md` owns the
-  release installation walkthrough and administration reference; source builds
-  belong to `docs/DEVELOPMENT.md`. `docs/INDEX.md` maps the target audiences.
+- Vor einer Änderung den betroffenen Code, die zugehörige Dokumentation und die
+  vorhandenen Tests lesen.
+- Den bestehenden Stand prüfen, statt ihn aus Annahmen zu ersetzen.
+- Eine dokumentierte Festlegung nicht umgehen. Wirkt sie falsch, das melden.
+- Den Scope klein und zusammenhängend halten.
+- Keine spekulativen Features und keine unbeauftragten Refactors.
+- Einfachen, funktionierenden Code nicht ohne Bedarf abstrahieren.
+- Klarer Code vor cleverem Code.
+- Die Begriffe verwenden, die in den Dokumenten stehen.
 
-## Repository map
+## Auftragsgrenze
 
-- `contract/` — `winlaufen-web-contract`: versioned snapshot/ACK contract,
-  library only, no runtime.
-- `bridge/` — `winlaufen-web-bridge`: WinLaufen source adapter, canonical
-  state, organiser configuration, output fan-out, Bridge Control.
-- `live-server/` — `winlaufen-web-live-server`: authenticated bridge
-  ingest, published state, public HTTP API, browser WebSocket, Web Viewer.
-- `installer/` — Linux/Windows installer scripts, dist packaging, installer
-  tests.
-- `devtools/` — local dev-run lifecycle and smoke-test scripts.
-- `testdata/protocol/` — captured real WinLaufen wire fixtures; source of
-  truth for protocol tests.
-- `docs/` — full specification, see "Mandatory documentation" above.
+- Den beauftragten Scope vollständig umsetzen. Bleibt etwas offen, das sagen.
+- Nur den beauftragten Fall umsetzen. Ein Dokument erklärt Hintergrund, es ist
+  kein Auftrag.
+- Andere Repositories nur auf ausdrücklichen Auftrag ändern.
+- Laufende oder externe Umgebungen nur auf ausdrücklichen Auftrag ändern.
+- Bestehende Benutzeränderungen und Secrets nicht überschreiben.
+- Branchwechsel, Commit, Push, Merge, Release und Deployment nur ausführen,
+  wenn der Auftrag sie umfasst.
+- Größere Verbesserungen als Folgeauftrag vorschlagen.
 
-## Hard invariants
+## Dokumentationsregel
 
-### WinLaufen protocol
+- README.md und `docs/` sind deutsch. Etablierte Fachbegriffe bleiben
+  unverändert.
+- Jedes Thema gehört an seinen primären Ort nach
+  [docs/INDEX.md](docs/INDEX.md). Andere Seiten verlinken dorthin.
+- Verhaltensänderungen werden in der zuständigen Dokumentation nachgeführt und
+  durch geeignete vorhandene oder neue Tests abgesichert, soweit der geänderte
+  Bereich dies erfordert.
+- `CLAUDE.md` verweist nur auf AGENTS.md. Weitere agentenspezifische Skill-
+  oder Instruktionsstrukturen werden nicht angelegt.
 
-Before changing protocol handling, read `docs/WINLAUFEN_PROTOCOL.md`.
+## Verifikation und Abschluss
 
-- Port 4444 is read-only. The bridge must never write application data back
-  to WinLaufen.
-- Parse with Java Object Serialization semantics via a restrictive
-  `ObjectInputFilter`. Never parse with regexes, printable-string
-  extraction, or guessed byte offsets.
-- Known protocol behavior must be documented and tested against real
-  captures. Do not invent undocumented fields, and do not invent a
-  start-list protocol before real WinLaufen data exists for it.
-- Class snapshots are complete and authoritative for that class, not
-  incremental single-athlete events; existing rows may change in later
-  snapshots.
-- `CanonicalState.competition == null` means "not yet received from the
-  source", never "the source reports nothing"; an authoritative empty
-  standing is a real `Competition` whose classes carry no rows. A component
-  holding a last known copy (the live server) keeps its competition while a
-  snapshot carries none, so a restarted bridge — which knows clock and
-  health long before WinLaufen resends a class snapshot — never clears a
-  presentation node. Do not replace this with an `isEmpty()` rule.
-- The WinLaufen clock is the competition time, it is authoritative, and its
-  arrival is also the connection heartbeat. Never replace it with local
-  system time, and never validate, correct or plausibilize its progression.
-- The competition time is carried through unchanged by bridge, contract,
-  live server and viewer. No stage may produce, advance, interpolate or
-  reconstruct it — no `Date.now()`, `new Date()`, `Instant.now()`,
-  `System.currentTimeMillis()` or `setInterval` counter feeding the shown
-  value. Time functions stay allowed for timeouts, backoff and heartbeat
-  supervision. When telegrams stop, the last delivered value stays on
-  screen: a standing competition time is the honest end-to-end sign that no
-  fresh data is arriving, and it is what made the frozen-viewer bug
-  visible.
-- Stale/reconnect timing (no clock for >4s, backoff immediate/2s/5s/10s) is
-  defined in `docs/WINLAUFEN_PROTOCOL.md`. Do not change it in only one
-  place.
-
-### State and architecture
-
-Before changing module communication, read `docs/MODULAR_ARCHITECTURE.md`.
-
-- Bridge and live server are separate processes: no shared store, no
-  in-process shortcut. The bridge must never import live-server packages;
-  the live server must never import bridge packages or WinLaufen protocol
-  classes.
-- Fixed default ports: Bridge Control `44442`, live-server HTTP `44440`,
-  live-server WebSocket `44441` (browser and bridge ingest share this port
-  on different paths). A runtime must fail loudly if its own port is
-  occupied — never fall back to a different port.
-- Never enable CORS. Bridge Control accepts only `POST` with Origin
-  validation. Browser WebSocket handshakes validate Origin by host, not by
-  port.
-- Outputs are a fan-out (`0..n` `OutputTargetConfig`, types `LOCAL` /
-  `SELFHOST` / `RICHTER_PROJECTS`), not an exclusive `OutputMode`. Every
-  target has its own worker/retry/ACK state; a broken target must never
-  block another target or the source.
-- Transport policy: `wss` is always allowed; plain `ws` for
-  localhost/loopback/private IP literals, and for a `SELFHOST` target also
-  for a public IP literal (the temporary self-hosted presentation node on a
-  cloud VM without a domain) — permitted but permanently warned about, never
-  silently. Every DNS name, and every public address for `LOCAL`, requires
-  `wss`. `RICHTER_PROJECTS` always requires `wss`. The policy never resolves
-  names.
-- The browser link and the source health are two different things. The
-  live server sends browsers a stateless sign of life; the viewer shows
-  `CONNECTED` only while that link works, and otherwise shows the source
-  health unchanged. The sign of life must never touch the competition time,
-  `SourceHealth`, `publicationRevision` or results. `publicationRevision`
-  is valid per live-server run, so the viewer resets its guard on every new
-  connection.
-- Frontend stays plain HTML/CSS/JavaScript. No frontend framework.
-
-### Security
-
-- The prototype's bridge ingest deliberately keeps a well-known default
-  secret (`local-development-secret`) working. This is documented and
-  accepted for the prototype baseline (binding deployment limits:
-  docs/INSTALLATION.md, "Einsatzgrenzen"). Do not present it as solved, and do not build a
-  provisioning or pairing system for it without an explicit request.
-
-### Dependencies and simplicity
-
-Full rationale in `docs/PRODUCT_SPEC.md`.
-
-- Forbidden unless explicitly approved: Spring / Spring Boot, Quarkus,
-  Micronaut, React / Vue / Angular, Electron, Node.js backend, Redis,
-  SQL database, MongoDB, Docker or nginx as a runtime requirement, external
-  message brokers.
-- Every added runtime dependency needs a concrete justification. Do not
-  hand-roll a complex protocol (e.g. RFC 6455) merely to avoid one small,
-  focused library.
-
-## Deployment topology and scope
-
-The same application must work with the bridge on the same Windows PC as
-WinLaufen, and with the bridge on a separate Windows or Linux PC in the same
-LAN. Nothing in the architecture may require installation on the WinLaufen
-PC itself.
-
-v0.1 protocol behavior is verified only for running competitions and
-biathlon. Do not implement WinSpringen (ski jumping) or a start-list
-protocol based on assumptions — only once verified WinLaufen data exists.
-
-## Installation profiles
-
-Full details in `docs/INSTALLATION.md`.
-
-Three roles: **All-in-One** (bridge + live server, default), **Bridge
-only**, **Presentation Node** (live server only; not supported on Windows).
-Installation asks only for the role — never for a WinLaufen IP, target IP,
-hostname, URL or WSS address; those belong in Bridge Control after install.
-Use these names consistently; do not invent parallel terms ("Web only",
-"Renderer Mode", "Remote Mode", …) for the same thing.
-
-## Commands
-
-Build and unit tests:
-
-```sh
-./mvnw clean package
-```
-
-Two-process fan-out smoke test (bridge + two live servers, failure/restart/
-resync; no WinLaufen installation needed):
-
-```sh
-./devtools/smoke-fanout.sh
-```
-
-Installer checks without root or systemd:
-
-```sh
-./installer/tests/run-installer-tests.sh
-./installer/tests/run-release-workflow-tests.sh
-```
-
-Live test against a real WinLaufen source:
-
-```sh
-./devtools/smoke-winlaufen-clock.sh <winlaufen-host> [port]
-```
-
-Distribution with bundled `jlink` runtime:
-
-```sh
-./installer/common/build-dist.sh --with-runtime
-```
-
-For dev-run lifecycle scripts, diagnostics and manual hardware tests, see
-`docs/DEVELOPMENT.md` and `docs/SMOKE_TESTS.md`.
-
-## Testing
-
-Real captured WinLaufen data (`testdata/protocol/`) is the source of truth;
-where captured data and assumptions conflict, captured data wins. Never
-silently modify a regression fixture to make a test pass — add a new
-fixture when new protocol behavior is discovered.
-
-Tests must also pin module boundaries and runtime behavior a single unit
-test cannot show: contract limits, fan-out over real WebSocket connections,
-failure isolation, retry backoff, full-snapshot resync, the browser
-revision guard.
-
-Before declaring work complete, run the full available test suite and
-report the exact commands and results.
-
-## Development rules
-
-Before changing code:
-
-1. Read AGENTS.md.
-2. Read the relevant document(s) from "Mandatory documentation" above.
-3. Inspect relevant real test fixtures and understand existing tests.
-4. Make the smallest coherent change.
-
-Do not add speculative features. Do not perform unrelated refactors. Do not
-replace simple working code with abstractions without a demonstrated need.
-
-Prefer clear code over clever code. Write normally formatted, reviewable
-Java: one statement per line, normal line lengths. Minified or single-line
-source destroys stack-trace line numbers, diffs and blame and is not
-acceptable.
-
-Keep architecture complete but implementation small. Update documentation
-and tests together with behavioral changes.
-
-User-facing and operations documentation (README.md and docs/) is written
-in German. Established technical terms stay as they are.
-
-## P2-Scope und Runtime-Koexistenz
-
-- Implementiere nur den ausdrücklich beauftragten lokalen Fehler. Architektur-
-  texte autorisieren keine repoübergreifende Harmonisierung.
-- Eine normale, produktionsfähige Runtime pro Host bleibt die Grundlage. Keine
-  vorsorgliche Änderung etablierter Ports, Units, Pfade oder Dateilayouts.
-- Tests verwenden die vorhandenen Staging-/No-systemd- und dynamischen
-  Testressourcen; normale Listener, Publish-Ziele und laufende Dienste bleiben
-  unangetastet.
-- Größere Architekturverbesserungen als Follow-up melden.
+- Die Prüfungen ausführen, die zur Änderung passen. Welche es gibt, steht in
+  [DEVELOPMENT.md](docs/DEVELOPMENT.md) und
+  [SMOKE_TESTS.md](docs/SMOKE_TESTS.md).
+- Ergebnisse wahrheitsgemäß berichten: tatsächlich ausgeführte Prüfungen,
+  relevante Fehlermeldungen sowie ausgelassene Schritte samt Begründung.
+- Vor Abschluss Diff und Repository-Status prüfen.

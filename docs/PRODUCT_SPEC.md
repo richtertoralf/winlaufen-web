@@ -403,7 +403,14 @@ Nicht Teil von v0.1:
 - SaaS-Administration
 
 Kleine, fokussierte Abhängigkeiten sind nur zulässig, wenn sie Komplexität oder
-Sicherheitsrisiko gegenüber einer manuellen Protokollimplementierung senken.
+Sicherheitsrisiko gegenüber einer manuellen Protokollimplementierung senken. Die
+Abwägung gilt in beide Richtungen: Ein komplexes Protokoll wie RFC 6455 wird
+nicht selbst nachgebaut, nur um eine einzelne kleine, fokussierte Bibliothek zu
+vermeiden.
+
+Jede neue Laufzeitabhängigkeit braucht eine konkrete Begründung. Ihre Lizenz
+muss mit der Projektlizenz AGPL-3.0 (siehe [LICENSE](../LICENSE)) vereinbar
+sein; die Lizenzkompatibilität ist vor der Aufnahme zu prüfen.
 
 ## 15. Konfiguration und Web-Sicherheit
 
