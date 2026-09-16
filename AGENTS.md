@@ -29,6 +29,11 @@ Dokumente des betroffenen Bereichs, nicht alle.
 
 ## Arbeitsweise
 
+- Die kleinste robuste Lösung bevorzugen, die den konkreten Bedarf erfüllt.
+- Neue Komponenten, Dienste, Abstraktionsschichten oder Abhängigkeiten nur einführen, wenn ein konkreter Nutzen sie rechtfertigt.
+- Betriebs-, Wartungs- und Fehlersuchaufwand gehören zu den technischen Kosten. Lösungen müssen für ein kleines beziehungsweise ein Einmann-Team nachvollziehbar und wartbar bleiben.
+- Nicht vorsorglich für hypothetische Anforderungen oder Skalierung bauen.
+
 - Vor einer Änderung den betroffenen Code, die zugehörige Dokumentation und die
   vorhandenen Tests lesen.
 - Den bestehenden Stand prüfen, statt ihn aus Annahmen zu ersetzen.
