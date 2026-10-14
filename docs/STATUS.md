@@ -5,7 +5,14 @@ Stand: 14.10.2026. [Dokumentationsübersicht](INDEX.md).
 
 ## Versionsstand
 
-**Version `0.4.3`.** Dieses Release behebt den Verlust schnell aufeinander
+**Version `0.4.4`.** Dieses Release bringt unter Linux das Verwaltungskommando
+`winlaufen-web` mit: `--version` zeigt installierte und laufende Version,
+`--upgrade` lädt das neueste Release, prüft die Prüfsumme und aktualisiert mit
+dem bestehenden Profil, `--uninstall` entfernt die Installation
+([INSTALLATION.md](INSTALLATION.md#34-upgrade-aus-einem-neuen-releasepaket)).
+Anwendung und Bridge-Contract sind gegenüber 0.4.3 unverändert.
+
+`0.4.3` behob zuvor den Verlust schnell aufeinander
 folgender Zieleinlaufhinweise
 ([Issue #8](https://github.com/richtertoralf/winlaufen-web/issues/8)). Die
 Bridge bewahrt die originalen Hinweise jetzt begrenzt in `finishHistory` auf,

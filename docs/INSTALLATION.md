@@ -249,8 +249,8 @@ richtigen entpackten Ordner beschrieben.
 Das alte entpackte Paket kann nach erfolgreichem Upgrade entfernt werden.
 Bewahren Sie das neue Paket unter Windows für eine spätere Deinstallation auf.
 
-**Linux mit dem Kommando `winlaufen-web`:** Installationen ab der ersten
-Version nach 0.4.3 bringen ein Verwaltungskommando mit. Es übernimmt das
+**Linux mit dem Kommando `winlaufen-web`:** Installationen ab Version 0.4.4
+bringen ein Verwaltungskommando mit. Es übernimmt das
 Profil der bestehenden Installation selbst:
 
 ```sh
@@ -277,7 +277,9 @@ Stehen Bridge und Live Server auf **verschiedenen** Rechnern — Profile
 verschiedenen Versionen. Eine ältere Bridge kann an einen neueren Live Server
 liefern, umgekehrt nicht. Das gilt für den Übergang von 0.4.0 auf die Versionen
 mit Zeitmesspunkten und ebenso für den Übergang auf 0.4.3: Ein Live Server
-0.4.2 oder älter lehnt die Daten einer Bridge 0.4.3 ab und zeigt nichts an.
+0.4.2 oder älter lehnt die Daten einer Bridge ab 0.4.3 ab und zeigt nichts an.
+0.4.3 und 0.4.4 verwenden denselben Bridge-Contract und sind in beiden
+Richtungen kombinierbar.
 Daraus folgt keine allgemeine Kompatibilitätszusage für beliebige künftige
 Versionen.
 
@@ -699,7 +701,7 @@ mit `curl.exe` statt `curl` und ohne `>/dev/null && echo …` ausführen.
 
 Die Fußzeile von Bridge Control (`http://localhost:44442/`) und der
 Live-Ergebnisse (`http://localhost:44440/`) nennt die installierte Version,
-etwa `Sprecher-Web · Version 0.4.3 · Build <commit>`. Nach einem Upgrade die
+etwa `Sprecher-Web · Version 0.4.4 · Build <commit>`. Nach einem Upgrade die
 Seite neu laden. Unter Linux geht es auch im Terminal:
 
 ```sh
