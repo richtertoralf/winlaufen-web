@@ -450,6 +450,10 @@ if run_install all-in-one "$root"; then
     assert_file "$root/opt/winlaufen-web/lib/$WINLAUFEN_LIVE_JAR" "All-in-One installiert Live-Server-Artefakt"
     assert_file "$root/etc/systemd/system/winlaufen-bridge.service" "All-in-One erzeugt Bridge-Service"
     assert_file "$root/etc/systemd/system/winlaufen-live-server.service" "All-in-One erzeugt Live-Server-Service"
+    for unit in winlaufen-bridge.service winlaufen-live-server.service; do
+        assert_contains "$root/etc/systemd/system/$unit" "SuccessExitStatus=143" \
+            "$unit wertet den regulären Stopp nicht als Fehler"
+    done
 
     config="$root/etc/winlaufen-web/bridge.properties"
     assert_file "$config" "All-in-One erzeugt Bridge-Konfiguration"
