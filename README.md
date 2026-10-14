@@ -1,6 +1,6 @@
 # Sprecher-Web
 
-[![Version](https://img.shields.io/badge/version-0.4.2-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
+[![Version](https://img.shields.io/badge/version-0.4.3-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
 [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
 
 **Live-Ergebnisse aus WinLaufen auf Notebook, Tablet und Smartphone.**
@@ -101,23 +101,36 @@ Bei Problemen hilft die [ausführliche Windows-Anleitung](docs/INSTALLATION.md#1
 
 ### Linux
 
-Für einen üblichen 64-Bit-PC mit Intel- oder AMD-Prozessor laden Sie
-`winlaufen-web-<version>-linux-amd64.tar.gz` herunter.
-Öffnen Sie den Downloadordner über die Downloadliste Ihres Browsers,
-entpacken Sie das Archiv mit der Archivverwaltung und öffnen Sie den Ordner,
-in dem **installer**, **lib** und **runtime** liegen.
-Öffnen Sie dort über die Dateiverwaltung ein Terminal und führen Sie aus:
+Für einen üblichen 64-Bit-PC mit Intel- oder AMD-Prozessor und systemd
+(etwa Ubuntu oder Debian). Öffnen Sie ein Terminal und führen Sie aus:
 
 ```sh
+wget https://github.com/richtertoralf/winlaufen-web/releases/download/v0.4.3/winlaufen-web-0.4.3-linux-amd64.tar.gz
+tar -xzf winlaufen-web-0.4.3-linux-amd64.tar.gz
+cd winlaufen-web-0.4.3-linux-amd64
 sudo ./installer/linux/install.sh --profile all-in-one
 ```
 
 Geben Sie bei der Nachfrage Ihr Linux-Passwort ein; dabei sind keine Zeichen
-sichtbar. WinLaufen läuft weiterhin auf dem Windows-PC. Dessen Adresse
-tragen Sie beim ersten Start ein.
-Unterstützte Systeme, andere Profile und die nötigen Netzwerkfreigaben stehen
-in der [Installationsanleitung](docs/INSTALLATION.md).
+sichtbar. Für die anderen Rollen ersetzen Sie `all-in-one` durch
+`bridge-only` oder `presentation-node`. WinLaufen läuft weiterhin auf dem
+Windows-PC; dessen Adresse tragen Sie beim ersten Start ein.
+Unterstützte Systeme, Prüfsummen und die nötigen Netzwerkfreigaben stehen
+in der [Installationsanleitung](docs/INSTALLATION.md#11-linux).
 Für Raspberry Pi ist noch kein fertiges Releasepaket vorhanden.
+
+### Aktualisieren
+
+Eine bestehende Installation aktualisieren Sie mit denselben Befehlen und dem
+neuen Paket. Verwenden Sie dasselbe Profil wie bisher. Der Installer erkennt
+die bestehende Installation, ersetzt die Programmdateien und startet die
+Dienste neu; Einstellungen und importierte Startliste bleiben erhalten.
+Unter Windows führen Sie ebenso die Schritte oben mit dem neuen ZIP aus.
+
+Stehen Bridge und Live-Server auf verschiedenen Rechnern, aktualisieren Sie
+**zuerst den Live-Server und danach die Bridge**. Eine Bridge 0.4.3 kann an
+einen älteren Live-Server nicht liefern. Details:
+[Upgrade](docs/INSTALLATION.md#3-upgrade).
 
 ## Erster Start
 
@@ -134,6 +147,7 @@ Für Raspberry Pi ist noch kein fertiges Releasepaket vorhanden.
    angezeigte Netzwerkadresse an die Zuschauer im Veranstaltungsnetz weiter.
 
 Sprecher-Web startet künftig automatisch mit dem Rechner.
+Die Fußzeile beider Seiten nennt die installierte Version.
 Die Schritte gelten für All-in-One; Einrichtung weiterer Server,
 Startlistenimport und Hilfe am Wettkampftag stehen im
 [Bedienerhandbuch](docs/BEDIENERHANDBUCH.md).
@@ -166,7 +180,7 @@ an Entwickler und Integratoren.
 
 ## Projektstatus und Lizenz
 
-**Version 0.4.2 — Entwicklungsversion für kontrollierte Vereins- und
+**Version 0.4.3 — Entwicklungsversion für kontrollierte Vereins- und
 Veranstaltungsnetze.** Testen Sie Ihren Aufbau vor dem Wettkampftag.
 
 <a id="known-prototype-security-limitation"></a>

@@ -255,9 +255,12 @@ Für Updates eines Entwicklungsstands siehe
 
 Stehen Bridge und Live Server auf **verschiedenen** Rechnern — Profile
 **Bridge only** und **Presentation Node** —, laufen sie beim Upgrade kurz in
-verschiedenen Versionen. Für den Übergang von 0.4.0 auf die Versionen mit
-Zeitmesspunkten kann eine ältere Bridge an einen neueren Live Server liefern, umgekehrt nicht. Daraus folgt
-keine allgemeine Kompatibilitätszusage für beliebige künftige Versionen.
+verschiedenen Versionen. Eine ältere Bridge kann an einen neueren Live Server
+liefern, umgekehrt nicht. Das gilt für den Übergang von 0.4.0 auf die Versionen
+mit Zeitmesspunkten und ebenso für den Übergang auf 0.4.3: Ein Live Server
+0.4.2 oder älter lehnt die Daten einer Bridge 0.4.3 ab und zeigt nichts an.
+Daraus folgt keine allgemeine Kompatibilitätszusage für beliebige künftige
+Versionen.
 
 **Deshalb zuerst den Live Server aktualisieren, danach die Bridge.** In der
 Zwischenzeit läuft alles weiter; es fehlen höchstens Angaben, die die ältere
@@ -650,6 +653,36 @@ sudo ss -ltnp | grep -E ':(44440|44441|44442)\b'
 
 Bei `bridge-only` ist nur 44442 zu erwarten, bei `presentation-node` nur 44440
 und 44441.
+
+Eigene Prüfung unter Windows in einer PowerShell:
+
+```powershell
+Get-ScheduledTask -TaskName 'WinLaufen Web*' | Select-Object TaskName, State
+```
+
+Beide Aufgaben (bei Bridge only nur die Bridge) sollten `Running` melden.
+
+HTTP-Endpunkte prüfen; je Zeile wird eine Antwort ohne Fehler erwartet.
+Bei Bridge only entfällt 44440, bei Presentation Node entfällt 44442:
+
+```sh
+curl -fsS http://localhost:44440/api/v1/state >/dev/null && echo "Live Server OK"
+curl -fsS http://localhost:44442/api/v1/status >/dev/null && echo "Bridge Control OK"
+```
+
+Unter Windows ist `curl.exe` Bestandteil von Windows 11; dort dieselben Zeilen
+mit `curl.exe` statt `curl` und ohne `>/dev/null && echo …` ausführen.
+
+### Installierte Version prüfen
+
+Die Fußzeile von Bridge Control (`http://localhost:44442/`) und der
+Live-Ergebnisse (`http://localhost:44440/`) nennt die installierte Version,
+etwa `Sprecher-Web · Version 0.4.3 · Build <commit>`. Nach einem Upgrade die
+Seite neu laden. Unter Linux geht es auch im Terminal:
+
+```sh
+curl -fsS http://localhost:44440/ | grep -o 'Version [0-9][0-9.]*'
+```
 
 Danach:
 

@@ -863,7 +863,7 @@ werden kopiert. Uhren, Health und Darstellungsänderungen erzeugen keinen Hinwei
 
 Die dritte Zeile könnte eine Korrektur sein. Sprecher-Web entscheidet das
 **nicht**: Ein Hinweis ist ein empfangener Originalzeiger, keine berechnete neue
-Zielankunft. `rowIndex` ist weder Rang noch Startlistenposition. `row: []`+bedeutet, dass der Originalindex keine Zeile adressiert hat; auch daraus darf
+Zielankunft. `rowIndex` ist weder Rang noch Startlistenposition. `row: []` bedeutet, dass der Originalindex keine Zeile adressiert hat; auch daraus darf
 kein Einlauf erfunden werden. Aktuelle Ergebnisse kommen weiterhin aus
 `competition.classes[].snapshot`, nicht aus älteren Hinweiszeilen.
 
@@ -897,7 +897,7 @@ ist nicht nötig: Datei einmal in Bridge Control importieren, anschließend
 
 Kompatibilität: additive Read-API-/Browserfelder; ältere Consumer dürfen sie
 ignorieren. Der interne Bridge-Contract ist strikt, daher zuerst Live Server,
-danach Bridge aktualisieren. Ältere Bridges bleiben mit `finishHistory: null`+lesbar, bieten damit aber keine Wiederaufnahmegarantie für Einlaufhinweise.
+danach Bridge aktualisieren. Ältere Bridges bleiben mit `finishHistory: null` lesbar, bieten damit aber keine Wiederaufnahmegarantie für Einlaufhinweise.
 
 ## 9. GET /api/v1/runtime
 
