@@ -688,6 +688,8 @@ WorkingDirectory=$STATE_DIR
 ExecStart=$JAVA_BIN -D$WINLAUFEN_BRIDGE_CONFIG_PROPERTY=$bridge_config -jar $INSTALL_PREFIX/lib/$WINLAUFEN_BRIDGE_JAR
 Restart=on-failure
 RestartSec=5
+# Java endet bei SIGTERM mit 143; ein regulärer Stopp ist kein Fehler.
+SuccessExitStatus=143
 StandardOutput=journal
 StandardError=journal
 NoNewPrivileges=true
@@ -725,6 +727,8 @@ ExecStart=$JAVA_BIN \\
   -jar $INSTALL_PREFIX/lib/$WINLAUFEN_LIVE_JAR
 Restart=on-failure
 RestartSec=5
+# Java endet bei SIGTERM mit 143; ein regulärer Stopp ist kein Fehler.
+SuccessExitStatus=143
 StandardOutput=journal
 StandardError=journal
 NoNewPrivileges=true

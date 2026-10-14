@@ -533,7 +533,9 @@ Betrieb über `systemd`. Je nach Profil:
 
 Die Dienste starten automatisch beim Boot (`WantedBy=multi-user.target`),
 laufen unter dem eigenen Systembenutzer `winlaufen` ohne Login-Shell und ohne
-Root-Rechte, und protokollieren in das Journal.
+Root-Rechte, und protokollieren in das Journal. Ein regulärer Stopp, bei dem
+Java mit Status 143 endet, gilt dank `SuccessExitStatus=143` nicht als Fehler.
+Abstürze mit anderem Exitcode startet systemd nach 5 Sekunden neu.
 
 ```sh
 systemctl status winlaufen-bridge
