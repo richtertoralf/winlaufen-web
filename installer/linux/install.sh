@@ -38,6 +38,7 @@ SERVICE_GROUP="winlaufen"
 BRIDGE_UNIT="winlaufen-bridge.service"
 LIVE_UNIT="winlaufen-live-server.service"
 SYSTEMD_DIR="/etc/systemd/system"
+CLI_LINK="/usr/local/bin/winlaufen-web"
 
 usage() {
     sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -516,6 +517,37 @@ if [[ -d "$DIST_DIR/runtime" ]]; then
     note "$runtime_step: gebündelte Java-Runtime"
 fi
 
+# Verwaltungskommando winlaufen-web: Version, Upgrade und Deinstallation ohne das
+# entpackte Paket. Es liegt mit seinem Uninstaller in derselben Struktur wie im
+# Paket, damit es dieselben relativen Pfade verwendet.
+installed_version() {
+    if [[ -f "$DIST_DIR/VERSION" ]]; then
+        head -n 1 -- "$DIST_DIR/VERSION"
+    else
+        git -c safe.directory="$DIST_DIR" -C "$DIST_DIR" describe --always --dirty 2>/dev/null \
+            || echo "unbekannt"
+    fi
+}
+if [[ -L "$(staged "$CLI_LINK")" ]]; then
+    cli_step="AKTUALISIERT"
+else
+    cli_step="NEU"
+fi
+mkdir -p "$(staged "$INSTALL_PREFIX/installer/linux")" "$(staged "$INSTALL_PREFIX/installer/common")" \
+         "$(staged "$(dirname -- "$CLI_LINK")")"
+install -m 0755 "$script_dir/winlaufen-web" "$script_dir/uninstall.sh" \
+    "$(staged "$INSTALL_PREFIX/installer/linux")/"
+install -m 0644 "$script_dir/../common/dist-manifest.env" "$(staged "$INSTALL_PREFIX/installer/common")/"
+installed_version > "$(staged "$INSTALL_PREFIX/VERSION")"
+# Eine fremde Datei gleichen Namens wird nicht überschrieben.
+if [[ -e "$(staged "$CLI_LINK")" && ! -L "$(staged "$CLI_LINK")" ]]; then
+    note "WARNUNG: $CLI_LINK ist eine fremde Datei und bleibt unverändert;"
+    note "         das Kommando liegt unter $INSTALL_PREFIX/installer/linux/winlaufen-web"
+else
+    ln -sfn "$INSTALL_PREFIX/installer/linux/winlaufen-web" "$(staged "$CLI_LINK")"
+    note "$cli_step: Kommando winlaufen-web ($(head -n 1 "$(staged "$INSTALL_PREFIX/VERSION")"))"
+fi
+
 # ------------------------------------------------------------ Konfiguration
 #
 # Vorhandene Konfiguration wird niemals überschrieben. Defaults entstehen nur
@@ -987,6 +1019,7 @@ AKTUALISIERT
 $(((install_bridge)) && echo "  Bridge")
 $(((install_live)) && echo "  Live Server")
   systemd-Units
+  Kommando winlaufen-web
 
 BEIBEHALTEN
   Konfiguration in $CONFIG_DIR
@@ -1005,6 +1038,7 @@ $(((install_live)) && echo "  Live Server")
   Konfiguration in $CONFIG_DIR
   Datenverzeichnis $STATE_DIR
   systemd-Units
+  Kommando winlaufen-web (Version, Upgrade, Deinstallation: winlaufen-web --help)
 
 UNVERÄNDERT
   WinLaufen

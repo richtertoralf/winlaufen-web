@@ -247,7 +247,26 @@ Verwenden Sie dasselbe Profil wie bisher. So ist auch der Wechsel in den
 richtigen entpackten Ordner beschrieben.
 
 Das alte entpackte Paket kann nach erfolgreichem Upgrade entfernt werden.
-Bewahren Sie das neue Paket für eine spätere Deinstallation auf.
+Bewahren Sie das neue Paket unter Windows für eine spätere Deinstallation auf.
+
+**Linux mit dem Kommando `winlaufen-web`:** Installationen ab der ersten
+Version nach 0.4.3 bringen ein Verwaltungskommando mit. Es übernimmt das
+Profil der bestehenden Installation selbst:
+
+```sh
+sudo winlaufen-web --upgrade                                   # neuestes Release laden
+sudo winlaufen-web --upgrade winlaufen-web-<version>-linux-amd64.tar.gz   # ohne Internet
+```
+
+Ohne Paketangabe ermittelt das Kommando das neueste Release auf GitHub, lädt
+das Linux-Paket und `SHA256SUMS`, prüft die Prüfsumme und startet den Installer
+des neuen Pakets. Ist die installierte Version bereits aktuell oder neuer,
+ändert es nichts. Mit einer Paketdatei funktioniert das Upgrade auch ohne
+Internet, etwa am Veranstaltungsort; liegt `SHA256SUMS` daneben, wird auch
+dort geprüft. Vor dem Neustart der Dienste fragt das Kommando nach; `--yes`
+überspringt die Rückfrage. Die Prüfsumme erkennt beschädigte Downloads, sie
+belegt nicht die Herkunft des Pakets. Ältere Installationen erhalten das
+Kommando mit dem ersten Upgrade auf eine Version, die es enthält.
 Für Updates eines Entwicklungsstands siehe
 [Entwicklerinstallation aktualisieren](DEVELOPMENT.md#entwicklerinstallation-aktualisieren).
 
@@ -423,6 +442,9 @@ Windows x64. Für Raspberry Pi OS auf ARM ist der [Entwicklerweg](DEVELOPMENT.md
 ```text
 /opt/winlaufen-web/lib/          Programmartefakte (JARs)
 /opt/winlaufen-web/runtime/      gebündelte Java-Runtime, falls die Quelle eine mitbringt
+/opt/winlaufen-web/installer/    Kommando winlaufen-web und Uninstaller
+/opt/winlaufen-web/VERSION       installierte Version
+/usr/local/bin/winlaufen-web     Verweis auf das Kommando
 /etc/winlaufen-web/              Konfiguration und persistente Veranstalterdaten
     bridge.properties            Veranstalter-Konfiguration der Bridge
                                  (competition.timezone nur für das Ausland)
@@ -681,6 +703,13 @@ etwa `Sprecher-Web · Version 0.4.3 · Build <commit>`. Nach einem Upgrade die
 Seite neu laden. Unter Linux geht es auch im Terminal:
 
 ```sh
+winlaufen-web --version
+```
+
+Das Kommando nennt die installierte Version, das Profil und die Version der
+laufenden Dienste. Ohne das Kommando (bis einschließlich 0.4.3):
+
+```sh
 curl -fsS http://localhost:44440/ | grep -o 'Version [0-9][0-9.]*'
 ```
 
@@ -738,6 +767,16 @@ Ohne `--purge` bleiben `/etc/winlaufen-web` und `/var/lib/winlaufen-web`
 erhalten, damit eine gepflegte WinLaufen-Adresse, die Target-Liste und die
 importierte Startliste eine Neuinstallation überleben. `--purge` entfernt auch
 `startlist.properties`; danach ist ein erneuter Import nötig.
+
+Mit dem Kommando `winlaufen-web` geht es ohne das entpackte Paket:
+
+```sh
+sudo winlaufen-web --uninstall            # Dienste und Programmdateien
+sudo winlaufen-web --uninstall --purge    # zusätzlich Konfiguration
+```
+
+Das Kommando wird dabei mit entfernt. Wer Konfiguration und Startliste später
+doch noch löschen will, braucht dafür das Releasepaket.
 
 Windows:
 
