@@ -129,6 +129,26 @@ Windows-PC; dessen Adresse tragen Sie beim ersten Start ein.
 Unterstützte Systeme, Prüfsummen und die nötigen Netzwerkfreigaben stehen
 in der [Installationsanleitung](docs/INSTALLATION.md#11-linux).
 Für Raspberry Pi ist noch kein fertiges Releasepaket vorhanden.
+Wenn das gewünscht wird, bitte beim Enwickler melden.
+
+```sh
+winlaufen-web -h
+Verwaltung einer installierten WinLaufen-Web-Installation unter Linux.
+
+  winlaufen-web --version                  installierte und laufende Version
+  sudo winlaufen-web --upgrade             neuestes Release herunterladen und installieren
+  sudo winlaufen-web --upgrade <paket>     aus heruntergeladenem winlaufen-web-*-linux-amd64.tar.gz
+  sudo winlaufen-web --uninstall           Dienste und Programmdateien entfernen
+  sudo winlaufen-web --uninstall --purge   zusätzlich Konfiguration und Startliste entfernen
+
+  --yes                Rückfrage vor Upgrade oder Deinstallation überspringen
+  --staging-root DIR   Testmodus ohne root und ohne systemd
+
+Upgrade und Deinstallation verwenden die vorhandenen Skripte install.sh und
+uninstall.sh; das Profil der bestehenden Installation bleibt erhalten.
+set -euo pipefail
+
+```
 
 ### Aktualisieren
 
