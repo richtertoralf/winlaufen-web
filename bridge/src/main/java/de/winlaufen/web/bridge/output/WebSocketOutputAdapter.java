@@ -26,7 +26,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>Owns its own worker thread, socket, retry counter and ACK state. It holds at most the newest
  * canonical snapshot; older unsent snapshots are replaced because every snapshot is complete and
- * authoritative. A failure here never reaches the source or another target.
+ * authoritative, including its bounded original finish-hint history. Coalescing does not discard
+ * hints still inside that retention window. A failure here never reaches the source or another target.
  */
 public final class WebSocketOutputAdapter implements LiveOutputAdapter {
 

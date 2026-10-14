@@ -144,6 +144,30 @@ public final class ContractJson {
         validateClockSample(state.clockSample());
         validateCompetition(state.competition());
         validateCurrentFinish(state.currentFinish(), state.competition());
+        validateFinishHistory(state.finishHistory());
+    }
+
+    private static void validateFinishHistory(FinishHistory history) {
+        if (history == null) return; // Older bridges have no replayable hints.
+        if (history.lastSequence() < history.hints().size() || history.lastSequence() < 0
+                || history.hints().size() > FinishHistory.MAX_HINTS
+                || write(history).length() > FinishHistory.MAX_JSON_CHARS) {
+            throw new ContractViolationException("Invalid finish history size");
+        }
+        long prior = history.lastSequence() - history.hints().size();
+        long revision = -1;
+        for (FinishHint hint : history.hints()) {
+            if (hint.sequence() != ++prior || hint.sourceRevision() <= revision
+                    || hint.classIndex() < 0 || hint.rowIndex() < 0
+                    || hint.className() == null || hint.className().length() > ContractLimits.MAX_NAME_CHARS
+                    || hint.headers().isEmpty() || hint.headers().size() > ContractLimits.MAX_HEADERS
+                    || (!hint.row().isEmpty() && hint.row().size() != hint.headers().size())) {
+                throw new ContractViolationException("Invalid finish history pointer");
+            }
+            hint.headers().forEach(ContractJson::cell);
+            hint.row().forEach(ContractJson::cell);
+            revision = hint.sourceRevision();
+        }
     }
 
     /**
@@ -179,6 +203,11 @@ public final class ContractJson {
             throw new ContractViolationException("Invalid snapshot envelope");
         }
         validateState(value.state(), value.presentation());
+        if (value.state().finishHistory() != null
+                && value.state().finishHistory().hints().stream()
+                .anyMatch(hint -> hint.sourceRevision() > value.sourceRevision())) {
+            throw new ContractViolationException("Finish hint newer than snapshot");
+        }
     }
 
     /**

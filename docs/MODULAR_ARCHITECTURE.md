@@ -426,6 +426,13 @@ Verhalten:
 
 ## 8. Output-Target-Modell und Fan-out
 
+Der aktuelle Vollsnapshot enthält zusätzlich einen begrenzten Verlauf originaler
+Ergebnisblock-Zeilenhinweise (`finishHistory`). Dadurch gehen Hinweise innerhalb
+der Retention nicht verloren, wenn der Output-Slot Zwischenstände zusammenfasst.
+Der aktuelle Ergebnisbestand bleibt ein Snapshot; der Verlauf klassifiziert
+weder Korrekturen noch neue sportliche Einläufe. Grenzen, Sequenzprüfung,
+Reconnect und Upgrade-Reihenfolge stehen im [API-Vertrag](API.md#originale-einlaufhinweise-und-startlistenherkunft-issue-8).
+
 Das exklusive `OutputMode` entfällt, ersetzt durch getrennte Config- und
 Runtime-Modelle:
 

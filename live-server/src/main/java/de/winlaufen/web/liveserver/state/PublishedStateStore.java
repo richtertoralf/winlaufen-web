@@ -85,7 +85,7 @@ public final class PublishedStateStore {
         // was delivering a second ago look as if it had never sent a telegram at all.
         CanonicalState degraded = new CanonicalState(SourceHealth.DISCONNECTED, old.state().clock(),
                 old.state().competition(), old.state().currentFinish(), old.state().message(),
-                old.state().clockSample());
+                old.state().clockSample(), old.state().finishHistory());
         if (old.streamId() == null && old.state().sourceHealth() == SourceHealth.DISCONNECTED) {
             // Nothing changes for a browser, but the link flag still has to become false: a
             // consumer must not be told the bridge is attached when it is not.
@@ -144,7 +144,7 @@ public final class PublishedStateStore {
             return value;
         }
         return new CanonicalState(value.sourceHealth(), value.clock(), old.competition(),
-                old.currentFinish(), value.message(), value.clockSample());
+                old.currentFinish(), value.message(), value.clockSample(), value.finishHistory());
     }
 
     /**

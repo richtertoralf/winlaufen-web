@@ -839,6 +839,66 @@ Startlisten-Publikation gibt es nicht.
 Wer nur wissen will, ob sich der Bestand geändert hat, liest `generation` aus
 dem kleinen `/api/v1/state`.
 
+### Originale Einlaufhinweise und Startlistenherkunft (Issue #8)
+
+`state.finishHistory` ergänzt die bisherigen Snapshots der Read API und von
+`/live/v1`. Die Bridge bewahrt die Hinweise **vor** dem zusammenfassenden
+Output-Slot auf. Jeder akzeptierte Ergebnisblock erhält eine streamlokale
+`sequence`; der zugehörige Originalzeilenzeiger und die angesprochene Zeile
+werden kopiert. Uhren, Health und Darstellungsänderungen erzeugen keinen Hinweis.
+
+```json
+{"lastSequence": 3, "hints": [
+  {"sequence": 1, "sourceRevision": 7, "classIndex": 0,
+   "className": "Testklasse", "rowIndex": 0,
+   "headers": ["Rang", "StNr", "Laufzeit"], "row": ["1", "12", "0:30:00,1"]},
+  {"sequence": 2, "sourceRevision": 9, "classIndex": 0,
+   "className": "Testklasse", "rowIndex": 1,
+   "headers": ["Rang", "StNr", "Laufzeit"], "row": ["2", "0012", "0:30:10,1"]},
+  {"sequence": 3, "sourceRevision": 10, "classIndex": 0,
+   "className": "Testklasse", "rowIndex": 0,
+   "headers": ["Rang", "StNr", "Laufzeit"], "row": ["3", "12", "0:30:00,1"]}
+]}
+```
+
+Die dritte Zeile könnte eine Korrektur sein. Sprecher-Web entscheidet das
+**nicht**: Ein Hinweis ist ein empfangener Originalzeiger, keine berechnete neue
+Zielankunft. `rowIndex` ist weder Rang noch Startlistenposition. `row: []`+bedeutet, dass der Originalindex keine Zeile adressiert hat; auch daraus darf
+kein Einlauf erfunden werden. Aktuelle Ergebnisse kommen weiterhin aus
+`competition.classes[].snapshot`, nicht aus älteren Hinweiszeilen.
+
+Retention: höchstens **256 Hinweise** und **262.144 JSON-Zeichen** für den
+Verlauf; die ältesten Hinweise entfallen zuerst. `lastSequence` steigt auch
+dann weiter, wenn ein einzelner zu großer Hinweis nicht gehalten werden kann.
+Ein Consumer vergleicht seinen letzten Cursor mit der ersten verfügbaren
+`sequence`; fehlt der Anschluss, ist die Lücke erkennbar. Die Reihe bis
+`lastSequence` ist zusammenhängend. `null` bedeutet ältere Bridge ohne Verlauf,
+`{ "lastSequence": 0, "hints": [] }` bedeutet neuer Stream ohne Ergebnisblock.
+
+Der Verlauf reist im jeweils aktuellen Snapshot über den bestehenden
+Bridge-WebSocket inklusive bestehender Snapshot-ACKs. Es gibt keine zusätzliche
+Ereignisverbindung oder Einzelhinweis-ACKs. Reconnect liefert den noch gehaltenen
+Verlauf erneut, auch nach Live-Server-Neustart; Consumer deduplizieren mit
+`(streamId, sequence)`. Bridge-Neustart startet einen neuen Stream. Es gibt
+keine unbegrenzte oder persistente Historie und keine Wiederherstellung von
+Telegrammen, die die Bridge wegen einer WinLaufen-Verbindungsunterbrechung nie
+empfangen hat. Der erste Consumer-Abruf ist normalerweise eine Baseline;
+ein neuer Stream darf nicht als Fortsetzung des alten Cursors gelten.
+
+Startlistenmetadaten in `/state.startList` und `/startlist` tragen zusätzlich
+`originStreamId`: den tatsächlich zu dieser Startliste gehörenden Bridge-Stream.
+Das bisherige äußere `streamId` bleibt der Stream des aktuellen Laufzustands.
+Nach einem Streamwechsel können diese kurzfristig verschieden sein. Vor der
+Übernahme eines neuen Startlistenbestands müssen Consumer Herkunft und
+Generation zwischen ihren beiden Antworten prüfen. Generationen ändern sich
+auch ohne neue Ergebnis-/Uhrrevision. Ein neues Importieren in einem Consumer
+ist nicht nötig: Datei einmal in Bridge Control importieren, anschließend
+über `/api/v1/startlist` lesen und geänderte Generationen übernehmen.
+
+Kompatibilität: additive Read-API-/Browserfelder; ältere Consumer dürfen sie
+ignorieren. Der interne Bridge-Contract ist strikt, daher zuerst Live Server,
+danach Bridge aktualisieren. Ältere Bridges bleiben mit `finishHistory: null`+lesbar, bieten damit aber keine Wiederaufnahmegarantie für Einlaufhinweise.
+
 ## 9. GET /api/v1/runtime
 
 Ein gewöhnlicher **HTTP-Endpunkt** mit der Laufzeitkonfiguration des Web

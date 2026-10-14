@@ -206,6 +206,7 @@ public final class PublicJson {
     private static String startListFacts(PublishedStartList startList) {
         boolean present = startList.present();
         return "\"present\":" + present
+                + ",\"originStreamId\":" + nullable(startList.streamId())
                 + ",\"generation\":" + startList.generation()
                 + ",\"source\":" + (present ? quote(startList.source()) : "null")
                 + ",\"sourceLabel\":" + (present ? quote(startList.sourceLabel()) : "null")
@@ -291,6 +292,7 @@ public final class PublicJson {
                 + ",\"clock\":" + nullable(state.clock())
                 + ",\"competition\":" + competition(state.competition())
                 + ",\"currentFinish\":" + finish(state.currentFinish())
+                + ",\"finishHistory\":" + de.winlaufen.web.contract.ContractJson.write(state.finishHistory())
                 + ",\"message\":" + nullable(state.message())
                 + "}";
     }

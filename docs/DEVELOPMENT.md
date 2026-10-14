@@ -122,6 +122,20 @@ Server, Ausfall, Neustart, Full Resync; benötigt keine WinLaufen-Installation:
 ./devtools/smoke-fanout.sh
 ```
 
+Originale Einlaufhinweise durch die gesamte Parser-/Bridge-/Live-Server-Kette
+prüfen (synthetische Protokollbytes, ausschließlich Loopback):
+
+```sh
+java --class-path bridge/target/winlaufen-web-bridge.jar:live-server/target/winlaufen-web-live-server.jar devtools/FinishHistorySmoke.java
+```
+
+Unter Windows die beiden JAR-Pfade im Classpath mit `;` trennen. Optional kann
+ein vorhandenes temporäres Ausgabeverzeichnis übergeben werden; dort landen
+synthetische Read-API-Antworten für Consumer-Integrationstests. Geprüft werden
+drei Ergebnisblöcke innerhalb einer Sekunde, angehaltener Live-Ingest,
+HTTP-Verlauf, Bridge-/Browser-Reconnect und ein originaler Korrekturhinweis.
+Die begrenzte Retention wird zusätzlich durch `FinishHistoryTest` geprüft.
+
 Installer-Prüfungen ohne root und ohne systemd:
 
 ```sh
