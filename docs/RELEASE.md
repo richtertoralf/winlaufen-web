@@ -54,8 +54,8 @@ den Tag statt der Commit-ID liefert.
    ```
 
 2. Die Version-Badge oben in `README.md` auf `X.Y.Z` setzen und die
-   Versionsangaben in `README.md` (Projektstatus und Lizenz),
-   `docs/STATUS.md` sowie in diesem Dokument nachziehen:
+   Versionsangaben in `README.md` (Projektstatus und Lizenz, Download-Befehle
+   im Linux-Schnellstart), `docs/STATUS.md` sowie in diesem Dokument nachziehen:
 
    ```text
    ![Version](https://img.shields.io/badge/version-X.Y.Z-blue)
