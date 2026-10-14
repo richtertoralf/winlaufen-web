@@ -1,6 +1,6 @@
 # Sprecher-Web
 
-[![Version](https://img.shields.io/badge/version-0.4.3-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
+[![Version](https://img.shields.io/badge/version-0.4.4-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
 [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
 
 **Live-Ergebnisse aus WinLaufen auf Notebook, Tablet und Smartphone.**
@@ -105,9 +105,9 @@ Für einen üblichen 64-Bit-PC mit Intel- oder AMD-Prozessor und systemd
 (etwa Ubuntu oder Debian). Öffnen Sie ein Terminal und führen Sie aus:
 
 ```sh
-wget https://github.com/richtertoralf/winlaufen-web/releases/download/v0.4.3/winlaufen-web-0.4.3-linux-amd64.tar.gz
-tar -xzf winlaufen-web-0.4.3-linux-amd64.tar.gz
-cd winlaufen-web-0.4.3-linux-amd64
+wget https://github.com/richtertoralf/winlaufen-web/releases/download/v0.4.4/winlaufen-web-0.4.4-linux-amd64.tar.gz
+tar -xzf winlaufen-web-0.4.4-linux-amd64.tar.gz
+cd winlaufen-web-0.4.4-linux-amd64
 sudo ./installer/linux/install.sh --profile all-in-one
 ```
 
@@ -126,12 +126,12 @@ neuen Paket. Verwenden Sie dasselbe Profil wie bisher. Der Installer erkennt
 die bestehende Installation, ersetzt die Programmdateien und startet die
 Dienste neu; Einstellungen und importierte Startliste bleiben erhalten.
 Unter Windows führen Sie ebenso die Schritte oben mit dem neuen ZIP aus.
-Unter Linux genügt ab der ersten Version nach 0.4.3 `sudo winlaufen-web --upgrade`;
+Unter Linux genügt ab Version 0.4.4 `sudo winlaufen-web --upgrade`;
 `winlaufen-web --version` zeigt die installierte Version.
 
 Stehen Bridge und Live-Server auf verschiedenen Rechnern, aktualisieren Sie
-**zuerst den Live-Server und danach die Bridge**. Eine Bridge 0.4.3 kann an
-einen älteren Live-Server nicht liefern. Details:
+**zuerst den Live-Server und danach die Bridge**. Eine Bridge ab 0.4.3 kann
+an einen Live-Server 0.4.2 oder älter nicht liefern. Details:
 [Upgrade](docs/INSTALLATION.md#3-upgrade).
 
 ## Erster Start
@@ -182,7 +182,7 @@ an Entwickler und Integratoren.
 
 ## Projektstatus und Lizenz
 
-**Version 0.4.3 — Entwicklungsversion für kontrollierte Vereins- und
+**Version 0.4.4 — Entwicklungsversion für kontrollierte Vereins- und
 Veranstaltungsnetze.** Testen Sie Ihren Aufbau vor dem Wettkampftag.
 
 <a id="known-prototype-security-limitation"></a>
