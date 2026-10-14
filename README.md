@@ -126,6 +126,8 @@ neuen Paket. Verwenden Sie dasselbe Profil wie bisher. Der Installer erkennt
 die bestehende Installation, ersetzt die Programmdateien und startet die
 Dienste neu; Einstellungen und importierte Startliste bleiben erhalten.
 Unter Windows führen Sie ebenso die Schritte oben mit dem neuen ZIP aus.
+Unter Linux genügt ab der ersten Version nach 0.4.3 `sudo winlaufen-web --upgrade`;
+`winlaufen-web --version` zeigt die installierte Version.
 
 Stehen Bridge und Live-Server auf verschiedenen Rechnern, aktualisieren Sie
 **zuerst den Live-Server und danach die Bridge**. Eine Bridge 0.4.3 kann an

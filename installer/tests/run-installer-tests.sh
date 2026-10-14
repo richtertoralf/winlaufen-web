@@ -15,6 +15,7 @@ installer_linux="$repository_root/installer/linux/install.sh"
 installer_windows="$repository_root/installer/windows/Install-WinLaufenWeb.ps1"
 uninstaller_windows="$repository_root/installer/windows/Uninstall-WinLaufenWeb.ps1"
 uninstaller_linux="$repository_root/installer/linux/uninstall.sh"
+cli_linux="$repository_root/installer/linux/winlaufen-web"
 manifest="$repository_root/installer/common/dist-manifest.env"
 windows_legacy_fixture="$repository_root/installer/tests/fixtures/windows-legacy-java-crlf.properties"
 java_version_fixtures="$repository_root/installer/tests/fixtures/java-version"
@@ -316,7 +317,7 @@ EOF
 }
 
 echo "=== Syntaxprüfung ==="
-for script in "$installer_linux" "$uninstaller_linux" \
+for script in "$installer_linux" "$uninstaller_linux" "$cli_linux" \
               "$repository_root/installer/common/build-dist.sh" \
               "$repository_root/installer/tests/run-installer-tests.sh"; do
     bash -n "$script" 2>/dev/null && ok "bash -n $(basename "$script")" \
@@ -693,6 +694,93 @@ if run_install all-in-one "$root"; then
 
     bash "$uninstaller_linux" --staging-root "$root" --no-systemd --purge >> "$work/uninstall.log" 2>&1
     assert_no_file "$root/etc/winlaufen-web" "Deinstallation mit --purge entfernt die Konfiguration"
+fi
+
+echo
+echo "=== Kommando winlaufen-web ==="
+[[ -x "$cli_linux" ]] && ok "winlaufen-web ist ausführbar" || bad "winlaufen-web ist ausführbar" "$cli_linux"
+
+root="$work/cli"
+if run_install all-in-one "$root"; then
+    cli="$root/opt/winlaufen-web/installer/linux/winlaufen-web"
+    assert_file "$cli" "Installer legt winlaufen-web ab"
+    assert_file "$root/opt/winlaufen-web/installer/linux/uninstall.sh" "Installer legt den Uninstaller ab"
+    assert_file "$root/opt/winlaufen-web/installer/common/dist-manifest.env" "Installer legt das Manifest ab"
+    assert_file "$root/opt/winlaufen-web/VERSION" "Installer legt die Versionsangabe ab"
+    assert_equals "$(readlink "$root/usr/local/bin/winlaufen-web")" \
+        "/opt/winlaufen-web/installer/linux/winlaufen-web" "winlaufen-web liegt im PATH"
+
+    bash "$cli" --version --staging-root "$root" > "$work/cli-version.log" 2>&1
+    assert_contains "$work/cli-version.log" "Profil all-in-one" "--version nennt das installierte Profil"
+
+    # Ein Releasepaket wie aus build-dist.sh, mit Prüfsumme daneben.
+    package_name="winlaufen-web-1.2.3-linux-amd64"
+    package_root="$work/cli-package"
+    mkdir -p "$package_root/$package_name/installer"
+    cp -R "$fake_dist/lib" "$package_root/$package_name/"
+    cp -R "$repository_root/installer/linux" "$repository_root/installer/common" \
+        "$package_root/$package_name/installer/"
+    printf 'v1.2.3\n' > "$package_root/$package_name/VERSION"
+    tar -C "$package_root" -czf "$package_root/$package_name.tar.gz" "$package_name"
+    (cd "$package_root" && sha256sum "$package_name.tar.gz" > SHA256SUMS)
+
+    sed -i 's/^source\.host=.*/source.host=192.168.77.5/' "$root/etc/winlaufen-web/bridge.properties"
+    if bash "$cli" --upgrade "$package_root/$package_name.tar.gz" --staging-root "$root" \
+            < /dev/null > "$work/cli-noconfirm.log" 2>&1; then
+        bad "--upgrade ohne Bestätigung bricht ab" "Exitcode 0"
+    else
+        ok "--upgrade ohne Bestätigung bricht ab"
+    fi
+
+    bash "$cli" --upgrade "$package_root/$package_name.tar.gz" --yes --staging-root "$root" \
+        > "$work/cli-upgrade.log" 2>&1
+    assert_contains "$work/cli-upgrade.log" "Prüfsumme OK" "--upgrade prüft SHA256SUMS"
+    assert_contains "$work/cli-upgrade.log" "Upgrade erfolgreich" "--upgrade führt den Installer aus"
+    assert_equals "$(cat "$root/opt/winlaufen-web/VERSION")" "v1.2.3" "--upgrade übernimmt die neue Version"
+    assert_contains "$root/etc/winlaufen-web/bridge.properties" "source.host=192.168.77.5" \
+        "--upgrade erhält die Konfiguration"
+
+    tampered="$work/cli-tampered"
+    mkdir -p "$tampered"
+    cp "$package_root/$package_name.tar.gz" "$tampered/"
+    printf '%064d  %s\n' 0 "$package_name.tar.gz" > "$tampered/SHA256SUMS"
+    printf 'v1.0.0\n' > "$root/opt/winlaufen-web/VERSION"
+    if bash "$cli" --upgrade "$tampered/$package_name.tar.gz" --yes --staging-root "$root" \
+            > "$work/cli-tampered.log" 2>&1; then
+        bad "--upgrade lehnt eine falsche Prüfsumme ab" "Exitcode 0"
+    else
+        ok "--upgrade lehnt eine falsche Prüfsumme ab"
+    fi
+    assert_equals "$(cat "$root/opt/winlaufen-web/VERSION")" "v1.0.0" \
+        "Falsche Prüfsumme lässt die Installation unverändert"
+
+    bash "$cli" --uninstall --yes --staging-root "$root" > "$work/cli-uninstall.log" 2>&1
+    assert_no_file "$root/opt/winlaufen-web" "--uninstall entfernt die Programmdateien"
+    assert_no_file "$root/usr/local/bin/winlaufen-web" "--uninstall entfernt winlaufen-web aus dem PATH"
+    assert_file "$root/etc/winlaufen-web/bridge.properties" "--uninstall ohne --purge behält die Konfiguration"
+fi
+
+root="$work/cli-bridge"
+if run_install bridge-only "$root"; then
+    cli="$root/opt/winlaufen-web/installer/linux/winlaufen-web"
+    bash "$cli" --upgrade "$package_root/$package_name.tar.gz" --staging-root "$root" \
+        < /dev/null > "$work/cli-bridge.log" 2>&1 || true
+    assert_contains "$work/cli-bridge.log" "zuerst den Live Server" \
+        "--upgrade bei Bridge only nennt die Upgrade-Reihenfolge"
+
+    bash "$cli" --uninstall --purge --yes --staging-root "$root" > "$work/cli-purge.log" 2>&1
+    assert_no_file "$root/etc/winlaufen-web" "--uninstall --purge entfernt die Konfiguration"
+fi
+
+root="$work/cli-foreign"
+if run_install all-in-one "$root"; then
+    rm -f "$root/usr/local/bin/winlaufen-web"
+    printf 'fremd\n' > "$root/usr/local/bin/winlaufen-web"
+    run_install all-in-one "$root"
+    assert_contains "$root/usr/local/bin/winlaufen-web" "fremd" \
+        "Installer überschreibt keine fremde Datei gleichen Namens"
+    bash "$uninstaller_linux" --staging-root "$root" --no-systemd > "$work/cli-foreign.log" 2>&1
+    assert_file "$root/usr/local/bin/winlaufen-web" "Deinstallation entfernt keine fremde Datei gleichen Namens"
 fi
 
 echo
@@ -1468,7 +1556,7 @@ tracked_artifacts=$( (cd "$repository_root" && git ls-files) \
 [[ -z "$tracked_artifacts" ]] && ok "Keine Build-Artefakte versioniert" \
     || bad "Keine Build-Artefakte versioniert" "$tracked_artifacts"
 
-for expected in installer/linux/install.sh installer/linux/uninstall.sh \
+for expected in installer/linux/install.sh installer/linux/uninstall.sh installer/linux/winlaufen-web \
                 installer/windows/Install-WinLaufenWeb.ps1 \
                 installer/windows/Uninstall-WinLaufenWeb.ps1 \
                 installer/common/build-dist.sh installer/common/build-dist.ps1 \

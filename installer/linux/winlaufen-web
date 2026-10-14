@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# Verwaltung einer installierten WinLaufen-Web-Installation unter Linux.
+#
+#   winlaufen-web --version                  installierte und laufende Version
+#   sudo winlaufen-web --upgrade             neuestes Release herunterladen und installieren
+#   sudo winlaufen-web --upgrade <paket>     aus heruntergeladenem winlaufen-web-*-linux-amd64.tar.gz
+#   sudo winlaufen-web --uninstall           Dienste und Programmdateien entfernen
+#   sudo winlaufen-web --uninstall --purge   zusätzlich Konfiguration und Startliste entfernen
+#
+#   --yes                Rückfrage vor Upgrade oder Deinstallation überspringen
+#   --staging-root DIR   Testmodus ohne root und ohne systemd
+#
+# Upgrade und Deinstallation verwenden die vorhandenen Skripte install.sh und
+# uninstall.sh; das Profil der bestehenden Installation bleibt erhalten.
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd -P)
+# shellcheck source=../common/dist-manifest.env
+source "$script_dir/../common/dist-manifest.env"
+
+INSTALL_PREFIX="/opt/winlaufen-web"
+SYSTEMD_DIR="/etc/systemd/system"
+BRIDGE_UNIT="winlaufen-bridge.service"
+LIVE_UNIT="winlaufen-live-server.service"
+RELEASES_URL="https://github.com/richtertoralf/winlaufen-web/releases"
+
+ACTION=""
+PACKAGE=""
+PURGE=0
+ASSUME_YES=0
+STAGING_ROOT=""
+
+usage() {
+    sed -n '2,15p' "$script_dir/winlaufen-web" | sed 's/^# \{0,1\}//'
+    exit "${1:-0}"
+}
+
+fail() { echo "FEHLER: $*" >&2; exit 1; }
+staged() { printf '%s' "${STAGING_ROOT}$1"; }
+
+installed_version() {
+    local file
+    file=$(staged "$INSTALL_PREFIX/VERSION")
+    if [[ -r "$file" ]]; then
+        head -n 1 -- "$file"
+    else
+        echo "unbekannt"
+    fi
+}
+
+installed_profile() {
+    local bridge=0 live=0
+    [[ -f "$(staged "$SYSTEMD_DIR/$BRIDGE_UNIT")" ]] && bridge=1
+    [[ -f "$(staged "$SYSTEMD_DIR/$LIVE_UNIT")" ]] && live=1
+    if ((bridge && live)); then echo "all-in-one"
+    elif ((bridge)); then echo "bridge-only"
+    elif ((live)); then echo "presentation-node"
+    fi
+}
+
+# Laufende Version aus der Fußzeile der Oberfläche; zeigt, was tatsächlich läuft.
+running_component() {
+    local label=$1 unit=$2 port=$3 state footer
+    if [[ -n "$STAGING_ROOT" ]]; then
+        printf '  %-12s nicht geprüft (Testmodus)\n' "$label:"
+        return
+    fi
+    state=$(systemctl is-active "$unit" 2>/dev/null || true)
+    footer=""
+    if [[ "$state" == "active" ]] && command -v curl >/dev/null 2>&1; then
+        footer=$(curl -fsS --max-time 3 "http://127.0.0.1:$port/" 2>/dev/null \
+            | grep -o 'Version [0-9][^<]*' | head -n 1 || true)
+    fi
+    if [[ "$state" == "active" ]]; then
+        printf '  %-12s läuft · %s\n' "$label:" "${footer:-Version nicht abrufbar}"
+    else
+        printf '  %-12s %s\n' "$label:" "${state:-unbekannt}"
+    fi
+}
+
+show_version() {
+    local profile
+    profile=$(installed_profile)
+    [[ -n "$profile" ]] || fail "Keine $WINLAUFEN_PRODUCT_NAME-Installation gefunden."
+    echo "$WINLAUFEN_PRODUCT_NAME $(installed_version) · Profil $profile"
+    case "$profile" in
+        all-in-one|bridge-only) running_component "Bridge" "$BRIDGE_UNIT" "$WINLAUFEN_CONTROL_PORT" ;;
+    esac
+    case "$profile" in
+        all-in-one|presentation-node) running_component "Live Server" "$LIVE_UNIT" "$WINLAUFEN_LIVE_HTTP_PORT" ;;
+    esac
+}
+
+require_root() {
+    [[ -n "$STAGING_ROOT" || $EUID -eq 0 ]] || fail "Bitte mit sudo ausführen: sudo winlaufen-web $*"
+}
+
+confirm() {
+    ((ASSUME_YES)) && return 0
+    [[ -t 0 ]] || fail "Keine Rückfrage möglich. Zum Bestätigen --yes angeben."
+    local answer
+    read -r -p "$1 [j/N] " answer || answer=""
+    [[ "$answer" == [jJyY] ]] || { echo "Abgebrochen."; exit 1; }
+}
+
+work=""
+cleanup() { [[ -n "$work" ]] && rm -rf -- "$work"; return 0; }
+trap cleanup EXIT
+
+download_latest() {
+    command -v curl >/dev/null 2>&1 || fail "curl fehlt. Paket von $RELEASES_URL herunterladen und mit 'sudo winlaufen-web --upgrade <paket>' installieren."
+    [[ "$(uname -m)" == "x86_64" ]] || fail "Fertige Pakete gibt es nur für Linux amd64 (x86_64), dieser Rechner: $(uname -m)."
+
+    local latest_url tag version name
+    latest_url=$(curl -fsSL --max-time 30 -o /dev/null -w '%{url_effective}' "$RELEASES_URL/latest") \
+        || fail "Neuestes Release nicht abrufbar ($RELEASES_URL). Besteht eine Internetverbindung?"
+    tag=${latest_url##*/}
+    [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Unerwartete Release-Adresse: $latest_url"
+
+    local current
+    current=$(installed_version)
+    if [[ "$tag" == "$current" ]]; then
+        echo "$WINLAUFEN_PRODUCT_NAME $current ist bereits das neueste Release."
+        exit 0
+    fi
+    if [[ "$current" != "unbekannt" \
+          && "$(printf '%s\n%s\n' "$tag" "$current" | sort -V | tail -n 1)" == "$current" ]]; then
+        echo "Installiert ist $current, neuer als das neueste Release $tag. Es wird nichts geändert."
+        exit 0
+    fi
+
+    version=${tag#v}
+    name="winlaufen-web-$version-linux-amd64.tar.gz"
+    echo "Lade $name ..."
+    curl -fSL --progress-bar -o "$work/$name" "$RELEASES_URL/download/$tag/$name" \
+        || fail "Download fehlgeschlagen: $RELEASES_URL/download/$tag/$name"
+    curl -fsSL -o "$work/SHA256SUMS" "$RELEASES_URL/download/$tag/SHA256SUMS" \
+        || fail "SHA256SUMS nicht abrufbar."
+    PACKAGE="$work/$name"
+}
+
+verify_checksum() {
+    local package=$1 sums name
+    sums="$(dirname -- "$package")/SHA256SUMS"
+    name=$(basename -- "$package")
+    if [[ ! -f "$sums" ]]; then
+        echo "HINWEIS: Keine SHA256SUMS neben dem Paket, Prüfsumme nicht kontrolliert."
+        return
+    fi
+    local line
+    line=$(awk -v n="$name" '$2 == n || $2 == "*" n' "$sums")
+    [[ -n "$line" ]] || fail "$name ist in $sums nicht aufgeführt."
+    (cd -- "$(dirname -- "$package")" && printf '%s\n' "$line" | sha256sum -c --quiet -) \
+        || fail "Prüfsumme von $name stimmt nicht. Paket nicht verwenden."
+    echo "Prüfsumme OK: $name"
+}
+
+upgrade() {
+    require_root --upgrade
+    local profile
+    profile=$(installed_profile)
+    [[ -n "$profile" ]] || fail "Keine $WINLAUFEN_PRODUCT_NAME-Installation gefunden. Für eine Erstinstallation install.sh aus dem Paket verwenden."
+
+    work=$(mktemp -d "${TMPDIR:-/tmp}/winlaufen-web-upgrade.XXXXXX")
+    if [[ -z "$PACKAGE" ]]; then
+        download_latest
+    else
+        [[ -f "$PACKAGE" ]] || fail "Paket nicht gefunden: $PACKAGE"
+        [[ "$PACKAGE" == *.tar.gz ]] || fail "Erwartet wird ein Paket winlaufen-web-<version>-linux-amd64.tar.gz."
+    fi
+    verify_checksum "$PACKAGE"
+
+    tar -xzf "$PACKAGE" -C "$work"
+    local package_dir
+    package_dir=$(find "$work" -mindepth 1 -maxdepth 1 -type d -name 'winlaufen-web-*' | head -n 1)
+    [[ -n "$package_dir" && -x "$package_dir/installer/linux/install.sh" && -d "$package_dir/lib" ]] \
+        || fail "$(basename -- "$PACKAGE") ist kein Sprecher-Web-Releasepaket."
+
+    echo
+    echo "Installiert:  $(installed_version) (Profil $profile)"
+    echo "Neu:          $(head -n 1 "$package_dir/VERSION" 2>/dev/null || echo unbekannt)"
+    echo "Konfiguration und importierte Startliste bleiben erhalten; die Dienste werden neu gestartet."
+    if [[ "$profile" == "bridge-only" ]]; then
+        echo
+        echo "WICHTIG: Bei getrennten Rechnern zuerst den Live Server (Presentation Node)"
+        echo "aktualisieren, danach diese Bridge. Ein älterer Live Server lehnt die Daten"
+        echo "einer neueren Bridge ab."
+    fi
+    echo
+    confirm "Upgrade jetzt ausführen?"
+
+    local args=(--profile "$profile")
+    [[ -n "$STAGING_ROOT" ]] && args+=(--staging-root "$STAGING_ROOT" --no-systemd)
+    bash "$package_dir/installer/linux/install.sh" "${args[@]}"
+}
+
+uninstall() {
+    require_root --uninstall
+    [[ -n "$(installed_profile)" || -d "$(staged "$INSTALL_PREFIX")" ]] \
+        || fail "Keine $WINLAUFEN_PRODUCT_NAME-Installation gefunden."
+    if ((PURGE)); then
+        confirm "$WINLAUFEN_PRODUCT_NAME vollständig entfernen, einschließlich Konfiguration und importierter Startliste?"
+    else
+        echo "Konfiguration und Startliste bleiben erhalten. Das Kommando winlaufen-web wird"
+        echo "mit entfernt; sollen sie später ebenfalls gelöscht werden, ist dafür das"
+        echo "Releasepaket nötig. Alles sofort entfernen: sudo winlaufen-web --uninstall --purge"
+        confirm "$WINLAUFEN_PRODUCT_NAME entfernen?"
+    fi
+
+    # uninstall.sh entfernt das Verzeichnis, in dem es liegt; deshalb eine Kopie ausführen.
+    work=$(mktemp -d "${TMPDIR:-/tmp}/winlaufen-web-uninstall.XXXXXX")
+    mkdir -p "$work/linux" "$work/common"
+    cp -- "$script_dir/uninstall.sh" "$work/linux/"
+    cp -- "$script_dir/../common/dist-manifest.env" "$work/common/"
+    local args=()
+    ((PURGE)) && args+=(--purge)
+    [[ -n "$STAGING_ROOT" ]] && args+=(--staging-root "$STAGING_ROOT" --no-systemd)
+    bash "$work/linux/uninstall.sh" "${args[@]}"
+}
+
+main() {
+    while (($#)); do
+        case "$1" in
+            --version) ACTION=version; shift ;;
+            --upgrade)
+                ACTION=upgrade; shift
+                if (($#)) && [[ "$1" != --* ]]; then PACKAGE=$(readlink -m -- "$1"); shift; fi ;;
+            --uninstall) ACTION=uninstall; shift ;;
+            --purge) PURGE=1; shift ;;
+            --yes|-y) ASSUME_YES=1; shift ;;
+            --staging-root) STAGING_ROOT=$2; shift 2 ;;
+            -h|--help) usage 0 ;;
+            *) echo "Unbekannte Option: $1" >&2; usage 2 ;;
+        esac
+    done
+    ((PURGE == 0)) || [[ "$ACTION" == "uninstall" ]] || fail "--purge gehört zu --uninstall."
+
+    case "$ACTION" in
+        version) show_version ;;
+        upgrade) upgrade ;;
+        uninstall) uninstall ;;
+        *) usage 2 ;;
+    esac
+}
+
+# Ein Upgrade ersetzt diese Datei, während sie läuft. Bash liest diese Zeile
+# vollständig, bevor main beginnt, und exit verhindert jedes weitere Lesen.
+main "$@"; exit $?

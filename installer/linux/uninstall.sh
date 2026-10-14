@@ -32,6 +32,7 @@ CONFIG_DIR="/etc/winlaufen-web"
 STATE_DIR="/var/lib/winlaufen-web"
 SERVICE_USER="winlaufen"
 SYSTEMD_DIR="/etc/systemd/system"
+CLI_LINK="/usr/local/bin/winlaufen-web"
 UNITS=("winlaufen-bridge.service" "winlaufen-live-server.service")
 
 staged() { printf '%s' "${STAGING_ROOT}$1"; }
@@ -55,6 +56,11 @@ fi
 echo "== Programmdateien entfernen =="
 rm -rf -- "$(staged "$INSTALL_PREFIX")"
 echo "  entfernt: $INSTALL_PREFIX"
+# Nur den eigenen Symlink entfernen, nie eine fremde Datei gleichen Namens.
+if [[ -L "$(staged "$CLI_LINK")" ]]; then
+    rm -f -- "$(staged "$CLI_LINK")"
+    echo "  entfernt: $CLI_LINK"
+fi
 
 if ((PURGE)); then
     echo "== Konfiguration und Zustand entfernen (--purge) =="
@@ -70,7 +76,8 @@ else
     echo "Konfiguration und Zustand wurden bewusst nicht entfernt:"
     echo "  $CONFIG_DIR"
     echo "  $STATE_DIR"
-    echo "Zum vollständigen Entfernen: sudo ./uninstall.sh --purge"
+    echo "Zum vollständigen Entfernen im entpackten Releasepaket:"
+    echo "  sudo ./installer/linux/uninstall.sh --purge"
 fi
 
 echo
