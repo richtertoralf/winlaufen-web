@@ -16,7 +16,13 @@ package de.winlaufen.web.contract;
  * carry no rows. Consumers that keep a last known copy rely on this difference.
  */
 public record CanonicalState(SourceHealth sourceHealth, String clock, Competition competition,
-                             CurrentFinish currentFinish, String message, ClockSample clockSample) {
+                             CurrentFinish currentFinish, String message, ClockSample clockSample,
+                             FinishHistory finishHistory) {
+
+    public CanonicalState(SourceHealth health, String clock, Competition competition,
+                          CurrentFinish finish, String message, ClockSample sample) {
+        this(health, clock, competition, finish, message, sample, null);
+    }
 
     /**
      * A state without a clock measurement. Every stage that copies a state forward must pass the

@@ -11,6 +11,7 @@ import de.winlaufen.web.contract.Competition;
 import de.winlaufen.web.contract.CompetitionClass;
 import de.winlaufen.web.contract.ContractJson;
 import de.winlaufen.web.contract.CurrentFinish;
+import de.winlaufen.web.contract.FinishHistory;
 import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.SourceHealth;
 
@@ -55,7 +56,8 @@ public final class CanonicalStateStore {
                 ? configuredZoneId : CompetitionTimeZoneSource.APPLICATION_DEFAULT_ZONE;
         this.competitionZoneSource = configuredZoneId != null
                 ? CompetitionTimeZoneSource.CONFIGURED : CompetitionTimeZoneSource.APPLICATION_DEFAULT;
-        current = new AtomicReference<>(new CanonicalSnapshot(0, CanonicalState.empty(), presentation));
+        current = new AtomicReference<>(new CanonicalSnapshot(0, new CanonicalState(SourceHealth.DISCONNECTED, null, null,
+                null, null, null, FinishHistory.empty()), presentation));
     }
 
     public CanonicalSnapshot get() {
@@ -90,7 +92,7 @@ public final class CanonicalStateStore {
         }
         publish(old.sourceRevision() + 1,
                 new CanonicalState(value, old.state().clock(), old.state().competition(),
-                        old.state().currentFinish(), old.state().message(), old.state().clockSample()),
+                        old.state().currentFinish(), old.state().message(), old.state().clockSample(), old.state().finishHistory()),
                 old.presentation());
     }
 
@@ -115,7 +117,7 @@ public final class CanonicalStateStore {
                 reference.status(), reference.source());
         publish(old.sourceRevision() + 1,
                 new CanonicalState(SourceHealth.CONNECTED, value, old.state().competition(),
-                        old.state().currentFinish(), old.state().message(), sample),
+                        old.state().currentFinish(), old.state().message(), sample, old.state().finishHistory()),
                 old.presentation());
     }
 
@@ -124,7 +126,7 @@ public final class CanonicalStateStore {
         publish(old.sourceRevision() + 1,
                 new CanonicalState(old.state().sourceHealth(), old.state().clock(),
                         old.state().competition(), old.state().currentFinish(), value,
-                        old.state().clockSample()),
+                        old.state().clockSample(), old.state().finishHistory()),
                 old.presentation());
     }
 
@@ -155,10 +157,15 @@ public final class CanonicalStateStore {
         Competition competition = new Competition(block.competitionType(), block.evaluationMode(),
                 classes.size(), block.winSpringenPosition(), block.roundOrHeat(), classes);
 
+        ClassSnapshot addressed = classes.get(block.classIndex()).snapshot();
+        FinishHistory history = old.state().finishHistory().append(revision, block.classIndex(),
+                block.classNames()[block.classIndex()], block.currentFinishIndex(), addressed.headers(),
+                block.currentFinishIndex() < addressed.rows().size()
+                        ? addressed.rows().get(block.currentFinishIndex()) : List.of());
         publish(revision,
                 new CanonicalState(old.state().sourceHealth(), old.state().clock(), competition,
                         new CurrentFinish(block.classIndex(), block.currentFinishIndex(), revision),
-                        old.state().message(), old.state().clockSample()),
+                        old.state().message(), old.state().clockSample(), history),
                 old.presentation());
     }
 
