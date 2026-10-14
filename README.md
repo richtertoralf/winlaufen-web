@@ -28,35 +28,46 @@ Wettkampfsoftware; Sprecher-Web liest die bereitgestellten Daten mit.
 
 ## Welche Variante brauche ich?
 
-### All-in-One — Empfehlung für die meisten Vereine
+### Empfehlung: All-in-One auf einem separaten Rechner
 
-WinLaufen und Sprecher-Web laufen auf demselben Windows-PC.
-Sie installieren Sprecher-Web einmal und öffnen die Ergebnisse im Browser.
+Wir empfehlen, **Sprecher-Web auf einem eigenen Rechner im selben Netzwerk wie WinLaufen zu installieren**. Besonders geeignet ist ein Linux-PC mit Debian oder Ubuntu. Alternativ kann auch ein Windows-Rechner verwendet werden.
 
-`WinLaufen + Sprecher-Web auf einem PC → Browser im Vereinsnetz`
+>WinLaufen läuft auf dem Windows-Zeitnahme-PC.
+>Sprecher-Web empfängt die Daten über das Netzwerk und stellt sie im Browser bereit.
 
-### Getrennte Rechner
+**Ein Windows-Sprecher-PC ist damit nicht mehr unbedingt erforderlich.** Der Sprecher kann auch direkt an einem Linux-PC arbeiten oder die Ergebnisse auf einem beliebigen Notebook, Tablet oder Smartphone im lokalen Netzwerk über einen Browser aufrufen.
 
-WinLaufen läuft auf dem Zeitnahme-PC, Sprecher-Web auf einem anderen
-Windows- oder Linux-Rechner im selben Netzwerk. Das passt, wenn Sie auf dem
-Zeitnahme-PC keine zusätzliche Software installieren möchten.
-Auch hier wählen Sie **All-in-One** für den Sprecher-Web-Rechner.
+`WinLaufen-PC → Linux-PC mit All-in-One → Browser im lokalen Netzwerk`
 
-`WinLaufen-PC → Sprecher-Web auf zweitem Rechner → Browser`
+**Vorteile dieser Variante:**
+- Der Zeitnahme-PC bleibt von zusätzlicher Software unberührt.
+- Der Sprecher kann unabhängig vom Zeitnahme-PC arbeiten.
+- Mehrere Geräte können gleichzeitig auf die Live-Ergebnisse zugreifen.
+- Für den lokalen Betrieb ist keine Internetverbindung erforderlich.
+- Die Ergebnisse können zusätzlich an einen Live-Server im Internet weitergeleitet werden.
 
-### Zentraler Live-Server
+### Zum Ausprobieren: All-in-One direkt auf dem WinLaufen-PC
 
-Die **Bridge** leitet die Daten vom WinLaufen-PC weiter; ein separater
-Linux-Rechner oder Server stellt sie für die Browser bereit.
-Dafür installieren Sie **Bridge only** auf dem WinLaufen-PC und
-**Presentation Node** auf dem Server. Diese Variante erfordert Erfahrung
-mit der Einrichtung von Netzwerken.
+Wer Sprecher-Web zunächst nur testen möchte oder keinen zweiten Rechner zur Verfügung hat, kann All-in-One auch direkt auf dem Windows-PC mit WinLaufen installieren.
 
-`WinLaufen-PC mit Bridge → Live-Server → Browser`
+`WinLaufen + Sprecher-Web auf einem Windows-PC → Browser`
 
-Für einen zeitweise gemieteten Internetserver gibt es eine
-[eigene Anleitung mit Einsatzgrenzen](docs/QUICKSTART_CLOUD.md).
-Ein dauerhaft öffentlich betriebener Dienst ist noch kein fertiger Standardweg.
+Diese Variante funktioniert ebenfalls, ist aber für den regelmäßigen Wettkampfbetrieb nicht unsere bevorzugte Lösung.
+
+### Optional: Live-Ergebnisse über das Internet
+
+Eine All-in-One-Installation im lokalen Netzwerk kann die Ergebnisse **gleichzeitig vor Ort bereitstellen und an einen zusätzlichen Live-Server in der Cloud weiterleiten**.
+
+Dazu wird auf dem Cloud-Server das Profil **Presentation Node** installiert. Die lokale All-in-One-Installation bleibt unverändert und übernimmt weiterhin die Verbindung zu WinLaufen.
+
+`WinLaufen-PC → All-in-One im LAN → Cloud-Server → Internet-Browser`
+
+Für spezielle Installationen kann statt All-in-One auch das Profil **Bridge only** verwendet werden. Dieses empfängt die WinLaufen-Daten und leitet sie weiter, ohne selbst die Browseranzeige bereitzustellen.
+
+Weitere Informationen stehen in der [Anleitung für temporäre Cloud-Server](docs/QUICKSTART_CLOUD.md).
+
+**Hinweis:** Die aktuelle Version ist für kontrollierte Veranstaltungsnetze ausgelegt. Ein öffentlich erreichbarer Cloud-Server sollte nur unter Beachtung der dokumentierten Sicherheits- und Einsatzgrenzen betrieben werden. 
+Ein dauerhaft öffentlich betriebener Dienst sollte zusätzliche Sicherheiten bekommen.
 
 ## Schnellinstallation
 
