@@ -1,6 +1,6 @@
 # Sprecher-Web
 
-[![Version](https://img.shields.io/badge/version-0.4.2-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
+[![Version](https://img.shields.io/badge/version-0.4.3-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
 [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
 
 **Live-Ergebnisse aus WinLaufen auf Notebook, Tablet und Smartphone.**
@@ -119,6 +119,15 @@ Unterstützte Systeme, andere Profile und die nötigen Netzwerkfreigaben stehen
 in der [Installationsanleitung](docs/INSTALLATION.md).
 Für Raspberry Pi ist noch kein fertiges Releasepaket vorhanden.
 
+### Aktualisieren
+
+Für eine neue Version laden Sie das neue Paket herunter und führen dieselben
+Schritte mit demselben Profil aus. Der Installer erkennt die bestehende
+Installation; Einstellungen und importierte Startliste bleiben erhalten.
+Stehen Bridge und Live-Server auf verschiedenen Rechnern, aktualisieren Sie
+zuerst den Live-Server und danach die Bridge. Details:
+[Upgrade](docs/INSTALLATION.md#3-upgrade).
+
 ## Erster Start
 
 1. Öffnen Sie auf dem Sprecher-Web-Rechner
@@ -134,6 +143,7 @@ Für Raspberry Pi ist noch kein fertiges Releasepaket vorhanden.
    angezeigte Netzwerkadresse an die Zuschauer im Veranstaltungsnetz weiter.
 
 Sprecher-Web startet künftig automatisch mit dem Rechner.
+Die Fußzeile beider Seiten nennt die installierte Version.
 Die Schritte gelten für All-in-One; Einrichtung weiterer Server,
 Startlistenimport und Hilfe am Wettkampftag stehen im
 [Bedienerhandbuch](docs/BEDIENERHANDBUCH.md).
@@ -166,7 +176,7 @@ an Entwickler und Integratoren.
 
 ## Projektstatus und Lizenz
 
-**Version 0.4.2 — Entwicklungsversion für kontrollierte Vereins- und
+**Version 0.4.3 — Entwicklungsversion für kontrollierte Vereins- und
 Veranstaltungsnetze.** Testen Sie Ihren Aufbau vor dem Wettkampftag.
 
 <a id="known-prototype-security-limitation"></a>

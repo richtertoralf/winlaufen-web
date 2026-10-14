@@ -1,11 +1,21 @@
 # Sprecher-Web — Technischer Projektstatus
 
 Zielgruppe: Entwickler, Maintainer und Administratoren.
-Stand: 13.09.2026. [Dokumentationsübersicht](INDEX.md).
+Stand: 14.10.2026. [Dokumentationsübersicht](INDEX.md).
 
 ## Versionsstand
 
-**Version `0.4.2`.** Dieses Release erweitert die WinLaufen-Kompatibilität der
+**Version `0.4.3`.** Dieses Release behebt den Verlust schnell aufeinander
+folgender Zieleinlaufhinweise
+([Issue #8](https://github.com/richtertoralf/winlaufen-web/issues/8)). Die
+Bridge bewahrt die originalen Hinweise jetzt begrenzt in `finishHistory` auf,
+auch wenn mehrere Ergebnisstände zu einem Snapshot zusammengefasst werden.
+Startlisten tragen zusätzlich ihre Herkunft `originStreamId`. Beides sind
+additive Felder der Read API ([API.md](API.md#originale-einlaufhinweise-und-startlistenherkunft-issue-8)).
+Bei getrennten Rechnern gilt beim Upgrade wieder verbindlich: zuerst Live
+Server, danach Bridge.
+
+`0.4.2` erweiterte zuvor die WinLaufen-Kompatibilität der
 Bridge. Neben dem aktuellen Sprecher-PC-Protokoll werden ältere
 Legacy-Protokollvarianten unterstützt. Legacy-Daten werden ausschließlich am
 Eingang der Bridge normalisiert und anschließend über dieselbe kanonische

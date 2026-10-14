@@ -3,7 +3,7 @@
 Zielgruppe: Entwickler und Integratoren sowie Maintainer.
 [Dokumentationsübersicht](INDEX.md) · [Schnittstellenreferenz](API.md).
 
-Aktuelle Version: `0.4.2`.
+Aktuelle Version: `0.4.3`.
 
 Ein Release wird ausschließlich aus einem Git-Tag im Format `vX.Y.Z` gebaut.
 Die Version im Root-POM und die Parent-Versionen aller dort aufgeführten Module
@@ -171,6 +171,13 @@ Die vorwärtskompatible Richtung ist im Repository festgehalten
 (`MixedVersionTest` im Contract-Modul) und prüft einen Snapshot in genau dem
 Format, das `v0.4.0` schreibt. Die andere Richtung lässt sich nur gegen den alten
 Contract zeigen und wurde einmalig gegen einen Build des Tags `v0.4.0` gemessen.
+
+Mit `0.4.3` gilt dieselbe Reihenfolge erneut, weil der Snapshot das Feld
+`finishHistory` trägt. Einmalig gegen den Contract des Tags `v0.4.2` gemessen:
+Ein Snapshot einer Bridge `0.4.3` wird mit
+`UnrecognizedPropertyException: Unrecognized field "finishHistory"` abgelehnt.
+Ein Snapshot ohne dieses Feld liest der neue Live Server mit
+`finishHistory: null`.
 
 Die `schemaVersion` bleibt dabei bewusst `1`. Eine Erhöhung würde die
 funktionierende Richtung ebenfalls zerstören, weil die Envelope-Prüfung auf
