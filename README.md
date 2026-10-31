@@ -1,6 +1,6 @@
 # Sprecher-Web
 
-[![Version](https://img.shields.io/badge/version-0.4.4-blue)](pom.xml)
+[![Version](https://img.shields.io/badge/version-0.4.5-blue)](pom.xml)
 [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
 
 **Live-Ergebnisse aus WinLaufen auf Notebook, Tablet und Smartphone.**
@@ -116,9 +116,9 @@ Für einen üblichen 64-Bit-PC mit Intel- oder AMD-Prozessor und systemd
 (etwa Ubuntu oder Debian). Öffnen Sie ein Terminal und führen Sie aus:
 
 ```sh
-wget https://github.com/richtertoralf/winlaufen-web/releases/download/v0.4.4/winlaufen-web-0.4.4-linux-amd64.tar.gz
-tar -xzf winlaufen-web-0.4.4-linux-amd64.tar.gz
-cd winlaufen-web-0.4.4-linux-amd64
+wget https://github.com/richtertoralf/winlaufen-web/releases/download/v0.4.5/winlaufen-web-0.4.5-linux-amd64.tar.gz
+tar -xzf winlaufen-web-0.4.5-linux-amd64.tar.gz
+cd winlaufen-web-0.4.5-linux-amd64
 sudo ./installer/linux/install.sh --profile all-in-one
 ```
 
@@ -220,7 +220,7 @@ an Entwickler und Integratoren.
 
 ## Projektstatus und Lizenz
 
-**Version 0.4.4 — Entwicklungsversion für kontrollierte Vereins- und
+**Version 0.4.5 — Entwicklungsversion für kontrollierte Vereins- und
 Veranstaltungsnetze.** Testen Sie Ihren Aufbau vor dem Wettkampftag.
 
 <a id="known-prototype-security-limitation"></a>

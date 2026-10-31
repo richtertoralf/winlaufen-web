@@ -280,8 +280,8 @@ verschiedenen Versionen. Eine ältere Bridge kann an einen neueren Live Server
 liefern, umgekehrt nicht. Das gilt für den Übergang von 0.4.0 auf die Versionen
 mit Zeitmesspunkten und ebenso für den Übergang auf 0.4.3: Ein Live Server
 0.4.2 oder älter lehnt die Daten einer Bridge ab 0.4.3 ab und zeigt nichts an.
-0.4.3 und 0.4.4 verwenden denselben Bridge-Contract und sind in beiden
-Richtungen kombinierbar.
+0.4.3, 0.4.4 und 0.4.5 verwenden denselben Bridge-Contract und sind in
+beiden Richtungen kombinierbar.
 Daraus folgt keine allgemeine Kompatibilitätszusage für beliebige künftige
 Versionen.
 
@@ -721,7 +721,7 @@ mit `curl.exe` statt `curl` und ohne `>/dev/null && echo …` ausführen.
 
 Die Fußzeile von Bridge Control (`http://localhost:44442/`) und der
 Live-Ergebnisse (`http://localhost:44440/`) nennt die installierte Version,
-etwa `Sprecher-Web · Version 0.4.4 · Build <commit>`. Nach einem Upgrade die
+etwa `Sprecher-Web · Version 0.4.5 · Build <commit>`. Nach einem Upgrade die
 Seite neu laden. Unter Linux geht es auch im Terminal:
 
 ```sh
@@ -732,7 +732,7 @@ Das Kommando nennt die installierte Version, das Profil, Herkunft und Zeitpunkt
 der Installation sowie die Version der laufenden Dienste. Ein lokal gebauter
 Stand trägt den Zusatz `(Entwicklungsstand)`, etwa
 `v0.4.4-3-g6b8385e (Entwicklungsstand)`; ein Releasepaket zeigt nur `vX.Y.Z`.
-Herkunft und Zeitpunkt kennt das Kommando ab dem ersten Release nach 0.4.4;
+Herkunft und Zeitpunkt kennt das Kommando ab Version 0.4.5;
 für ältere Installationen steht dort `unbekannt`, bis zum nächsten Upgrade.
 Ohne das Kommando (bis einschließlich 0.4.3):
 
