@@ -3,7 +3,7 @@
 Zielgruppe: Entwickler und Integratoren sowie Maintainer.
 [Dokumentationsübersicht](INDEX.md) · [Schnittstellenreferenz](API.md).
 
-Aktuelle Version: `0.4.4`.
+Aktuelle Version: `0.4.5`.
 
 Ein Release wird ausschließlich aus einem Git-Tag im Format `vX.Y.Z` gebaut.
 Die Version im Root-POM und die Parent-Versionen aller dort aufgeführten Module

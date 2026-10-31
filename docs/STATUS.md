@@ -1,11 +1,22 @@
 # Sprecher-Web — Technischer Projektstatus
 
 Zielgruppe: Entwickler, Maintainer und Administratoren.
-Stand: 14.10.2026. [Dokumentationsübersicht](INDEX.md).
+Stand: 31.10.2026. [Dokumentationsübersicht](INDEX.md).
 
 ## Versionsstand
 
-**Version `0.4.4`.** Dieses Release bringt unter Linux das Verwaltungskommando
+**Version `0.4.5`.** Dieses Release vereinheitlicht unter Linux Upgrade und
+Statusabfrage nach ADR-002 der übergreifenden Produktionsarchitektur. Ein
+Upgrade startet nur zuvor laufende Dienste neu, gestoppte bleiben gestoppt, und
+der Autostart bleibt unverändert. Startet die neue Version nicht, stellt der
+Installer Programmstand und Dienstzustände wieder her; Konfiguration, Startliste und Daten bleiben dabei unberührt.
+`winlaufen-web --status` zeigt lesend Dienste, Erreichbarkeit, Adressen und die
+WinLaufen-Verbindung; `--version` nennt zusätzlich Herkunft und Zeitpunkt der
+Installation. Ein Paket mit dem bereits installierten Stand ändert nichts
+([INSTALLATION.md](INSTALLATION.md#34-upgrade-aus-einem-neuen-releasepaket)).
+Anwendung und Bridge-Contract sind gegenüber 0.4.4 unverändert.
+
+`0.4.4` brachte zuvor unter Linux das Verwaltungskommando
 `winlaufen-web` mit: `--version` zeigt installierte und laufende Version,
 `--upgrade` lädt das neueste Release, prüft die Prüfsumme und aktualisiert mit
 dem bestehenden Profil, `--uninstall` entfernt die Installation
