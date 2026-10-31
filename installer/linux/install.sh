@@ -45,12 +45,17 @@ usage() {
     exit "${1:-0}"
 }
 
+# Ungültige Aufrufe enden wie im Kommando winlaufen-web mit Exitcode 2.
+option_value() {
+    [[ $# -ge 2 && -n "$2" ]] || { echo "Option $1 braucht einen Wert." >&2; usage 2; }
+}
+
 while (($#)); do
     case "$1" in
-        --profile) PROFILE=$2; shift 2 ;;
-        --staging-root) STAGING_ROOT=$2; shift 2 ;;
+        --profile) option_value "$@"; PROFILE=$2; shift 2 ;;
+        --staging-root) option_value "$@"; STAGING_ROOT=$2; shift 2 ;;
         --no-systemd) USE_SYSTEMD=0; shift ;;
-        --dist) DIST_DIR=$2; shift 2 ;;
+        --dist) option_value "$@"; DIST_DIR=$2; shift 2 ;;
         --check-ports) FORCE_PORT_CHECK=1; shift ;;
         --yes|-y) ASSUME_YES=1; shift ;;
         -h|--help) usage 0 ;;
@@ -351,7 +356,7 @@ case "$PROFILE" in
     bridge-only) install_bridge=1 ;;
     presentation-node) install_live=1 ;;
     "") ;;
-    *) fail "Unbekanntes Profil: $PROFILE (all-in-one | bridge-only | presentation-node)" ;;
+    *) echo "Unbekanntes Profil: $PROFILE (all-in-one | bridge-only | presentation-node)" >&2; exit 2 ;;
 esac
 
 if [[ -z "$PROFILE" ]]; then
@@ -410,6 +415,12 @@ JAVA_BIN=$(detect_java) || fail "Keine passende Java-Runtime gefunden (benötigt
 Entweder ein JDK/JRE >= $WINLAUFEN_JAVA_RELEASE installieren oder eine Distribution mit gebündelter
 Runtime verwenden: installer/common/build-dist.sh --with-runtime"
 
+# Eine mitgebrachte Runtime muss lauffähig sein, bevor irgendetwas ersetzt wird.
+if [[ -d "$DIST_DIR/runtime" ]]; then
+    [[ -x "$DIST_DIR/runtime/bin/java" ]] && "$DIST_DIR/runtime/bin/java" -version >/dev/null 2>&1 \
+        || fail "Die Java-Runtime des Pakets ist nicht lauffähig ($DIST_DIR/runtime/bin/java). Es wurde nichts verändert."
+fi
+
 # Nur lokale Listener von WinLaufen Web prüfen. TCP 4444 ist der entfernte
 # WinLaufen-Zielport und gehört ausdrücklich nicht in diesen Preflight.
 preflight_ports
@@ -443,6 +454,24 @@ else
     INSTALL_MODE="Erstinstallation"
 fi
 
+# Zustand jeder Unit vor dem Lauf. Ein Upgrade startet nur zuvor laufende Dienste
+# neu und ändert keinen Autostart; nur neu angelegte Units werden aktiviert.
+declare -A unit_existed=() unit_was_state=() unit_was_active=() unit_was_enabled=()
+for unit in "$BRIDGE_UNIT" "$LIVE_UNIT"; do
+    [[ -f "$(staged "$SYSTEMD_DIR/$unit")" ]] || continue
+    unit_existed[$unit]=1
+    unit_was_state[$unit]="unbekannt"
+    unit_was_active[$unit]=0
+    unit_was_enabled[$unit]="unbekannt"
+    if systemd_operations_enabled; then
+        unit_was_state[$unit]=$(systemctl is-active "$unit" 2>/dev/null || true)
+        case "${unit_was_state[$unit]}" in
+            active|activating|reloading) unit_was_active[$unit]=1 ;;
+        esac
+        unit_was_enabled[$unit]=$(systemctl is-enabled "$unit" 2>/dev/null || true)
+    fi
+done
+
 echo
 echo "============================================================"
 echo "$WINLAUFEN_PRODUCT_NAME – $INSTALL_MODE"
@@ -466,6 +495,12 @@ else
     echo "$WINLAUFEN_PRODUCT_NAME wird neu eingerichtet."
 fi
 echo "Die vorhandene WinLaufen-Installation wird nicht verändert."
+if [[ "$INSTALL_MODE" == "Upgrade" ]] && systemd_operations_enabled; then
+    for unit in "$LIVE_UNIT" "$BRIDGE_UNIT"; do
+        [[ -n "${unit_existed[$unit]:-}" ]] || continue
+        note "Dienst vorher: $unit ${unit_was_state[$unit]:-unbekannt}, Autostart ${unit_was_enabled[$unit]:-unbekannt} (wird nicht verändert)"
+    done
+fi
 
 # ------------------------------------------------------------ Systembenutzer
 
@@ -480,7 +515,246 @@ if [[ -z "$STAGING_ROOT" ]]; then
     fi
 fi
 
+# ------------------------------------------------- Dienstprüfung und Rollback
+#
+# Ein Upgrade sichert vor dem Austausch Programmdateien, Runtime, Kommando,
+# Versionsangaben und Units unter $INSTALL_PREFIX/.rollback. Schlägt danach
+# etwas fehl – Austausch, Dienststart oder Health-Check –, stellt der EXIT-Trap
+# den bisherigen Stand und die bisherigen Dienstzustände wieder her und prüft
+# sie. Konfiguration, Startliste und Datenverzeichnis gehören nicht zur
+# Sicherung und werden dabei nicht angefasst.
+
+ROLLBACK_DIR="$INSTALL_PREFIX/.rollback"
+rollback_armed=0
+runtime_added=0
+previous_version=""
+started_units=()
+
+installation_failed() {
+    echo >&2
+    echo "Die Installation wurde nicht erfolgreich abgeschlossen." >&2
+    exit 1
+}
+
+show_service_diagnostics() {
+    local unit=$1
+    echo >&2
+    echo "Status von $unit:" >&2
+    systemctl status "$unit" --no-pager --lines=12 >&2 || true
+}
+
+wait_for_active_unit() {
+    local unit=$1 state="" attempt attempts=${WINLAUFEN_INSTALL_TEST_START_ATTEMPTS:-15}
+    for attempt in $(seq 1 "$attempts"); do
+        state=$(systemctl is-active "$unit" 2>/dev/null || true)
+        [[ "$state" == "active" ]] && return 0
+        [[ "$state" == "failed" ]] && break
+        sleep 1
+    done
+    echo "FEHLER: Dienst $unit ist nach der Startphase nicht active (Status: ${state:-unbekannt})." >&2
+    show_service_diagnostics "$unit"
+    return 1
+}
+
+http_reachable() {
+    local port=$1
+    if command -v curl >/dev/null 2>&1; then
+        curl --fail --silent --show-error --max-time 2 "http://127.0.0.1:$port/" >/dev/null 2>&1
+    elif command -v wget >/dev/null 2>&1; then
+        wget --quiet --timeout=2 --output-document=/dev/null "http://127.0.0.1:$port/"
+    elif command -v timeout >/dev/null 2>&1; then
+        timeout 2 bash -c '
+            exec 3<>"/dev/tcp/127.0.0.1/$1"
+            printf "GET / HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n" >&3
+            IFS= read -r status <&3
+            [[ "$status" == HTTP/*" 200 "* ]]
+        ' -- "$port" >/dev/null 2>&1
+    else
+        return 1
+    fi
+}
+
+wait_for_http() {
+    local port=$1 purpose=$2 unit=$3 attempt attempts=${WINLAUFEN_INSTALL_TEST_START_ATTEMPTS:-15}
+    for attempt in $(seq 1 "$attempts"); do
+        http_reachable "$port" && return 0
+        systemctl is-active --quiet "$unit" 2>/dev/null || break
+        sleep 1
+    done
+    echo "FEHLER: $purpose ist lokal auf TCP-Port $port nicht erreichbar." >&2
+    show_service_diagnostics "$unit"
+    return 1
+}
+
+unit_port() {
+    case "$1" in
+        "$BRIDGE_UNIT") printf '%s' "$WINLAUFEN_CONTROL_PORT" ;;
+        "$LIVE_UNIT") printf '%s' "$WINLAUFEN_LIVE_HTTP_PORT" ;;
+    esac
+}
+
+unit_purpose() {
+    case "$1" in
+        "$BRIDGE_UNIT") printf 'Bridge Control' ;;
+        "$LIVE_UNIT") printf 'Web View / HTTP' ;;
+    esac
+}
+
+unit_started() {
+    local unit
+    for unit in "${started_units[@]}"; do
+        [[ "$unit" == "$1" ]] && return 0
+    done
+    return 1
+}
+
+# Gestartete Units müssen active, lokal per HTTP erreichbar und über eine
+# definierte Stabilitätsphase ohne automatischen Neustart sein: Ein kurz auf
+# active springender Restart-Loop darf nicht als Erfolg gelten.
+validate_units() {
+    local unit restarts
+    (($#)) || return 0
+    for unit in "$@"; do
+        wait_for_active_unit "$unit" || return 1
+    done
+    for unit in "$@"; do
+        wait_for_http "$(unit_port "$unit")" "$(unit_purpose "$unit")" "$unit" || return 1
+    done
+    sleep "${WINLAUFEN_INSTALL_TEST_STABILITY_SECONDS:-3}"
+    for unit in "$@"; do
+        if ! systemctl is-active --quiet "$unit" 2>/dev/null; then
+            echo "FEHLER: Dienst $unit blieb während der Startphase nicht active." >&2
+            show_service_diagnostics "$unit"
+            return 1
+        fi
+        restarts=$(systemctl show "$unit" --property=NRestarts --value 2>/dev/null || echo 0)
+        if [[ "$restarts" =~ ^[0-9]+$ ]] && ((restarts > 0)); then
+            echo "FEHLER: Dienst $unit wurde während der Startphase neu gestartet (NRestarts=$restarts)." >&2
+            show_service_diagnostics "$unit"
+            return 1
+        fi
+        if ! http_reachable "$(unit_port "$unit")"; then
+            echo "FEHLER: $(unit_purpose "$unit") blieb während der Startphase nicht erreichbar." >&2
+            show_service_diagnostics "$unit"
+            return 1
+        fi
+    done
+}
+
+prepare_rollback() {
+    local prefix backup item unit
+    prefix=$(staged "$INSTALL_PREFIX")
+    backup=$(staged "$ROLLBACK_DIR")
+    if [[ -e "$backup" ]]; then
+        fail "Unter $ROLLBACK_DIR liegt die Sicherung eines abgebrochenen Upgrades.
+Zuerst prüfen, ob $WINLAUFEN_PRODUCT_NAME läuft (winlaufen-web --status), danach die
+Sicherung entfernen: sudo rm -rf $ROLLBACK_DIR"
+    fi
+    previous_version=$(head -n 1 "$prefix/VERSION" 2>/dev/null || echo "unbekannt")
+    mkdir -p "$backup/units"
+    cp -a -- "$prefix/lib" "$backup/lib"
+    for item in installer VERSION INSTALLATION; do
+        if [[ -e "$prefix/$item" ]]; then
+            cp -a -- "$prefix/$item" "$backup/$item"
+        fi
+    done
+    for unit in "$BRIDGE_UNIT" "$LIVE_UNIT"; do
+        if [[ -f "$(staged "$SYSTEMD_DIR/$unit")" ]]; then
+            cp -a -- "$(staged "$SYSTEMD_DIR/$unit")" "$backup/units/"
+        fi
+    done
+    rollback_armed=1
+    note "GESICHERT: bisheriger Stand $previous_version ($ROLLBACK_DIR)"
+}
+
+rollback() {
+    local prefix backup item unit problems=0 restore=()
+    rollback_armed=0
+    prefix=$(staged "$INSTALL_PREFIX")
+    backup=$(staged "$ROLLBACK_DIR")
+    echo >&2
+    echo "Rollback: bisheriger Stand $previous_version wird wiederhergestellt ..." >&2
+
+    if systemd_operations_enabled; then
+        # Von diesem Lauf neu angelegte Units wieder stoppen und deaktivieren.
+        for unit in "$BRIDGE_UNIT" "$LIVE_UNIT"; do
+            if [[ -z "${unit_existed[$unit]:-}" && -f "$(staged "$SYSTEMD_DIR/$unit")" ]]; then
+                systemctl disable --now "$unit" >/dev/null 2>&1 || problems=1
+            fi
+        done
+    fi
+
+    { rm -rf -- "${prefix:?}/lib" && mv -- "$backup/lib" "$prefix/lib"; } || problems=1
+    rm -rf -- "${prefix:?}/runtime.new"
+    if [[ -d "$backup/runtime" ]]; then
+        { rm -rf -- "${prefix:?}/runtime" && mv -- "$backup/runtime" "$prefix/runtime"; } || problems=1
+    elif ((runtime_added)); then
+        rm -rf -- "${prefix:?}/runtime" || problems=1
+    fi
+    for item in installer VERSION INSTALLATION; do
+        rm -rf -- "${prefix:?}/$item"
+        if [[ -e "$backup/$item" ]]; then
+            mv -- "$backup/$item" "$prefix/$item" || problems=1
+        fi
+    done
+    for unit in "$BRIDGE_UNIT" "$LIVE_UNIT"; do
+        if [[ -f "$backup/units/$unit" ]]; then
+            cp -a -- "$backup/units/$unit" "$(staged "$SYSTEMD_DIR/$unit")" || problems=1
+        else
+            rm -f -- "$(staged "$SYSTEMD_DIR/$unit")"
+        fi
+    done
+
+    if systemd_operations_enabled; then
+        systemctl daemon-reload || problems=1
+        for unit in "$BRIDGE_UNIT" "$LIVE_UNIT"; do
+            [[ -n "${unit_existed[$unit]:-}" ]] || continue
+            # Nur ein Profilwechsel (remove_unit) ändert den Autostart einer bestehenden Unit.
+            if [[ "${unit_was_enabled[$unit]}" == "enabled" \
+                  && "$(systemctl is-enabled "$unit" 2>/dev/null || true)" != "enabled" ]]; then
+                systemctl enable "$unit" >/dev/null 2>&1 || problems=1
+            fi
+            if [[ "${unit_was_active[$unit]:-0}" == 1 ]]; then
+                systemctl reset-failed "$unit" >/dev/null 2>&1 || true
+                systemctl restart "$unit" || problems=1
+                restore+=("$unit")
+            fi
+        done
+        if ((problems == 0)); then
+            validate_units "${restore[@]}" || problems=1
+        fi
+    fi
+
+    if ((problems)); then
+        cat >&2 <<EOF
+
+ROLLBACK FEHLGESCHLAGEN: Der bisherige Stand $previous_version konnte nicht
+vollständig wiederhergestellt oder nicht erfolgreich gestartet werden.
+Dienste prüfen: systemctl status $BRIDGE_UNIT $LIVE_UNIT
+Die verbliebene Sicherung bleibt unter $ROLLBACK_DIR erhalten.
+Konfiguration, Startliste und Datenverzeichnis wurden vom Rollback nicht angefasst.
+EOF
+        return 1
+    fi
+    rm -rf -- "$backup"
+    echo "Rollback erfolgreich: bisheriger Stand $previous_version wiederhergestellt und geprüft." >&2
+}
+
+on_exit() {
+    local status=$?
+    if ((status != 0 && rollback_armed)); then
+        rollback || true
+    fi
+    return "$status"
+}
+trap on_exit EXIT
+trap 'exit 130' INT TERM HUP
+
 # ------------------------------------------------------------ Dateien
+
+if [[ "$INSTALL_MODE" == "Upgrade" && -d "$(staged "$INSTALL_PREFIX/lib")" ]]; then
+    prepare_rollback
+fi
 
 install_dirs=("$INSTALL_PREFIX/lib" "$CONFIG_DIR" "$STATE_DIR")
 for dir in "${install_dirs[@]}"; do
@@ -512,8 +786,23 @@ if [[ -d "$DIST_DIR/runtime" ]]; then
     else
         runtime_step="NEU"
     fi
-    rm -rf -- "$(staged "$INSTALL_PREFIX/runtime")"
-    cp -R -- "$DIST_DIR/runtime" "$(staged "$INSTALL_PREFIX/runtime")"
+    # Erst vollständig kopieren und prüfen, dann tauschen: Ein abgebrochener
+    # Kopiervorgang lässt keine Installation ohne Java zurück.
+    runtime_dir=$(staged "$INSTALL_PREFIX/runtime")
+    rm -rf -- "$runtime_dir.new"
+    cp -R -- "$DIST_DIR/runtime" "$runtime_dir.new"
+    "$runtime_dir.new/bin/java" -version >/dev/null 2>&1 \
+        || fail "Die kopierte Java-Runtime ist nicht lauffähig ($runtime_dir.new)."
+    if [[ -d "$runtime_dir" ]]; then
+        if ((rollback_armed)); then
+            mv -- "$runtime_dir" "$(staged "$ROLLBACK_DIR")/runtime"
+        else
+            rm -rf -- "$runtime_dir"
+        fi
+    else
+        runtime_added=1
+    fi
+    mv -- "$runtime_dir.new" "$runtime_dir"
     note "$runtime_step: gebündelte Java-Runtime"
 fi
 
@@ -539,6 +828,25 @@ install -m 0755 "$script_dir/winlaufen-web" "$script_dir/uninstall.sh" \
     "$(staged "$INSTALL_PREFIX/installer/linux")/"
 install -m 0644 "$script_dir/../common/dist-manifest.env" "$(staged "$INSTALL_PREFIX/installer/common")/"
 installed_version > "$(staged "$INSTALL_PREFIX/VERSION")"
+# Herkunft und Zeitpunkt stehen in einer eigenen Datei; VERSION bleibt einzeilig,
+# wie ältere Kommandos es lesen. winlaufen-web --upgrade nennt die Herkunft über
+# WINLAUFEN_INSTALL_ORIGIN, ein direkter Aufruf leitet sie aus DIST_DIR ab.
+install_origin() {
+    local branch
+    if [[ -n "${WINLAUFEN_INSTALL_ORIGIN:-}" ]]; then
+        printf '%s' "$WINLAUFEN_INSTALL_ORIGIN"
+    elif [[ -f "$DIST_DIR/VERSION" ]]; then
+        printf 'Paket %s' "$DIST_DIR"
+    elif branch=$(git -c safe.directory="$DIST_DIR" -C "$DIST_DIR" symbolic-ref --short -q HEAD 2>/dev/null); then
+        printf 'lokaler Checkout %s (Branch %s)' "$DIST_DIR" "$branch"
+    elif git -c safe.directory="$DIST_DIR" -C "$DIST_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+        printf 'lokaler Checkout %s (ohne Branch)' "$DIST_DIR"
+    else
+        printf 'Verzeichnis %s' "$DIST_DIR"
+    fi
+}
+printf 'origin=%s\ninstalled_at=%s\n' "$(install_origin | tr -d '\n')" "$(date -Iseconds)" \
+    > "$(staged "$INSTALL_PREFIX/INSTALLATION")"
 # Eine fremde Datei gleichen Namens wird nicht überschrieben.
 if [[ -e "$(staged "$CLI_LINK")" && ! -L "$(staged "$CLI_LINK")" ]]; then
     note "WARNUNG: $CLI_LINK ist eine fremde Datei und bleibt unverändert;"
@@ -782,62 +1090,6 @@ fi
 
 # ------------------------------------------------------------ Dienste starten
 
-installation_failed() {
-    echo >&2
-    echo "Die Installation wurde nicht erfolgreich abgeschlossen." >&2
-    exit 1
-}
-
-show_service_diagnostics() {
-    local unit=$1
-    echo >&2
-    echo "Status von $unit:" >&2
-    systemctl status "$unit" --no-pager --lines=12 >&2 || true
-}
-
-wait_for_active_unit() {
-    local unit=$1 state="" attempt attempts=${WINLAUFEN_INSTALL_TEST_START_ATTEMPTS:-15}
-    for attempt in $(seq 1 "$attempts"); do
-        state=$(systemctl is-active "$unit" 2>/dev/null || true)
-        [[ "$state" == "active" ]] && return 0
-        [[ "$state" == "failed" ]] && break
-        sleep 1
-    done
-    echo "FEHLER: Dienst $unit ist nach der Startphase nicht active (Status: ${state:-unbekannt})." >&2
-    show_service_diagnostics "$unit"
-    installation_failed
-}
-
-http_reachable() {
-    local port=$1
-    if command -v curl >/dev/null 2>&1; then
-        curl --fail --silent --show-error --max-time 2 "http://127.0.0.1:$port/" >/dev/null 2>&1
-    elif command -v wget >/dev/null 2>&1; then
-        wget --quiet --timeout=2 --output-document=/dev/null "http://127.0.0.1:$port/"
-    elif command -v timeout >/dev/null 2>&1; then
-        timeout 2 bash -c '
-            exec 3<>"/dev/tcp/127.0.0.1/$1"
-            printf "GET / HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n" >&3
-            IFS= read -r status <&3
-            [[ "$status" == HTTP/*" 200 "* ]]
-        ' -- "$port" >/dev/null 2>&1
-    else
-        return 1
-    fi
-}
-
-wait_for_http() {
-    local port=$1 purpose=$2 unit=$3 attempt attempts=${WINLAUFEN_INSTALL_TEST_START_ATTEMPTS:-15}
-    for attempt in $(seq 1 "$attempts"); do
-        http_reachable "$port" && return 0
-        systemctl is-active --quiet "$unit" 2>/dev/null || break
-        sleep 1
-    done
-    echo "FEHLER: $purpose ist lokal auf TCP-Port $port nicht erreichbar." >&2
-    show_service_diagnostics "$unit"
-    installation_failed
-}
-
 http_body() {
     local port=$1 path=$2
     if command -v curl >/dev/null 2>&1; then
@@ -1053,15 +1305,23 @@ EOF
 Lokale Komponenten:
 EOF
     if ((local_runtime_validated)); then
-        ((install_bridge)) && cat <<EOF
+        if ((install_bridge)) && unit_started "$BRIDGE_UNIT"; then
+            cat <<EOF
   OK: Bridge Service             läuft
   OK: Bridge Control             TCP $WINLAUFEN_CONTROL_PORT erreichbar
 EOF
-        ((install_live)) && cat <<EOF
+        elif ((install_bridge)); then
+            echo "  HINWEIS: Bridge Service bleibt gestoppt wie vor dem Upgrade (starten: sudo systemctl start $BRIDGE_UNIT)"
+        fi
+        if ((install_live)) && unit_started "$LIVE_UNIT"; then
+            cat <<EOF
   OK: Live Server                läuft
   OK: Web View                   TCP $WINLAUFEN_LIVE_HTTP_PORT erreichbar
   OK: Live WebSocket             TCP $WINLAUFEN_LIVE_WS_PORT lauscht
 EOF
+        elif ((install_live)); then
+            echo "  HINWEIS: Live Server bleibt gestoppt wie vor dem Upgrade (starten: sudo systemctl start $LIVE_UNIT)"
+        fi
     else
         ((install_bridge)) && echo "  HINWEIS: Bridge installiert; Startprüfung wurde übersprungen."
         ((install_live)) && echo "  HINWEIS: Live Server installiert; Startprüfung wurde übersprungen."
@@ -1069,8 +1329,10 @@ EOF
 
     echo
     echo "Verbindungen / Betriebsbereitschaft:"
-    if ((install_bridge)) && ((local_runtime_validated)); then
+    if ((install_bridge)) && ((local_runtime_validated)) && unit_started "$BRIDGE_UNIT"; then
         report_bridge_diagnostics
+    elif ((install_bridge)) && ((local_runtime_validated)); then
+        echo "  HINWEIS: Bridge gestoppt; Verbindungsstatus nach dem Start mit winlaufen-web --status prüfen."
     elif ((install_bridge)); then
         echo "  HINWEIS: nach dem Dienststart in Bridge Control prüfen."
         if [[ "$PROFILE" == "bridge-only" ]]; then
@@ -1085,66 +1347,41 @@ EOF
     fi
 }
 
-validate_started_services() {
-    local units=() unit restarts
-    ((install_bridge)) && units+=("$BRIDGE_UNIT")
-    ((install_live)) && units+=("$LIVE_UNIT")
-
-    for unit in "${units[@]}"; do
-        wait_for_active_unit "$unit"
-    done
-    ((install_bridge)) && wait_for_http "$WINLAUFEN_CONTROL_PORT" "Bridge Control" "$BRIDGE_UNIT"
-    ((install_live)) && wait_for_http "$WINLAUFEN_LIVE_HTTP_PORT" "Web View / HTTP" "$LIVE_UNIT"
-
-    # Definierte Stabilitätsphase: ein kurz auf active springender Restart-Loop
-    # darf nicht als erfolgreiche Installation gelten.
-    sleep "${WINLAUFEN_INSTALL_TEST_STABILITY_SECONDS:-3}"
-    for unit in "${units[@]}"; do
-        if ! systemctl is-active --quiet "$unit" 2>/dev/null; then
-            echo "FEHLER: Dienst $unit blieb während der Startphase nicht active." >&2
-            show_service_diagnostics "$unit"
-            installation_failed
-        fi
-        restarts=$(systemctl show "$unit" --property=NRestarts --value 2>/dev/null || echo 0)
-        if [[ "$restarts" =~ ^[0-9]+$ ]] && ((restarts > 0)); then
-            echo "FEHLER: Dienst $unit wurde während der Startphase neu gestartet (NRestarts=$restarts)." >&2
-            show_service_diagnostics "$unit"
-            installation_failed
-        fi
-    done
-    if ((install_bridge)) && ! http_reachable "$WINLAUFEN_CONTROL_PORT"; then
-        echo "FEHLER: Bridge Control blieb während der Startphase nicht erreichbar." >&2
-        show_service_diagnostics "$BRIDGE_UNIT"
-        installation_failed
-    fi
-    if ((install_live)) && ! http_reachable "$WINLAUFEN_LIVE_HTTP_PORT"; then
-        echo "FEHLER: Web View / HTTP blieb während der Startphase nicht erreichbar." >&2
-        show_service_diagnostics "$LIVE_UNIT"
-        installation_failed
-    fi
-    local_runtime_validated=1
-}
+profile_units=()
+((install_live)) && profile_units+=("$LIVE_UNIT")
+((install_bridge)) && profile_units+=("$BRIDGE_UNIT")
 
 if systemd_operations_enabled; then
     systemctl daemon-reload || { echo "FEHLER: systemd-Konfiguration konnte nicht neu geladen werden." >&2; installation_failed; }
-    if ((install_live)); then
-        systemctl reset-failed "$LIVE_UNIT" >/dev/null 2>&1 || true
-        systemctl enable "$LIVE_UNIT" >/dev/null \
-            || { echo "FEHLER: $LIVE_UNIT konnte nicht aktiviert werden." >&2; installation_failed; }
-        systemctl restart "$LIVE_UNIT" \
-            || { echo "FEHLER: $LIVE_UNIT konnte nicht gestartet werden." >&2; show_service_diagnostics "$LIVE_UNIT"; installation_failed; }
-        note "Dienst aktiviert und gestartet: $LIVE_UNIT"
-    fi
-    if ((install_bridge)); then
-        systemctl reset-failed "$BRIDGE_UNIT" >/dev/null 2>&1 || true
-        systemctl enable "$BRIDGE_UNIT" >/dev/null \
-            || { echo "FEHLER: $BRIDGE_UNIT konnte nicht aktiviert werden." >&2; installation_failed; }
-        systemctl restart "$BRIDGE_UNIT" \
-            || { echo "FEHLER: $BRIDGE_UNIT konnte nicht gestartet werden." >&2; show_service_diagnostics "$BRIDGE_UNIT"; installation_failed; }
-        note "Dienst aktiviert und gestartet: $BRIDGE_UNIT"
-    fi
-    validate_started_services
-    ((install_bridge)) && collect_bridge_diagnostics
+    # Neu angelegte Units werden aktiviert und gestartet, bestehende behalten
+    # ihren Autostart; gestartet werden nur Dienste, die vorher liefen.
+    for unit in "${profile_units[@]}"; do
+        if [[ -z "${unit_existed[$unit]:-}" ]]; then
+            systemctl enable "$unit" >/dev/null \
+                || { echo "FEHLER: $unit konnte nicht aktiviert werden." >&2; installation_failed; }
+            note "Autostart aktiviert (neuer Dienst): $unit"
+            started_units+=("$unit")
+        elif [[ "${unit_was_active[$unit]}" == 1 ]]; then
+            started_units+=("$unit")
+        else
+            note "Dienst bleibt gestoppt: $unit (vorher ${unit_was_state[$unit]:-unbekannt}, Autostart ${unit_was_enabled[$unit]:-unbekannt})"
+        fi
+    done
+    for unit in "${started_units[@]}"; do
+        systemctl reset-failed "$unit" >/dev/null 2>&1 || true
+        systemctl restart "$unit" \
+            || { echo "FEHLER: $unit konnte nicht gestartet werden." >&2; show_service_diagnostics "$unit"; installation_failed; }
+        note "Dienst gestartet: $unit"
+    done
+    validate_units "${started_units[@]}" || installation_failed
+    local_runtime_validated=1
+    unit_started "$BRIDGE_UNIT" && collect_bridge_diagnostics
+fi
+
+# Erfolgreich: Die Sicherung des bisherigen Standes wird nicht mehr gebraucht.
+if ((rollback_armed)); then
+    rollback_armed=0
+    rm -rf -- "$(staged "$ROLLBACK_DIR")"
 fi
 
 # ------------------------------------------------------------ Abschlussmeldung

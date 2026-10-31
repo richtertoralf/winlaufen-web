@@ -263,7 +263,9 @@ das Linux-Paket und `SHA256SUMS`, prüft die Prüfsumme und startet den Installe
 des neuen Pakets. Ist die installierte Version bereits aktuell oder neuer,
 ändert es nichts. Mit einer Paketdatei funktioniert das Upgrade auch ohne
 Internet, etwa am Veranstaltungsort; liegt `SHA256SUMS` daneben, wird auch
-dort geprüft. Vor dem Neustart der Dienste fragt das Kommando nach; `--yes`
+dort geprüft. Enthält das Paket bereits den installierten Stand, installiert
+das Kommando nichts und startet nichts neu; ein älteres Paket wird als
+Downgrade angekündigt. Vor dem Upgrade fragt das Kommando nach; `--yes`
 überspringt die Rückfrage. Die Prüfsumme erkennt beschädigte Downloads, sie
 belegt nicht die Herkunft des Pakets. Ältere Installationen erhalten das
 Kommando mit dem ersten Upgrade auf eine Version, die es enthält.
@@ -308,8 +310,22 @@ systemd-Units.
 | JARs unter `/opt/winlaufen-web/lib/` | werden ersetzt |
 | gebündelte Runtime unter `/opt/winlaufen-web/runtime/` | wird ersetzt, wenn die Distribution eine mitbringt |
 | systemd-Units | werden ersetzt, nicht dupliziert |
-| Dienste des Profils | werden aktiviert und neu gestartet |
+| laufende Dienste des Profils | werden neu gestartet und geprüft |
+| gestoppte Dienste des Profils | bleiben gestoppt (Linux) |
+| Autostart bestehender Dienste | bleibt unverändert (Linux); aktiviert werden nur neu hinzugekommene Dienste |
 | Dienst eines nicht gewählten Profils | wird deaktiviert und entfernt, statt verwaist zurückzubleiben |
+
+**Rückweg unter Linux.** Vor dem Austausch prüft der Installer eine
+mitgebrachte Java-Runtime und sichert Programmdateien, Runtime, Kommando,
+`VERSION`, `INSTALLATION` und Units unter `/opt/winlaufen-web/.rollback`.
+Schlägt danach der Austausch, ein Dienststart oder die Prüfung der Dienste
+fehl, stellt er diesen Stand und die vorherigen Dienstzustände wieder her,
+startet die vorher laufenden Dienste und prüft sie. Ein Erfolg wird als
+`Rollback erfolgreich` gemeldet, ein Fehlschlag als `ROLLBACK FEHLGESCHLAGEN`;
+dann bleibt die Sicherung stehen, und ein weiteres Upgrade startet erst, wenn
+sie nach Prüfung von Hand entfernt ist. Konfiguration, Startliste und
+`/var/lib/winlaufen-web/` gehören nicht zur Sicherung und werden dabei nicht
+angefasst. Nach einem erfolgreichen Upgrade wird die Sicherung entfernt.
 
 Zusätzlich migriert der Installer einmalig die **exakten** früheren
 Installer-Netzwerkdefaults auf den festen Portblock 44440–44442: Control-Port
@@ -445,7 +461,9 @@ Windows x64. Für Raspberry Pi OS auf ARM ist der [Entwicklerweg](DEVELOPMENT.md
 /opt/winlaufen-web/lib/          Programmartefakte (JARs)
 /opt/winlaufen-web/runtime/      gebündelte Java-Runtime, falls die Quelle eine mitbringt
 /opt/winlaufen-web/installer/    Kommando winlaufen-web und Uninstaller
-/opt/winlaufen-web/VERSION       installierte Version
+/opt/winlaufen-web/VERSION       installierte Version (eine Zeile)
+/opt/winlaufen-web/INSTALLATION  Herkunft und Zeitpunkt der Installation
+/opt/winlaufen-web/.rollback/    Sicherung während eines Upgrades (danach entfernt)
 /usr/local/bin/winlaufen-web     Verweis auf das Kommando
 /etc/winlaufen-web/              Konfiguration und persistente Veranstalterdaten
     bridge.properties            Veranstalter-Konfiguration der Bridge
@@ -710,8 +728,13 @@ Seite neu laden. Unter Linux geht es auch im Terminal:
 winlaufen-web --version
 ```
 
-Das Kommando nennt die installierte Version, das Profil und die Version der
-laufenden Dienste. Ohne das Kommando (bis einschließlich 0.4.3):
+Das Kommando nennt die installierte Version, das Profil, Herkunft und Zeitpunkt
+der Installation sowie die Version der laufenden Dienste. Ein lokal gebauter
+Stand trägt den Zusatz `(Entwicklungsstand)`, etwa
+`v0.4.4-3-g6b8385e (Entwicklungsstand)`; ein Releasepaket zeigt nur `vX.Y.Z`.
+Herkunft und Zeitpunkt kennt das Kommando ab dem ersten Release nach 0.4.4;
+für ältere Installationen steht dort `unbekannt`, bis zum nächsten Upgrade.
+Ohne das Kommando (bis einschließlich 0.4.3):
 
 ```sh
 curl -fsS http://localhost:44440/ | grep -o 'Version [0-9][0-9.]*'
@@ -739,6 +762,28 @@ Browseradressen, Statusanzeigen, Verhalten bei Ausfällen — steht im
 
 Für einen zusätzlichen Live-Server im Internet siehe
 [QUICKSTART_CLOUD.md](QUICKSTART_CLOUD.md).
+
+### Betriebszustand prüfen
+
+Unter Linux fasst ein Kommando den Zustand zusammen; es ändert nichts und
+braucht kein `sudo`. Installationen bis einschließlich 0.4.4 erhalten es mit dem
+nächsten Upgrade:
+
+```sh
+winlaufen-web --status
+```
+
+Es zeigt Version, Herkunft und Profil, je Dienst Laufzustand, Autostart,
+lokale HTTP-Erreichbarkeit und laufende Version, bei Profilen mit Bridge die
+WinLaufen-Quelle, die Startliste und die Output Targets sowie die URLs für
+Bridge Control, Web View und Output Target an den LAN- und WireGuard-Adressen
+des Rechners. Ein nur lokal gebundener Dienst erscheint dort nicht.
+
+| Exitcode | Bedeutung |
+|---|---|
+| 0 | kein technischer Fehler, auch bei bewusst gestopptem Dienst oder getrennter WinLaufen-Quelle |
+| 1 | technischer Fehler: Dienst fehlgeschlagen oder in einer Neustartschleife, aktiver Dienst antwortet nicht per HTTP, Bridge-Status nicht lesbar |
+| 2 | ungültiger Aufruf oder fehlende Konfigurationsdatei (nur erkennbar, wenn `/etc/winlaufen-web` lesbar ist, also mit `sudo`) |
 
 ### Fehlerdiagnose
 

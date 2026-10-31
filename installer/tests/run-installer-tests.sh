@@ -716,6 +716,11 @@ if run_install all-in-one "$root"; then
 
     bash "$cli" --version --staging-root "$root" > "$work/cli-version.log" 2>&1
     assert_contains "$work/cli-version.log" "Profil all-in-one" "--version nennt das installierte Profil"
+    assert_contains "$work/cli-version.log" "Herkunft:    Verzeichnis $fake_dist" \
+        "--version nennt die Herkunft der Installation"
+    grep -qE '^  Installiert: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}[+-][0-9:]{5}$' "$work/cli-version.log" \
+        && ok "--version nennt die Installationszeit" \
+        || bad "--version nennt die Installationszeit" "$(cat "$work/cli-version.log")"
 
     # Ein Releasepaket wie aus build-dist.sh, mit Prüfsumme daneben.
     package_name="winlaufen-web-1.2.3-linux-amd64"
@@ -743,6 +748,34 @@ if run_install all-in-one "$root"; then
     assert_equals "$(cat "$root/opt/winlaufen-web/VERSION")" "v1.2.3" "--upgrade übernimmt die neue Version"
     assert_contains "$root/etc/winlaufen-web/bridge.properties" "source.host=192.168.77.5" \
         "--upgrade erhält die Konfiguration"
+    assert_contains "$root/opt/winlaufen-web/INSTALLATION" "origin=Paket $package_root/$package_name.tar.gz" \
+        "--upgrade vermerkt das lokale Paket als Herkunft"
+
+    installation_before=$(sha256sum "$root/opt/winlaufen-web/INSTALLATION" | cut -d' ' -f1)
+    bash "$cli" --upgrade "$package_root/$package_name.tar.gz" --yes --staging-root "$root" \
+        > "$work/cli-same.log" 2>&1
+    assert_equals "$?" "0" "--upgrade mit installiertem Stand endet mit Exitcode 0"
+    assert_contains "$work/cli-same.log" "v1.2.3 ist bereits installiert" \
+        "--upgrade erkennt den bereits installierten Stand im Paket"
+    assert_absent "$work/cli-same.log" "Upgrade erfolgreich" \
+        "--upgrade installiert denselben Stand nicht erneut"
+    assert_equals "$(sha256sum "$root/opt/winlaufen-web/INSTALLATION" | cut -d' ' -f1)" "$installation_before" \
+        "Gleicher Stand lässt die Installation unverändert"
+
+    bash "$cli" --version --staging-root "$root" > "$work/cli-version-release.log" 2>&1
+    assert_contains "$work/cli-version-release.log" "WinLaufen Web v1.2.3 · Profil all-in-one" \
+        "--version nennt die Releaseversion ohne Zusatz"
+    assert_absent "$work/cli-version-release.log" "Entwicklungsstand" \
+        "--version kennzeichnet ein Releasepaket nicht als Entwicklungsstand"
+
+    rm -f "$root/opt/winlaufen-web/INSTALLATION"
+    bash "$cli" --version --staging-root "$root" > "$work/cli-version-old.log" 2>&1
+    assert_contains "$work/cli-version-old.log" "Herkunft:    unbekannt (Installation vor dieser Angabe)" \
+        "--version kommt mit älteren Installationen ohne Herkunftsangabe zurecht"
+    printf 'v1.2.3-4-gabc1234\n' > "$root/opt/winlaufen-web/VERSION"
+    bash "$cli" --version --staging-root "$root" > "$work/cli-version-dev.log" 2>&1
+    assert_contains "$work/cli-version-dev.log" "v1.2.3-4-gabc1234 (Entwicklungsstand)" \
+        "--version kennzeichnet einen lokalen Build als Entwicklungsstand"
 
     tampered="$work/cli-tampered"
     mkdir -p "$tampered"
@@ -786,6 +819,429 @@ if run_install all-in-one "$root"; then
     bash "$uninstaller_linux" --staging-root "$root" --no-systemd > "$work/cli-foreign.log" 2>&1
     assert_file "$root/usr/local/bin/winlaufen-web" "Deinstallation entfernt keine fremde Datei gleichen Namens"
 fi
+
+echo
+echo "=== ADR-002: Upgrade erhält Dienstzustände ==="
+# Fake-systemd mit Zustand je Unit: Ein Dienst, dessen installiertes Programm
+# "broken" enthält, startet nicht. So lassen sich Upgrade, Startfehler und
+# Rollback ohne root und ohne echtes systemd durchspielen.
+fake_systemd_bin="$work/fake-systemd-state-bin"
+mkdir -p "$fake_systemd_bin"
+cat > "$fake_systemd_bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+state=$FAKE_SYSTEMD_STATE
+printf '%s\n' "$*" >> "$state/calls.log"
+quiet=0 now=0 property="" args=()
+for arg in "$@"; do
+    case "$arg" in
+        --quiet) quiet=1 ;;
+        --now) now=1 ;;
+        --property=*) property=${arg#--property=} ;;
+        --*) ;;
+        *) args+=("$arg") ;;
+    esac
+done
+command=${args[0]:-} unit=${args[1]:-}
+case "$unit" in
+    winlaufen-bridge.service) jar="$FAKE_ROOT/opt/winlaufen-web/lib/winlaufen-web-bridge.jar" ;;
+    *) jar="$FAKE_ROOT/opt/winlaufen-web/lib/winlaufen-web-live-server.jar" ;;
+esac
+current=$(cat "$state/$unit.active" 2>/dev/null || echo inactive)
+case "$command" in
+    is-active) ((quiet)) || echo "$current"; [[ "$current" == active ]] ;;
+    is-enabled) enabled=$(cat "$state/$unit.enabled" 2>/dev/null || echo disabled)
+        echo "$enabled"; [[ "$enabled" == enabled ]] ;;
+    enable) echo enabled > "$state/$unit.enabled" ;;
+    disable) echo disabled > "$state/$unit.enabled"; ((now)) && echo inactive > "$state/$unit.active"; exit 0 ;;
+    start|restart)
+        if grep -q broken "$jar" 2>/dev/null; then echo failed > "$state/$unit.active"
+        else echo active > "$state/$unit.active"; fi ;;
+    stop) echo inactive > "$state/$unit.active" ;;
+    show) case "$property" in NRestarts) echo 0 ;; SubState) echo running ;; *) echo ;; esac ;;
+    status) echo "simulierter Status von $unit: $current"; exit 3 ;;
+    *) exit 0 ;;
+esac
+EOF
+cat > "$fake_systemd_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+url=${!#} output="" previous=""
+for arg in "$@"; do [[ "$previous" == "-o" ]] && output=$arg; previous=$arg; done
+emit() {
+    if [[ -z "$output" ]]; then printf '%s' "$1"
+    elif [[ "$output" != /dev/null ]]; then printf '%s' "$1" > "$output"; fi
+}
+if [[ "$url" == */releases/latest ]]; then
+    printf 'https://github.com/richtertoralf/winlaufen-web/releases/tag/%s' "$FAKE_LATEST_TAG"
+    exit 0
+fi
+port=${url#http://127.0.0.1:}
+port=${port%%/*}
+case "$port" in
+    44442) unit=winlaufen-bridge.service ;;
+    44440) unit=winlaufen-live-server.service ;;
+    *) exit 7 ;;
+esac
+[[ "$(cat "$FAKE_SYSTEMD_STATE/$unit.active" 2>/dev/null)" == active ]] || exit 7
+[[ ! -e "$FAKE_SYSTEMD_STATE/$unit.nohttp" ]] || exit 7
+case "$url" in
+    */api/v1/status) emit "{\"sourceHealth\":\"${FAKE_SOURCE_STATE:-DISCONNECTED}\",\"outputs\":[{\"targetId\":\"local\",\"state\":\"CONNECTED\"}],\"startList\":{\"sourceLabel\":\"Startliste.csv\",\"entryCount\":1999,\"classCount\":46}}" ;;
+    */api/v1/config) emit '{"sourceType":"WINLAUFEN","sourceHost":"192.168.95.10","sourcePort":4444,"targets":[],"presentation":{}}' ;;
+    *) emit '<footer>Sprecher-Web · Version 9.9.9 · Build fake</footer>' ;;
+esac
+EOF
+cat > "$fake_systemd_bin/ip" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+    *"type wireguard"*) echo "4: wg0: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue" ;;
+    *"addr show"*)
+        echo "2: enp1s0    inet 192.168.95.50/24 brd 192.168.95.255 scope global enp1s0"
+        echo "3: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0"
+        echo "4: wg0    inet 10.66.0.5/32 scope global wg0" ;;
+esac
+EOF
+cat > "$fake_systemd_bin/ss" <<'EOF'
+#!/usr/bin/env bash
+arguments="$*"
+port=${arguments##*:}
+if [[ "$port" == "${FAKE_LOOPBACK_PORT:-}" ]]; then
+    echo "LISTEN 0 50 127.0.0.1:$port 0.0.0.0:*"
+else
+    echo "LISTEN 0 50 *:$port *:*"
+fi
+EOF
+chmod +x "$fake_systemd_bin"/*
+
+make_test_dist() {
+    local dir=$1 content=$2 version=$3
+    mkdir -p "$dir/lib"
+    printf '%s bridge\n' "$content" > "$dir/lib/$WINLAUFEN_BRIDGE_JAR"
+    printf '%s live\n' "$content" > "$dir/lib/$WINLAUFEN_LIVE_JAR"
+    printf '%s\n' "$version" > "$dir/VERSION"
+}
+
+make_test_runtime() {
+    local dir=$1 marker=$2 exit_code=${3:-0}
+    mkdir -p "$dir/runtime/bin"
+    printf '#!/bin/sh\nexit %s\n' "$exit_code" > "$dir/runtime/bin/java"
+    chmod +x "$dir/runtime/bin/java"
+    printf '%s\n' "$marker" > "$dir/runtime/release"
+}
+
+for version in 1 2 3; do
+    make_test_dist "$work/dist-v$version" "v$version" "v0.9.$version"
+done
+make_test_dist "$work/dist-broken" "broken" "v0.9.9"
+
+svc_log=""
+svc_status=0
+# Installer mit Fake-systemd: run_svc_install <profil> <root> <dist> [Umgebung ...]
+run_svc_install() {
+    local profile=$1 root=$2 dist=$3
+    shift 3
+    mkdir -p "$root.state"
+    svc_log="$work/$(basename "$root")-$(date +%s%N).log"
+    env PATH="$fake_systemd_bin:$PATH" FAKE_SYSTEMD_STATE="$root.state" FAKE_ROOT="$root" \
+        WINLAUFEN_INSTALL_TEST_SYSTEMD=1 WINLAUFEN_INSTALL_TEST_START_ATTEMPTS=1 \
+        WINLAUFEN_INSTALL_TEST_STABILITY_SECONDS=0 WINLAUFEN_INSTALL_TEST_DIAGNOSTIC_ATTEMPTS=1 "$@" \
+        bash "$installer_linux" --profile "$profile" --staging-root "$root" --dist "$dist" \
+        > "$svc_log" 2>&1
+    svc_status=$?
+}
+
+run_svc_cli() {
+    local root=$1
+    shift
+    env PATH="$fake_systemd_bin:$PATH" FAKE_SYSTEMD_STATE="$root.state" FAKE_ROOT="$root" \
+        WINLAUFEN_INSTALL_TEST_SYSTEMD=1 WINLAUFEN_INSTALL_TEST_START_ATTEMPTS=1 \
+        WINLAUFEN_INSTALL_TEST_STABILITY_SECONDS=0 WINLAUFEN_INSTALL_TEST_DIAGNOSTIC_ATTEMPTS=1 \
+        bash "$root/opt/winlaufen-web/installer/linux/winlaufen-web" --staging-root "$root" "$@"
+}
+
+unit_state() { cat "$1.state/$2.active" 2>/dev/null || echo inactive; }
+unit_enabled() { cat "$1.state/$2.enabled" 2>/dev/null || echo disabled; }
+set_unit() { echo "$3" > "$1.state/$2.active"; echo "$4" > "$1.state/$2.enabled"; }
+calls() { cat "$1.state/calls.log" 2>/dev/null; }
+reset_calls() { : > "$1.state/calls.log"; }
+
+bridge=winlaufen-bridge.service
+live=winlaufen-live-server.service
+
+root="$work/svc"
+run_svc_install all-in-one "$root" "$work/dist-v1"
+assert_equals "$svc_status" "0" "Erstinstallation mit systemd: Exitcode 0"
+calls "$root" > "$work/svc-calls.log"
+assert_contains "$work/svc-calls.log" "enable $live" "Erstinstallation aktiviert den Live Server"
+assert_contains "$work/svc-calls.log" "enable $bridge" "Erstinstallation aktiviert die Bridge"
+assert_equals "$(unit_state "$root" "$bridge")/$(unit_state "$root" "$live")" "active/active" \
+    "Erstinstallation startet beide Dienste"
+
+reset_calls "$root"
+run_svc_install all-in-one "$root" "$work/dist-v2"
+calls "$root" > "$work/svc-calls.log"
+assert_equals "$svc_status" "0" "Upgrade bei laufenden Diensten: Exitcode 0"
+assert_contains "$work/svc-calls.log" "restart $bridge" "Upgrade startet die laufende Bridge neu"
+assert_contains "$work/svc-calls.log" "restart $live" "Upgrade startet den laufenden Live Server neu"
+assert_absent "$work/svc-calls.log" "enable winlaufen" "Upgrade ruft für bestehende Units kein enable auf"
+assert_equals "$(head -n 1 "$root/opt/winlaufen-web/VERSION")" "v0.9.2" "Upgrade übernimmt die neue Version"
+assert_no_file "$root/opt/winlaufen-web/.rollback" "Erfolgreiches Upgrade entfernt die Sicherung"
+assert_contains "$svc_log" "GESICHERT: bisheriger Stand v0.9.1" "Upgrade sichert den bisherigen Stand"
+
+set_unit "$root" "$live" inactive disabled
+reset_calls "$root"
+run_svc_install all-in-one "$root" "$work/dist-v3"
+calls "$root" > "$work/svc-calls.log"
+assert_equals "$svc_status" "0" "Upgrade mit gestopptem Live Server: Exitcode 0"
+assert_absent "$work/svc-calls.log" "restart $live" "Gestoppter Live Server wird nicht gestartet"
+assert_contains "$work/svc-calls.log" "restart $bridge" "Laufende Bridge wird neu gestartet"
+assert_absent "$work/svc-calls.log" "enable winlaufen" "Upgrade ändert keinen Autostart"
+assert_equals "$(unit_state "$root" "$live")/$(unit_enabled "$root" "$live")" "inactive/disabled" \
+    "Live Server bleibt gestoppt und ohne Autostart"
+assert_contains "$svc_log" "Dienst bleibt gestoppt: $live" "Upgrade nennt den gestoppten Dienst"
+assert_contains "$svc_log" "Live Server bleibt gestoppt wie vor dem Upgrade" \
+    "Abschlussbericht nennt den gestoppten Dienst"
+assert_file "$root/etc/systemd/system/$live" "Upgrade erhält das Profil all-in-one (Live-Server-Unit)"
+assert_file "$root/etc/systemd/system/$bridge" "Upgrade erhält das Profil all-in-one (Bridge-Unit)"
+
+for profile in bridge-only presentation-node; do
+    root="$work/svc-$profile"
+    unit=$bridge
+    [[ "$profile" == presentation-node ]] && unit=$live
+    run_svc_install "$profile" "$root" "$work/dist-v1"
+    set_unit "$root" "$unit" inactive enabled
+    reset_calls "$root"
+    run_svc_install "$profile" "$root" "$work/dist-v2"
+    calls "$root" > "$work/svc-calls.log"
+    assert_equals "$svc_status" "0" "$profile: Upgrade mit gestopptem Dienst endet mit 0"
+    assert_absent "$work/svc-calls.log" "restart $unit" "$profile: gestoppter Dienst bleibt gestoppt"
+    assert_equals "$(unit_enabled "$root" "$unit")" "enabled" "$profile: Autostart bleibt aktiviert"
+done
+
+root="$work/svc-profile-change"
+run_svc_install bridge-only "$root" "$work/dist-v1"
+set_unit "$root" "$bridge" inactive disabled
+reset_calls "$root"
+run_svc_install all-in-one "$root" "$work/dist-v2"
+calls "$root" > "$work/svc-calls.log"
+assert_contains "$work/svc-calls.log" "enable $live" "Profilwechsel aktiviert die neu hinzugekommene Komponente"
+assert_equals "$(unit_state "$root" "$live")" "active" "Profilwechsel startet die neue Komponente"
+assert_equals "$(unit_state "$root" "$bridge")/$(unit_enabled "$root" "$bridge")" "inactive/disabled" \
+    "Profilwechsel lässt die bestehende gestoppte Bridge unverändert"
+
+echo
+echo "=== ADR-002: Rollback ==="
+data_checksums() {
+    local root=$1
+    sha256sum "$root/etc/winlaufen-web/bridge.properties" "$root/etc/winlaufen-web/live-server.env" \
+        "$root/etc/winlaufen-web/startlist.properties" "$root/var/lib/winlaufen-web/ereignisse.dat"
+}
+
+root="$work/svc-rollback"
+run_svc_install all-in-one "$root" "$work/dist-v1"
+sed -i 's/^source\.host=.*/source.host=10.20.30.40/' "$root/etc/winlaufen-web/bridge.properties"
+printf 'startlist.version=1\nentries=1999\n' > "$root/etc/winlaufen-web/startlist.properties"
+printf 'gespeicherte Daten\n' > "$root/var/lib/winlaufen-web/ereignisse.dat"
+data_before=$(data_checksums "$root")
+installation_before=$(cat "$root/opt/winlaufen-web/INSTALLATION")
+run_svc_install all-in-one "$root" "$work/dist-broken"
+((svc_status != 0)) && ok "Startfehler: Upgrade endet mit Fehler" || bad "Startfehler: Upgrade endet mit Fehler"
+assert_contains "$svc_log" "ist nach der Startphase nicht active" "Startfehler wird erkannt"
+assert_contains "$svc_log" "Rollback erfolgreich: bisheriger Stand v0.9.1" "Startfehler führt zum geprüften Rollback"
+assert_equals "$(head -n 1 "$root/opt/winlaufen-web/VERSION")" "v0.9.1" "Rollback stellt VERSION wieder her"
+assert_equals "$(cat "$root/opt/winlaufen-web/lib/$WINLAUFEN_BRIDGE_JAR")" "v1 bridge" \
+    "Rollback stellt das Bridge-Programm wieder her"
+assert_equals "$(cat "$root/opt/winlaufen-web/lib/$WINLAUFEN_LIVE_JAR")" "v1 live" \
+    "Rollback stellt das Live-Server-Programm wieder her"
+assert_equals "$(cat "$root/opt/winlaufen-web/INSTALLATION")" "$installation_before" \
+    "Rollback stellt Herkunft und Installationszeit wieder her"
+assert_equals "$(unit_state "$root" "$bridge")/$(unit_state "$root" "$live")" "active/active" \
+    "Rollback startet die vorher laufenden Dienste wieder"
+assert_equals "$(data_checksums "$root")" "$data_before" \
+    "Rollback lässt Konfiguration, Startliste und Daten unverändert"
+assert_no_file "$root/opt/winlaufen-web/.rollback" "Erfolgreicher Rollback entfernt die Sicherung"
+assert_absent "$svc_log" "Upgrade erfolgreich" "Startfehler erzeugt keine Erfolgsmeldung"
+
+set_unit "$root" "$live" inactive enabled
+reset_calls "$root"
+run_svc_install all-in-one "$root" "$work/dist-broken"
+calls "$root" > "$work/svc-calls.log"
+assert_contains "$svc_log" "Rollback erfolgreich" "Rollback mit gestopptem Live Server gelingt"
+assert_equals "$(unit_state "$root" "$live")" "inactive" "Rollback startet keinen vorher gestoppten Dienst"
+assert_absent "$work/svc-calls.log" "restart $live" "Gestoppter Live Server wird auch beim Rollback nicht gestartet"
+
+root="$work/svc-rollback-failed"
+run_svc_install all-in-one "$root" "$work/dist-v1"
+printf 'startlist.version=1\n' > "$root/etc/winlaufen-web/startlist.properties"
+printf 'gespeicherte Daten\n' > "$root/var/lib/winlaufen-web/ereignisse.dat"
+data_before=$(data_checksums "$root")
+# Der bisherige Stand startet selbst nicht mehr; der Rollback kann nicht gelingen.
+printf 'broken old live\n' > "$root/opt/winlaufen-web/lib/$WINLAUFEN_LIVE_JAR"
+run_svc_install all-in-one "$root" "$work/dist-broken"
+((svc_status != 0)) && ok "Fehlgeschlagener Rollback: Exitcode ungleich 0" \
+    || bad "Fehlgeschlagener Rollback: Exitcode ungleich 0"
+assert_contains "$svc_log" "ROLLBACK FEHLGESCHLAGEN" "Fehlgeschlagener Rollback wird ausdrücklich gemeldet"
+assert_absent "$svc_log" "Rollback erfolgreich" "Fehlgeschlagener Rollback meldet keinen Erfolg"
+[[ -d "$root/opt/winlaufen-web/.rollback" ]] && ok "Fehlgeschlagener Rollback behält die Sicherung" \
+    || bad "Fehlgeschlagener Rollback behält die Sicherung"
+assert_equals "$(data_checksums "$root")" "$data_before" \
+    "Fehlgeschlagener Rollback lässt Konfiguration, Startliste und Daten unverändert"
+
+run_svc_install all-in-one "$root" "$work/dist-v2"
+((svc_status != 0)) && ok "Verbliebene Sicherung blockiert ein weiteres Upgrade" \
+    || bad "Verbliebene Sicherung blockiert ein weiteres Upgrade"
+assert_contains "$svc_log" "Sicherung eines abgebrochenen Upgrades" "Verbliebene Sicherung wird erklärt"
+[[ -d "$root/opt/winlaufen-web/.rollback" ]] && ok "Verbliebene Sicherung wird nicht gelöscht" \
+    || bad "Verbliebene Sicherung wird nicht gelöscht"
+
+# Austauschfehler ohne systemd: Ein Schreibfehler nach dem Runtime-Tausch muss
+# Programme, Runtime und Versionsangaben zurückbringen.
+make_test_dist "$work/dist-rt-v1" "v1" "v0.9.1"
+make_test_runtime "$work/dist-rt-v1" "runtime-v1"
+make_test_dist "$work/dist-rt-v2" "v2" "v0.9.2"
+make_test_runtime "$work/dist-rt-v2" "runtime-v2"
+failing_install_bin="$work/fake-install-bin"
+mkdir -p "$failing_install_bin"
+printf '#!/usr/bin/env bash\nfor arg in "$@"; do\n    [[ "$(basename -- "$arg")" == uninstall.sh ]] && { echo "simulierter Schreibfehler" >&2; exit 1; }\ndone\nexec %q "$@"\n' \
+    "$(command -v install)" > "$failing_install_bin/install"
+chmod +x "$failing_install_bin/install"
+
+root="$work/exchange-failure"
+bash "$installer_linux" --profile all-in-one --staging-root "$root" --no-systemd --dist "$work/dist-rt-v1" \
+    > "$work/exchange-1.log" 2>&1
+assert_equals "$(cat "$root/opt/winlaufen-web/runtime/release")" "runtime-v1" "Gebündelte Runtime wird installiert"
+PATH="$failing_install_bin:$PATH" bash "$installer_linux" --profile all-in-one --staging-root "$root" \
+    --no-systemd --dist "$work/dist-rt-v2" > "$work/exchange-2.log" 2>&1
+status=$?
+((status != 0)) && ok "Austauschfehler: Exitcode ungleich 0" || bad "Austauschfehler: Exitcode ungleich 0"
+assert_contains "$work/exchange-2.log" "Rollback erfolgreich" "Austauschfehler führt zum Rollback"
+assert_equals "$(cat "$root/opt/winlaufen-web/runtime/release")" "runtime-v1" \
+    "Rollback stellt die bisherige Runtime wieder her"
+assert_equals "$(cat "$root/opt/winlaufen-web/lib/$WINLAUFEN_BRIDGE_JAR")" "v1 bridge" \
+    "Austauschfehler: bisheriges Programm ist zurück"
+assert_equals "$(head -n 1 "$root/opt/winlaufen-web/VERSION")" "v0.9.1" "Austauschfehler: VERSION ist zurück"
+assert_no_file "$root/opt/winlaufen-web/runtime.new" "Austauschfehler hinterlässt keine halbe Runtime"
+assert_no_file "$root/opt/winlaufen-web/.rollback" "Austauschfehler: Sicherung nach Rollback entfernt"
+
+bash "$installer_linux" --profile all-in-one --staging-root "$root" --no-systemd --dist "$work/dist-rt-v2" \
+    > "$work/exchange-3.log" 2>&1
+assert_equals "$(cat "$root/opt/winlaufen-web/runtime/release")" "runtime-v2" \
+    "Upgrade ersetzt die Runtime nach erfolgreichem Austausch"
+
+make_test_dist "$work/dist-rt-bad" "v3" "v0.9.3"
+make_test_runtime "$work/dist-rt-bad" "runtime-bad" 1
+lib_before=$(sha256sum "$root/opt/winlaufen-web/lib/"* | cut -d' ' -f1)
+bash "$installer_linux" --profile all-in-one --staging-root "$root" --no-systemd --dist "$work/dist-rt-bad" \
+    > "$work/exchange-bad-runtime.log" 2>&1
+status=$?
+((status != 0)) && ok "Defekte Runtime im Paket wird abgelehnt" || bad "Defekte Runtime im Paket wird abgelehnt"
+assert_contains "$work/exchange-bad-runtime.log" "Es wurde nichts verändert" \
+    "Defekte Runtime wird vor dem Austausch erkannt"
+assert_equals "$(sha256sum "$root/opt/winlaufen-web/lib/"* | cut -d' ' -f1)" "$lib_before" \
+    "Defekte Runtime lässt die Programme unverändert"
+assert_equals "$(cat "$root/opt/winlaufen-web/runtime/release")" "runtime-v2" \
+    "Defekte Runtime lässt die installierte Runtime unverändert"
+
+echo
+echo "=== ADR-002: Herkunft der Installation ==="
+root="$work/origin-package"
+bash "$installer_linux" --profile bridge-only --staging-root "$root" --no-systemd --dist "$work/dist-v1" \
+    > "$work/origin.log" 2>&1
+assert_contains "$root/opt/winlaufen-web/INSTALLATION" "origin=Paket $work/dist-v1" \
+    "Direkter Aufruf aus einem Paket vermerkt das Paketverzeichnis"
+grep -qE '^installed_at=[0-9]{4}-[0-9]{2}-[0-9]{2}T' "$root/opt/winlaufen-web/INSTALLATION" \
+    && ok "INSTALLATION enthält die Installationszeit" || bad "INSTALLATION enthält die Installationszeit"
+assert_equals "$(wc -l < "$root/opt/winlaufen-web/VERSION")" "1" "VERSION bleibt einzeilig wie für ältere Kommandos"
+WINLAUFEN_INSTALL_ORIGIN="GitHub-Release v0.9.1" bash "$installer_linux" --profile bridge-only \
+    --staging-root "$root" --no-systemd --dist "$work/dist-v1" > "$work/origin.log" 2>&1
+assert_contains "$root/opt/winlaufen-web/INSTALLATION" "origin=GitHub-Release v0.9.1" \
+    "winlaufen-web --upgrade übergibt die Herkunft an install.sh"
+
+echo
+echo "=== ADR-002: winlaufen-web --status ==="
+root="$work/status"
+run_svc_install all-in-one "$root" "$work/dist-v1"
+mkdir -p "$root/sys/class/net/enp1s0/device"
+run_svc_cli "$root" --status > "$work/status.log" 2>&1
+assert_equals "$?" "0" "--status: getrennte WinLaufen-Quelle ergibt Exitcode 0"
+assert_contains "$work/status.log" "WinLaufen-Quelle: DISCONNECTED · Ziel 192.168.95.10:4444" \
+    "--status zeigt den Quellenzustand getrennt vom Dienstzustand"
+assert_contains "$work/status.log" "Bridge        läuft, Autostart enabled · Bridge Control erreichbar · Version 9.9.9" \
+    "--status zeigt Dienst, Autostart, Erreichbarkeit und laufende Version"
+assert_contains "$work/status.log" "Startliste:       Startliste.csv, 1999 Einträge" "--status zeigt die Startliste"
+assert_contains "$work/status.log" "local           CONNECTED" "--status zeigt die Output Targets"
+assert_contains "$work/status.log" "Herkunft:    Paket $work/dist-v1" "--status zeigt die Herkunft"
+assert_contains "$work/status.log" "LAN enp1s0 192.168.95.50" "--status nennt die LAN-Adresse"
+assert_contains "$work/status.log" "WireGuard wg0 10.66.0.5" "--status nennt die WireGuard-Adresse"
+assert_contains "$work/status.log" "Web View:       http://192.168.95.50:44440/" "--status nennt die Web-View-URL"
+assert_contains "$work/status.log" "Bridge Control: http://10.66.0.5:44442/" "--status nennt Bridge Control über WireGuard"
+assert_contains "$work/status.log" "Output Target:  ws://192.168.95.50:44441/bridge/v1/channels/local" \
+    "--status nennt die vollständige Output-Target-URL"
+assert_absent "$work/status.log" "172.17.0.1" "--status lässt Docker-Netze weg"
+assert_contains "$work/status.log" "Ergebnis: kein technischer Fehler" "--status fasst das Ergebnis zusammen"
+
+FAKE_LOOPBACK_PORT=44442 run_svc_cli "$root" --status > "$work/status-loopback.log" 2>&1
+assert_absent "$work/status-loopback.log" "Bridge Control: http://192.168.95.50" \
+    "--status nennt keine LAN-URL für einen nur lokal gebundenen Dienst"
+
+set_unit "$root" "$live" inactive disabled
+run_svc_cli "$root" --status > "$work/status-stopped.log" 2>&1
+assert_equals "$?" "0" "--status: bewusst gestoppter Dienst ergibt Exitcode 0"
+assert_contains "$work/status-stopped.log" "Live Server   gestoppt, Autostart disabled" "--status zeigt den gestoppten Dienst"
+
+set_unit "$root" "$bridge" failed enabled
+run_svc_cli "$root" --status > "$work/status-failed.log" 2>&1
+assert_equals "$?" "1" "--status: fehlgeschlagener Dienst ergibt Exitcode 1"
+assert_contains "$work/status-failed.log" "FEHLER: $bridge ist fehlgeschlagen" "--status nennt den fehlgeschlagenen Dienst"
+
+set_unit "$root" "$bridge" active enabled
+touch "$root.state/$bridge.nohttp"
+run_svc_cli "$root" --status > "$work/status-nohttp.log" 2>&1
+assert_equals "$?" "1" "--status: aktiver Dienst ohne HTTP-Antwort ergibt Exitcode 1"
+assert_contains "$work/status-nohttp.log" "FEHLER: Bridge Control antwortet nicht" "--status nennt die fehlende HTTP-Antwort"
+rm -f "$root.state/$bridge.nohttp"
+
+mv "$root/etc/winlaufen-web/bridge.properties" "$root/bridge.properties.bak"
+run_svc_cli "$root" --status > "$work/status-config.log" 2>&1
+assert_equals "$?" "2" "--status: fehlende Konfiguration ergibt Exitcode 2"
+mv "$root/bridge.properties.bak" "$root/etc/winlaufen-web/bridge.properties"
+
+bash "$cli_linux" --status --staging-root "$work/no-installation" > "$work/status-none.log" 2>&1
+assert_equals "$?" "1" "--status ohne Installation ergibt Exitcode 1"
+
+if [[ "$(uname -m)" == "x86_64" ]]; then
+    FAKE_LATEST_TAG=v0.9.1 run_svc_cli "$root" --upgrade --yes > "$work/online-same.log" 2>&1
+    assert_equals "$?" "0" "Online-Upgrade auf dem neuesten Release endet mit 0"
+    assert_contains "$work/online-same.log" "v0.9.1 ist bereits das neueste Release" \
+        "Online-Upgrade erkennt das installierte neueste Release"
+    printf 'v1.0.0\n' > "$root/opt/winlaufen-web/VERSION"
+    FAKE_LATEST_TAG=v0.9.1 run_svc_cli "$root" --upgrade --yes > "$work/online-newer.log" 2>&1
+    assert_contains "$work/online-newer.log" "neuer als das neueste Release v0.9.1. Es wird nichts geändert" \
+        "Online-Upgrade lehnt ein unbeabsichtigtes Downgrade ab"
+    assert_equals "$(head -n 1 "$root/opt/winlaufen-web/VERSION")" "v1.0.0" \
+        "Online-Upgrade ohne neueres Release lässt die Installation unverändert"
+fi
+
+echo
+echo "=== ADR-002: Rückgabecodes ungültiger Aufrufe ==="
+expect_exit() {
+    local expected=$1 label=$2
+    shift 2
+    "$@" > "$work/exit.log" 2>&1
+    assert_equals "$?" "$expected" "$label"
+}
+expect_exit 0 "winlaufen-web --help endet mit 0" bash "$cli_linux" --help
+expect_exit 2 "winlaufen-web ohne Aktion endet mit 2" bash "$cli_linux"
+expect_exit 2 "winlaufen-web mit unbekannter Option endet mit 2" bash "$cli_linux" --statuss
+expect_exit 2 "winlaufen-web --purge ohne --uninstall endet mit 2" bash "$cli_linux" --purge
+expect_exit 2 "winlaufen-web --staging-root ohne Wert endet mit 2" bash "$cli_linux" --version --staging-root
+expect_exit 2 "winlaufen-web mit zwei Aktionen endet mit 2" bash "$cli_linux" --version --status
+expect_exit 2 "winlaufen-web --status mit überzähligem Argument endet mit 2" bash "$cli_linux" --status extra
+bash "$cli_linux" --help > "$work/help.log" 2>&1
+assert_absent "$work/help.log" "set -euo pipefail" "winlaufen-web --help zeigt keinen Skriptcode"
+assert_contains "$work/help.log" "winlaufen-web --status" "winlaufen-web --help nennt --status"
+expect_exit 2 "install.sh --profile ohne Wert endet mit 2" bash "$installer_linux" --profile
+expect_exit 2 "install.sh mit unbekanntem Profil endet mit 2" \
+    bash "$installer_linux" --profile alles --staging-root "$work/invalid-profile" --no-systemd
+expect_exit 2 "uninstall.sh --staging-root ohne Wert endet mit 2" bash "$uninstaller_linux" --staging-root
 
 echo
 echo "=== Distributionslayout: Installer finden ihre Artefakte ==="
@@ -1012,7 +1468,7 @@ assert_contains "$uninstaller_windows" "Get-NetFirewallRule -Name \$ruleName" \
     "Windows-Uninstaller entfernt Firewallregeln über exakte Namen"
 assert_absent "$uninstaller_windows" "Get-NetFirewallRule -Group" \
     "Windows-Uninstaller entfernt keine fremden Regeln über eine breite Gruppe"
-assert_contains "$installer_linux" "validate_started_services" \
+assert_contains "$installer_linux" "validate_units" \
     "Linux validiert gestartete systemd-Dienste"
 assert_contains "$installer_linux" "NRestarts" \
     "Linux erkennt Restart-Schleifen in der Startphase"
@@ -1608,6 +2064,26 @@ assert_contains "$repository_root/docs/INSTALLATION.md" \
 assert_absent "$repository_root/README.md" \
     "empfohlen für die Installation direkt auf dem WinLaufen-PC" \
     "README beschränkt All-in-One nicht auf den WinLaufen-PC"
+
+echo
+echo "=== Versionskonsistenz (ADR-002) ==="
+# Die Root-POM ist die einzige Versionsquelle; Badge und Beispiele folgen ihr.
+pom_version=$(sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' "$repository_root/pom.xml" | head -1)
+badge_version=${pom_version//-/--}
+assert_contains "$repository_root/README.md" \
+    "[![Version](https://img.shields.io/badge/version-$badge_version-blue)](pom.xml)" \
+    "README-Badge zeigt die POM-Version $pom_version und verlinkt die POM"
+assert_equals "$(grep -c 'img.shields.io/badge/version-' "$repository_root/README.md")" "1" \
+    "README enthält genau ein statisches Versions-Badge"
+assert_contains "$repository_root/README.md" \
+    "releases/download/v$pom_version/winlaufen-web-$pom_version-linux-amd64.tar.gz" \
+    "README-Download nennt die POM-Version"
+assert_contains "$repository_root/README.md" "tar -xzf winlaufen-web-$pom_version-linux-amd64.tar.gz" \
+    "README-Entpackbefehl nennt die POM-Version"
+assert_contains "$repository_root/README.md" "cd winlaufen-web-$pom_version-linux-amd64" \
+    "README-Verzeichniswechsel nennt die POM-Version"
+assert_contains "$repository_root/docs/RELEASE.md" "Aktuelle Version: \`$pom_version\`." \
+    "RELEASE.md nennt die POM-Version"
 
 echo
 echo "----------------------------------------"

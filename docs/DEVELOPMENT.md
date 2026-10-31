@@ -81,6 +81,8 @@ git pull --ff-only
 sudo ./installer/linux/install.sh --profile all-in-one
 ```
 
+`winlaufen-web --version` nennt danach als Herkunft den lokalen Checkout mit
+Branch; ein Stand ohne Release-Tag trägt den Zusatz `(Entwicklungsstand)`.
 Unter Windows stattdessen `.\mvnw.cmd clean package` und danach den
 Windows-Installer wie oben verwenden. Das gewählte Profil beibehalten.
 Ein Wechsel auf ein fertiges Releasepaket ist möglich: Beide Installerwege
