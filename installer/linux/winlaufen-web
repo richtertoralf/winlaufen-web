@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Verwaltung einer installierten WinLaufen-Web-Installation unter Linux.
 #
-#   winlaufen-web --version                  installierte und laufende Version
+#   winlaufen-web --version                  installierte und laufende Version, Herkunft
+#   winlaufen-web --status                   Dienste, Erreichbarkeit, WinLaufen-Quelle, Adressen
 #   sudo winlaufen-web --upgrade             neuestes Release herunterladen und installieren
 #   sudo winlaufen-web --upgrade <paket>     aus heruntergeladenem winlaufen-web-*-linux-amd64.tar.gz
 #   sudo winlaufen-web --uninstall           Dienste und Programmdateien entfernen
@@ -11,7 +12,12 @@
 #   --staging-root DIR   Testmodus ohne root und ohne systemd
 #
 # Upgrade und Deinstallation verwenden die vorhandenen Skripte install.sh und
-# uninstall.sh; das Profil der bestehenden Installation bleibt erhalten.
+# uninstall.sh; das Profil der bestehenden Installation bleibt erhalten. Laufende
+# Dienste werden neu gestartet, gestoppte bleiben gestoppt, der Autostart bleibt
+# unverändert. Schlägt der Start fehl, stellt install.sh den bisherigen Stand her.
+#
+# Exitcodes: 0 kein technischer Fehler (auch bei gestopptem Dienst oder getrennter
+# WinLaufen-Quelle), 1 technischer Fehler, 2 ungültiger Aufruf oder Konfiguration.
 set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd -P)
@@ -19,6 +25,7 @@ script_dir=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pw
 source "$script_dir/../common/dist-manifest.env"
 
 INSTALL_PREFIX="/opt/winlaufen-web"
+CONFIG_DIR="/etc/winlaufen-web"
 SYSTEMD_DIR="/etc/systemd/system"
 BRIDGE_UNIT="winlaufen-bridge.service"
 LIVE_UNIT="winlaufen-live-server.service"
@@ -26,17 +33,24 @@ RELEASES_URL="https://github.com/richtertoralf/winlaufen-web/releases"
 
 ACTION=""
 PACKAGE=""
+ORIGIN=""
 PURGE=0
 ASSUME_YES=0
 STAGING_ROOT=""
 
 usage() {
-    sed -n '2,15p' "$script_dir/winlaufen-web" | sed 's/^# \{0,1\}//'
+    awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$script_dir/winlaufen-web"
     exit "${1:-0}"
 }
 
 fail() { echo "FEHLER: $*" >&2; exit 1; }
+invalid() { echo "$*" >&2; echo "Hilfe: winlaufen-web --help" >&2; exit 2; }
 staged() { printf '%s' "${STAGING_ROOT}$1"; }
+
+# Im Testmodus nur mit WINLAUFEN_INSTALL_TEST_SYSTEMD=1 und einem Fake-systemctl.
+use_systemd() {
+    [[ -z "$STAGING_ROOT" || "${WINLAUFEN_INSTALL_TEST_SYSTEMD:-0}" == "1" ]]
+}
 
 installed_version() {
     local file
@@ -46,6 +60,19 @@ installed_version() {
     else
         echo "unbekannt"
     fi
+}
+
+# Herkunft und Zeitpunkt schreibt install.sh erst seit ADR-002; ältere Installationen haben sie nicht.
+installation_field() {
+    local file value=""
+    file=$(staged "$INSTALL_PREFIX/INSTALLATION")
+    [[ -r "$file" ]] && value=$(sed -n "s/^$1=//p" "$file" | head -n 1)
+    printf '%s' "${value:-unbekannt (Installation vor dieser Angabe)}"
+}
+
+# Releasepakete tragen genau ein Tag vX.Y.Z; alles andere ist ein lokaler Build.
+development_marker() {
+    [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "$1" == "unbekannt" ]] || printf ' (Entwicklungsstand)'
 }
 
 installed_profile() {
@@ -58,18 +85,25 @@ installed_profile() {
     fi
 }
 
+has_bridge() { [[ "$1" == "all-in-one" || "$1" == "bridge-only" ]]; }
+has_live() { [[ "$1" == "all-in-one" || "$1" == "presentation-node" ]]; }
+
 # Laufende Version aus der Fußzeile der Oberfläche; zeigt, was tatsächlich läuft.
+running_footer() {
+    curl -fsS --max-time 3 "http://127.0.0.1:$1/" 2>/dev/null \
+        | grep -o 'Version [0-9][^<]*' | head -n 1 || true
+}
+
 running_component() {
     local label=$1 unit=$2 port=$3 state footer
-    if [[ -n "$STAGING_ROOT" ]]; then
+    if ! use_systemd; then
         printf '  %-12s nicht geprüft (Testmodus)\n' "$label:"
         return
     fi
     state=$(systemctl is-active "$unit" 2>/dev/null || true)
     footer=""
     if [[ "$state" == "active" ]] && command -v curl >/dev/null 2>&1; then
-        footer=$(curl -fsS --max-time 3 "http://127.0.0.1:$port/" 2>/dev/null \
-            | grep -o 'Version [0-9][^<]*' | head -n 1 || true)
+        footer=$(running_footer "$port")
     fi
     if [[ "$state" == "active" ]]; then
         printf '  %-12s läuft · %s\n' "$label:" "${footer:-Version nicht abrufbar}"
@@ -78,18 +112,265 @@ running_component() {
     fi
 }
 
+installation_header() {
+    local profile=$1 version
+    version=$(installed_version)
+    echo "$WINLAUFEN_PRODUCT_NAME $version$(development_marker "$version") · Profil $profile"
+    printf '  %-12s %s\n' "Herkunft:" "$(installation_field origin)"
+    printf '  %-12s %s\n' "Installiert:" "$(installation_field installed_at)"
+}
+
 show_version() {
     local profile
     profile=$(installed_profile)
     [[ -n "$profile" ]] || fail "Keine $WINLAUFEN_PRODUCT_NAME-Installation gefunden."
-    echo "$WINLAUFEN_PRODUCT_NAME $(installed_version) · Profil $profile"
-    case "$profile" in
-        all-in-one|bridge-only) running_component "Bridge" "$BRIDGE_UNIT" "$WINLAUFEN_CONTROL_PORT" ;;
-    esac
-    case "$profile" in
-        all-in-one|presentation-node) running_component "Live Server" "$LIVE_UNIT" "$WINLAUFEN_LIVE_HTTP_PORT" ;;
-    esac
+    installation_header "$profile"
+    has_bridge "$profile" && running_component "Bridge" "$BRIDGE_UNIT" "$WINLAUFEN_CONTROL_PORT"
+    has_live "$profile" && running_component "Live Server" "$LIVE_UNIT" "$WINLAUFEN_LIVE_HTTP_PORT"
+    return 0
 }
+
+# ------------------------------------------------------------------ --status
+#
+# Strikt lesend: systemctl is-active/is-enabled/show, HTTP-GET auf 127.0.0.1,
+# ip und ss. Braucht kein root; die Konfiguration wird nur geprüft, wenn das
+# Konfigurationsverzeichnis lesbar ist.
+
+status_error=0
+status_config_invalid=0
+bridge_reachable=0
+
+status_problem() { echo "  FEHLER: $*"; status_error=1; }
+
+json_string_field() {
+    printf '%s' "$1" | sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+}
+
+json_number_field() {
+    printf '%s' "$1" | sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p'
+}
+
+service_status() {
+    local label=$1 unit=$2 port=$3 purpose=$4 state enabled substate footer
+    if ! use_systemd; then
+        printf '  %-13s nicht geprüft (Testmodus)\n' "$label"
+        return 0
+    fi
+    state=$(systemctl is-active "$unit" 2>/dev/null || true)
+    enabled=$(systemctl is-enabled "$unit" 2>/dev/null || true)
+    enabled=${enabled:-unbekannt}
+    case "$state" in
+        active)
+            if ! command -v curl >/dev/null 2>&1; then
+                printf '  %-13s läuft, Autostart %s · HTTP nicht geprüft (curl fehlt)\n' "$label" "$enabled"
+            elif curl -fsS --max-time 3 -o /dev/null "http://127.0.0.1:$port/" 2>/dev/null; then
+                footer=$(running_footer "$port")
+                printf '  %-13s läuft, Autostart %s · %s erreichbar · %s\n' \
+                    "$label" "$enabled" "$purpose" "${footer:-Version nicht abrufbar}"
+                [[ "$unit" == "$BRIDGE_UNIT" ]] && bridge_reachable=1
+            else
+                printf '  %-13s läuft, Autostart %s\n' "$label" "$enabled"
+                status_problem "$purpose antwortet nicht (http://127.0.0.1:$port/)"
+            fi
+            ;;
+        inactive)
+            printf '  %-13s gestoppt, Autostart %s\n' "$label" "$enabled"
+            ;;
+        failed)
+            printf '  %-13s fehlgeschlagen, Autostart %s\n' "$label" "$enabled"
+            status_problem "$unit ist fehlgeschlagen (journalctl -u $unit)"
+            ;;
+        activating|deactivating|reloading)
+            substate=$(systemctl show "$unit" --property=SubState --value 2>/dev/null || true)
+            if [[ "$substate" == "auto-restart" ]]; then
+                printf '  %-13s Neustartschleife, Autostart %s\n' "$label" "$enabled"
+                status_problem "$unit startet wiederholt neu (journalctl -u $unit)"
+            else
+                printf '  %-13s %s, Autostart %s\n' "$label" "$state" "$enabled"
+            fi
+            ;;
+        *)
+            printf '  %-13s %s\n' "$label" "${state:-unbekannt}"
+            status_problem "Zustand von $unit nicht ermittelbar"
+            ;;
+    esac
+    return 0
+}
+
+# Fehlt die Konfiguration eines installierten Dienstes, ist das zuverlässig ein
+# Konfigurationsfehler. Ohne Leserecht auf das Verzeichnis wird nichts behauptet.
+check_configuration() {
+    local profile=$1 dir file
+    dir=$(staged "$CONFIG_DIR")
+    [[ -r "$dir" && -x "$dir" ]] || return 0
+    has_bridge "$profile" && file="$dir/bridge.properties" && [[ ! -f "$file" ]] \
+        && { echo "  FEHLER: Konfiguration fehlt: $CONFIG_DIR/bridge.properties"; status_config_invalid=1; }
+    has_live "$profile" && file="$dir/live-server.env" && [[ ! -f "$file" ]] \
+        && { echo "  FEHLER: Konfiguration fehlt: $CONFIG_DIR/live-server.env"; status_config_invalid=1; }
+    return 0
+}
+
+source_status() {
+    local profile=$1 status_json config_json source host port label entries targets
+    echo
+    if ! has_bridge "$profile"; then
+        echo "WinLaufen-Quelle: auf dem Bridge-Rechner abrufbar (Profil $profile)"
+        return 0
+    fi
+    if ((bridge_reachable == 0)); then
+        echo "WinLaufen-Quelle: nicht abrufbar, Bridge Control antwortet nicht"
+        return 0
+    fi
+    if ! status_json=$(curl -fsS --max-time 3 "http://127.0.0.1:$WINLAUFEN_CONTROL_PORT/api/v1/status" 2>/dev/null); then
+        echo "WinLaufen-Quelle:"
+        status_problem "Bridge-Status nicht lesbar (http://127.0.0.1:$WINLAUFEN_CONTROL_PORT/api/v1/status)"
+        return 0
+    fi
+    config_json=$(curl -fsS --max-time 3 "http://127.0.0.1:$WINLAUFEN_CONTROL_PORT/api/v1/config" 2>/dev/null || true)
+    source=$(json_string_field "$status_json" sourceHealth)
+    host=$(json_string_field "$config_json" sourceHost)
+    port=$(json_number_field "$config_json" sourcePort)
+    # Eine getrennte Quelle ist Betriebszustand, kein technischer Fehler.
+    printf 'WinLaufen-Quelle: %s · Ziel %s:%s\n' "${source:-UNBEKANNT}" "${host:-unbekannt}" \
+        "${port:-$WINLAUFEN_SOURCE_PORT}"
+    label=$(json_string_field "$status_json" sourceLabel)
+    entries=$(json_number_field "$status_json" entryCount)
+    if [[ -n "$entries" ]]; then
+        printf 'Startliste:       %s, %s Einträge\n' "${label:-ohne Bezeichnung}" "$entries"
+    else
+        echo "Startliste:       keine importiert"
+    fi
+    targets=$(printf '%s' "$status_json" \
+        | grep -o '"targetId"[[:space:]]*:[[:space:]]*"[^"]*"[^}]*"state"[[:space:]]*:[[:space:]]*"[A-Z_]*"' \
+        | sed 's/.*"targetId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*"state"[[:space:]]*:[[:space:]]*"\([A-Z_]*\)".*/\1 \2/' || true)
+    if [[ -z "$targets" ]]; then
+        echo "Output Targets:   keine konfiguriert"
+    else
+        echo "Output Targets:"
+        printf '%s\n' "$targets" | while read -r id state; do
+            printf '  %-15s %s\n' "$id" "$state"
+        done
+    fi
+    return 0
+}
+
+# Ausgabe je Zeile: <Art> <Interface> <IPv4>. LAN sind Netzwerkkarten mit
+# Gerät in /sys/class/net, WireGuard erkennt ip am Linktyp; Docker-, Bridge- und
+# andere virtuelle Netze bleiben außen vor. Ohne Treffer werden alle globalen
+# Adressen genannt.
+network_addresses() {
+    command -v ip >/dev/null 2>&1 || return 0
+    local wireguard all found=0 ifname cidr kind
+    wireguard=" $(ip -o link show type wireguard 2>/dev/null | awk -F': ' '{ sub(/@.*/, "", $2); print $2 }' | tr '\n' ' ') "
+    all=$(ip -4 -o addr show scope global 2>/dev/null | awk '{ print $2, $4 }')
+    while read -r ifname cidr; do
+        [[ -n "$ifname" ]] || continue
+        kind=""
+        if [[ "$wireguard" == *" $ifname "* ]]; then kind="WireGuard"
+        elif [[ -e "$(staged "/sys/class/net/$ifname/device")" ]]; then kind="LAN"
+        fi
+        [[ -n "$kind" ]] || continue
+        echo "$kind $ifname ${cidr%/*}"
+        found=1
+    done <<< "$all"
+    if ((found == 0)); then
+        while read -r ifname cidr; do
+            [[ -n "$ifname" ]] && echo "Netz $ifname ${cidr%/*}"
+        done <<< "$all"
+    fi
+    return 0
+}
+
+# Lokale Adressen, an die der Dienst tatsächlich gebunden ist; leer heißt alle
+# oder unbekannt (Dienst gestoppt, ss fehlt).
+bound_addresses() {
+    command -v ss >/dev/null 2>&1 || return 0
+    local bound
+    bound=$(ss -H -ltn "sport = :$1" 2>/dev/null | awk '{ print $4 }' | sed 's/:[0-9]*$//; s/^\[//; s/\]$//' || true)
+    printf '%s\n' "$bound" | grep -qxE '\*|0\.0\.0\.0|::' && return 0
+    printf '%s' "$bound"
+}
+
+reachable_on() {
+    local bound=$1 address=$2
+    [[ -z "$bound" ]] || printf '%s\n' "$bound" | grep -qxF -- "$address"
+}
+
+live_channel() {
+    local file channel=""
+    file=$(staged "$CONFIG_DIR/live-server.env")
+    [[ -r "$file" ]] && channel=$(sed -n 's/^WINLAUFEN_LIVE_CHANNEL=//p' "$file" | head -n 1)
+    printf '%s' "${channel:-$WINLAUFEN_LIVE_CHANNEL}"
+}
+
+address_status() {
+    local profile=$1 addresses kind ifname address control_bound="" http_bound="" ws_bound="" channel=""
+    echo
+    echo "Adressen:"
+    addresses=$(network_addresses)
+    if [[ -z "$addresses" ]]; then
+        echo "  keine Netzwerkadresse gefunden"
+        return 0
+    fi
+    has_bridge "$profile" && control_bound=$(bound_addresses "$WINLAUFEN_CONTROL_PORT")
+    if has_live "$profile"; then
+        http_bound=$(bound_addresses "$WINLAUFEN_LIVE_HTTP_PORT")
+        ws_bound=$(bound_addresses "$WINLAUFEN_LIVE_WS_PORT")
+        channel=$(live_channel)
+    fi
+    while read -r kind ifname address; do
+        echo "  $kind $ifname $address"
+        if has_bridge "$profile" && reachable_on "$control_bound" "$address"; then
+            echo "    Bridge Control: http://$address:$WINLAUFEN_CONTROL_PORT/"
+        fi
+        if has_live "$profile"; then
+            reachable_on "$http_bound" "$address" \
+                && echo "    Web View:       http://$address:$WINLAUFEN_LIVE_HTTP_PORT/"
+            reachable_on "$ws_bound" "$address" \
+                && echo "    Output Target:  ws://$address:$WINLAUFEN_LIVE_WS_PORT$WINLAUFEN_INGEST_PATH_PREFIX$channel"
+        fi
+    done <<< "$addresses"
+    return 0
+}
+
+show_status() {
+    local profile rc
+    profile=$(installed_profile)
+    if [[ -z "$profile" ]]; then
+        echo "Keine $WINLAUFEN_PRODUCT_NAME-Installation gefunden."
+        return 1
+    fi
+    installation_header "$profile"
+    check_configuration "$profile"
+
+    echo
+    echo "Dienste:"
+    if has_bridge "$profile"; then
+        service_status "Bridge" "$BRIDGE_UNIT" "$WINLAUFEN_CONTROL_PORT" "Bridge Control"
+    fi
+    if has_live "$profile"; then
+        service_status "Live Server" "$LIVE_UNIT" "$WINLAUFEN_LIVE_HTTP_PORT" "Web View"
+    fi
+    if use_systemd; then
+        source_status "$profile"
+    fi
+    address_status "$profile"
+
+    echo
+    if ((status_config_invalid)); then
+        echo "Ergebnis: ungültige Konfiguration"
+        rc=2
+    elif ((status_error)); then
+        echo "Ergebnis: technischer Fehler"
+        rc=1
+    else
+        echo "Ergebnis: kein technischer Fehler"
+        rc=0
+    fi
+    return "$rc"
+}
+
+# ------------------------------------------------------------- Upgrade
 
 require_root() {
     [[ -n "$STAGING_ROOT" || $EUID -eq 0 ]] || fail "Bitte mit sudo ausführen: sudo winlaufen-web $*"
@@ -107,6 +388,10 @@ work=""
 cleanup() { [[ -n "$work" ]] && rm -rf -- "$work"; return 0; }
 trap cleanup EXIT
 
+newer_than() {
+    [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" == "$1" ]]
+}
+
 download_latest() {
     command -v curl >/dev/null 2>&1 || fail "curl fehlt. Paket von $RELEASES_URL herunterladen und mit 'sudo winlaufen-web --upgrade <paket>' installieren."
     [[ "$(uname -m)" == "x86_64" ]] || fail "Fertige Pakete gibt es nur für Linux amd64 (x86_64), dieser Rechner: $(uname -m)."
@@ -123,8 +408,7 @@ download_latest() {
         echo "$WINLAUFEN_PRODUCT_NAME $current ist bereits das neueste Release."
         exit 0
     fi
-    if [[ "$current" != "unbekannt" \
-          && "$(printf '%s\n%s\n' "$tag" "$current" | sort -V | tail -n 1)" == "$current" ]]; then
+    if [[ "$current" != "unbekannt" ]] && newer_than "$current" "$tag"; then
         echo "Installiert ist $current, neuer als das neueste Release $tag. Es wird nichts geändert."
         exit 0
     fi
@@ -137,6 +421,7 @@ download_latest() {
     curl -fsSL -o "$work/SHA256SUMS" "$RELEASES_URL/download/$tag/SHA256SUMS" \
         || fail "SHA256SUMS nicht abrufbar."
     PACKAGE="$work/$name"
+    ORIGIN="GitHub-Release $tag"
 }
 
 verify_checksum() {
@@ -167,6 +452,7 @@ upgrade() {
     else
         [[ -f "$PACKAGE" ]] || fail "Paket nicht gefunden: $PACKAGE"
         [[ "$PACKAGE" == *.tar.gz ]] || fail "Erwartet wird ein Paket winlaufen-web-<version>-linux-amd64.tar.gz."
+        ORIGIN="Paket $PACKAGE"
     fi
     verify_checksum "$PACKAGE"
 
@@ -176,10 +462,25 @@ upgrade() {
     [[ -n "$package_dir" && -x "$package_dir/installer/linux/install.sh" && -d "$package_dir/lib" ]] \
         || fail "$(basename -- "$PACKAGE") ist kein Sprecher-Web-Releasepaket."
 
+    local current new
+    current=$(installed_version)
+    new=$(head -n 1 "$package_dir/VERSION" 2>/dev/null || echo unbekannt)
+    # Gleicher Stand: keine Installation und kein Neustart. Ein -dirty-Build
+    # sagt über seinen Inhalt nichts aus und wird deshalb immer installiert.
+    if [[ "$new" == "$current" && "$new" != "unbekannt" && "$new" != *-dirty ]]; then
+        echo "$WINLAUFEN_PRODUCT_NAME $current ist bereits installiert. Es wird nichts geändert."
+        return 0
+    fi
+
     echo
-    echo "Installiert:  $(installed_version) (Profil $profile)"
-    echo "Neu:          $(head -n 1 "$package_dir/VERSION" 2>/dev/null || echo unbekannt)"
-    echo "Konfiguration und importierte Startliste bleiben erhalten; die Dienste werden neu gestartet."
+    echo "Installiert:  $current (Profil $profile)"
+    echo "Neu:          $new$(development_marker "$new")"
+    if [[ "$current" != "unbekannt" && "$new" != "unbekannt" ]] && newer_than "$current" "$new"; then
+        echo "HINWEIS: Das Paket ist älter als die installierte Version (Downgrade)."
+    fi
+    echo "Konfiguration und importierte Startliste bleiben erhalten. Laufende Dienste"
+    echo "werden neu gestartet, gestoppte bleiben gestoppt, der Autostart bleibt unverändert."
+    echo "Startet die neue Version nicht, wird der bisherige Stand wiederhergestellt."
     if [[ "$profile" == "bridge-only" ]]; then
         echo
         echo "WICHTIG: Bei getrennten Rechnern zuerst den Live Server (Presentation Node)"
@@ -190,8 +491,9 @@ upgrade() {
     confirm "Upgrade jetzt ausführen?"
 
     local args=(--profile "$profile")
-    [[ -n "$STAGING_ROOT" ]] && args+=(--staging-root "$STAGING_ROOT" --no-systemd)
-    bash "$package_dir/installer/linux/install.sh" "${args[@]}"
+    [[ -n "$STAGING_ROOT" ]] && args+=(--staging-root "$STAGING_ROOT")
+    [[ -n "$STAGING_ROOT" && "${WINLAUFEN_INSTALL_TEST_SYSTEMD:-0}" != "1" ]] && args+=(--no-systemd)
+    WINLAUFEN_INSTALL_ORIGIN="$ORIGIN" bash "$package_dir/installer/linux/install.sh" "${args[@]}"
 }
 
 uninstall() {
@@ -218,25 +520,34 @@ uninstall() {
     bash "$work/linux/uninstall.sh" "${args[@]}"
 }
 
+set_action() {
+    [[ -z "$ACTION" || "$ACTION" == "$1" ]] || invalid "Nur eine Aktion angeben, nicht --$ACTION und --$1."
+    ACTION=$1
+}
+
 main() {
     while (($#)); do
         case "$1" in
-            --version) ACTION=version; shift ;;
+            --version) set_action version; shift ;;
+            --status) set_action status; shift ;;
             --upgrade)
-                ACTION=upgrade; shift
+                set_action upgrade; shift
                 if (($#)) && [[ "$1" != --* ]]; then PACKAGE=$(readlink -m -- "$1"); shift; fi ;;
-            --uninstall) ACTION=uninstall; shift ;;
+            --uninstall) set_action uninstall; shift ;;
             --purge) PURGE=1; shift ;;
             --yes|-y) ASSUME_YES=1; shift ;;
-            --staging-root) STAGING_ROOT=$2; shift 2 ;;
+            --staging-root)
+                [[ $# -ge 2 && -n "$2" ]] || invalid "Option --staging-root braucht ein Verzeichnis."
+                STAGING_ROOT=$2; shift 2 ;;
             -h|--help) usage 0 ;;
-            *) echo "Unbekannte Option: $1" >&2; usage 2 ;;
+            *) invalid "Unbekannte Option: $1" ;;
         esac
     done
-    ((PURGE == 0)) || [[ "$ACTION" == "uninstall" ]] || fail "--purge gehört zu --uninstall."
+    ((PURGE == 0)) || [[ "$ACTION" == "uninstall" ]] || invalid "--purge gehört zu --uninstall."
 
     case "$ACTION" in
         version) show_version ;;
+        status) show_status ;;
         upgrade) upgrade ;;
         uninstall) uninstall ;;
         *) usage 2 ;;

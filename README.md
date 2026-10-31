@@ -1,6 +1,6 @@
 # Sprecher-Web
 
-[![Version](https://img.shields.io/badge/version-0.4.4-blue)](https://github.com/richtertoralf/winlaufen-web/releases)
+[![Version](https://img.shields.io/badge/version-0.4.4-blue)](pom.xml)
 [![Lizenz](https://img.shields.io/badge/Lizenz-AGPL--3.0-blue)](LICENSE)
 
 **Live-Ergebnisse aus WinLaufen auf Notebook, Tablet und Smartphone.**
@@ -135,7 +135,8 @@ Wenn das gewünscht wird, bitte beim Enwickler melden.
 winlaufen-web -h
 Verwaltung einer installierten WinLaufen-Web-Installation unter Linux.
 
-  winlaufen-web --version                  installierte und laufende Version
+  winlaufen-web --version                  installierte und laufende Version, Herkunft
+  winlaufen-web --status                   Dienste, Erreichbarkeit, WinLaufen-Quelle, Adressen
   sudo winlaufen-web --upgrade             neuestes Release herunterladen und installieren
   sudo winlaufen-web --upgrade <paket>     aus heruntergeladenem winlaufen-web-*-linux-amd64.tar.gz
   sudo winlaufen-web --uninstall           Dienste und Programmdateien entfernen
@@ -145,9 +146,12 @@ Verwaltung einer installierten WinLaufen-Web-Installation unter Linux.
   --staging-root DIR   Testmodus ohne root und ohne systemd
 
 Upgrade und Deinstallation verwenden die vorhandenen Skripte install.sh und
-uninstall.sh; das Profil der bestehenden Installation bleibt erhalten.
-set -euo pipefail
+uninstall.sh; das Profil der bestehenden Installation bleibt erhalten. Laufende
+Dienste werden neu gestartet, gestoppte bleiben gestoppt, der Autostart bleibt
+unverändert. Schlägt der Start fehl, stellt install.sh den bisherigen Stand her.
 
+Exitcodes: 0 kein technischer Fehler (auch bei gestopptem Dienst oder getrennter
+WinLaufen-Quelle), 1 technischer Fehler, 2 ungültiger Aufruf oder Konfiguration.
 ```
 
 ### Aktualisieren
@@ -155,10 +159,13 @@ set -euo pipefail
 Eine bestehende Installation aktualisieren Sie mit denselben Befehlen und dem
 neuen Paket. Verwenden Sie dasselbe Profil wie bisher. Der Installer erkennt
 die bestehende Installation, ersetzt die Programmdateien und startet die
-Dienste neu; Einstellungen und importierte Startliste bleiben erhalten.
+laufenden Dienste neu; Einstellungen und importierte Startliste bleiben
+erhalten. Unter Linux bleiben gestoppte Dienste gestoppt, und startet die neue
+Version nicht, stellt der Installer den bisherigen Stand wieder her.
 Unter Windows führen Sie ebenso die Schritte oben mit dem neuen ZIP aus.
 Unter Linux genügt ab Version 0.4.4 `sudo winlaufen-web --upgrade`;
-`winlaufen-web --version` zeigt die installierte Version.
+`winlaufen-web --version` zeigt die installierte Version,
+`winlaufen-web --status` den Betriebszustand.
 
 Stehen Bridge und Live-Server auf verschiedenen Rechnern, aktualisieren Sie
 **zuerst den Live-Server und danach die Bridge**. Eine Bridge ab 0.4.3 kann

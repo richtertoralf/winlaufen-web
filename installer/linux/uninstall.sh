@@ -20,7 +20,9 @@ USE_SYSTEMD=1
 while (($#)); do
     case "$1" in
         --purge) PURGE=1; shift ;;
-        --staging-root) STAGING_ROOT=$2; shift 2 ;;
+        --staging-root)
+            [[ $# -ge 2 && -n "$2" ]] || { echo "Option --staging-root braucht einen Wert." >&2; exit 2; }
+            STAGING_ROOT=$2; shift 2 ;;
         --no-systemd) USE_SYSTEMD=0; shift ;;
         -h|--help) sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unbekannte Option: $1" >&2; exit 2 ;;

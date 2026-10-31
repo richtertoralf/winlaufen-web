@@ -14,10 +14,12 @@ Pro Plattform gibt es genau einen Einstiegspunkt:
 | Linux | `linux/install.sh` | `linux/uninstall.sh` |
 
 Unter Linux legt `install.sh` zusätzlich das Kommando `winlaufen-web` mit einer
-Kopie von `uninstall.sh`, dem Manifest und `VERSION` unter
-`/opt/winlaufen-web/` ab und verlinkt es nach `/usr/local/bin/`. Es ruft beim
-Upgrade das `install.sh` des neuen Pakets und bei der Deinstallation
-`uninstall.sh` auf; eigene Installationslogik hat es nicht. Bedienung:
+Kopie von `uninstall.sh`, dem Manifest, `VERSION` und `INSTALLATION` (Herkunft,
+Zeitpunkt) unter `/opt/winlaufen-web/` ab und verlinkt es nach
+`/usr/local/bin/`. Es ruft beim Upgrade das `install.sh` des neuen Pakets und
+bei der Deinstallation `uninstall.sh` auf; eigene Installationslogik hat es
+nicht. Die Herkunft übergibt es über `WINLAUFEN_INSTALL_ORIGIN`. Dienstzustände,
+Sicherung und Rollback liegen allein in `install.sh`; `--status` liest nur. Bedienung:
 [INSTALLATION.md](../docs/INSTALLATION.md#34-upgrade-aus-einem-neuen-releasepaket).
 | Windows 11 | `windows/Install-WinLaufenWeb.ps1` | `windows/Uninstall-WinLaufenWeb.ps1` |
 
@@ -36,7 +38,7 @@ installer/
     linux/
         install.sh             Profilauswahl, systemd-Units, Konfiguration
         uninstall.sh
-        winlaufen-web          Verwaltungskommando: --version, --upgrade, --uninstall
+        winlaufen-web          Verwaltungskommando: --version, --status, --upgrade, --uninstall
     windows/
         Install-WinLaufenWeb.ps1
         Uninstall-WinLaufenWeb.ps1

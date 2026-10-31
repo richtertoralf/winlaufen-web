@@ -18,7 +18,10 @@ Es gibt zwei getrennte Versionsangaben, die nicht vermischt werden dürfen:
 - Die **Version-Badge** oben in `README.md` zeigt dieselbe Version für Besucher
   der Repository-Hauptseite. Sie ist bewusst statisch und kein von GitHub
   abgeleiteter `latest`-Wert, damit sie immer genau den Stand dieses Repositorys
-  nennt. Sie wird deshalb bei jedem Release mitgeführt (siehe Vorbereitung).
+  nennt, und verlinkt auf `pom.xml`. Sie wird deshalb bei jedem Release
+  mitgeführt (siehe Vorbereitung). `installer/tests/run-installer-tests.sh`
+  vergleicht Badge, Download-Befehle im README und die Angabe „Aktuelle
+  Version" in diesem Dokument mit der Root-POM-Version.
 - Die **Build-ID** ist die Git-Commit-ID des gebauten Standes, bewusst kein
   Release-Tag. Sie kommt vom `git-commit-id-maven-plugin`, das die Angabe mit
   JGit direkt aus `.git` liest; ein Git-Programm auf dem Pfad ist dafür nicht
