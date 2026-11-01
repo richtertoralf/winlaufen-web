@@ -77,14 +77,18 @@ Mitwirkende; Vertiefendes steht in `docs/`.
   Produkt wählen.
 - Nur tatsächlich vorhandene Funktionen und Befehle als verfügbar
   beschreiben; Erprobtes und Geplantes getrennt kennzeichnen.
-- Höchstens einen Entwicklungsstatus nennen: **Konzept** (keine nutzbare
-  Implementierung), **In Entwicklung** (begonnen, eventuell noch nicht
-  installierbar; nennen, was funktioniert und wie man es ausprobiert),
-  **Im Praxistest** (bei mindestens einem realen Einsatz betreut erprobt,
-  datierter Beleg in `docs/`), **Im Einsatz** (wiederholt produktiv genutzt,
-  Beleg in `docs/`), **Archiviert**. Ohne Beleg den niedrigeren Status oder
-  keinen; Installations- und Upgradeprüfungen belegen keinen Praxiseinsatz.
-- Bekannte Grenzen nennen, soweit sie für die Nutzung relevant sind.
+- Einen Entwicklungsstatus nur nennen, wenn er nachvollziehbar belegt ist:
+  **Konzept** (keine nutzbare Implementierung), **In Entwicklung**
+  (begonnen, eventuell noch nicht installierbar; nennen, was funktioniert und
+  wie man es ausprobiert), **Im Praxistest** (bei mindestens einem realen
+  Einsatz betreut erprobt, datierter Beleg in `docs/`), **Im Einsatz**
+  (wiederholt produktiv genutzt, Beleg in `docs/`), **Archiviert**. Fehlen
+  Belege, die Aussage weglassen; Installations- und Upgradeprüfungen belegen
+  keinen Praxiseinsatz.
+- Nur verifizierte Informationen aufnehmen. Einschränkungen nur nennen, wenn
+  sie nachgewiesen und für Anwender relevant sind; keine vermuteten Risiken,
+  vorsorglichen Warnhinweise oder künstlich offenen Fragen. Lieber kürzer und
+  sachlich richtig als ausführlich mit Annahmen.
 - Bei Änderungen an Funktionen, Installation, Bedienung, Verwaltungsbefehlen
   oder Entwicklungsstand auch die README auf nötige Anpassungen prüfen.
 - Alles Notwendige steht in diesem Repository. Nicht auf nicht öffentliche
