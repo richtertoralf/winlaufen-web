@@ -259,6 +259,6 @@ Sprecher-Web steht unter der [GNU AGPL-3.0](LICENSE).
 
 **Möglichkeiten schaffen.** Sprecher-Web gehört zu RICHTER.PROJECTS: Die
 Ergebnisse, die WinLaufen ohnehin erzeugt, werden für alle im
-Veranstaltungsnetz nutzbar. Das Projekt ist aus der Praxis von Lauf- und
-Biathlonveranstaltungen entstanden und offen für Vereine, Veranstalter und
-Entwickler, die es mit uns weiterentwickeln möchten.
+Veranstaltungsnetz nutzbar. Das Projekt ist für Lauf und Biathlon erprobt und
+offen für Vereine, Veranstalter und Entwickler, die es mit uns weiterentwickeln
+möchten.
