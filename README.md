@@ -8,6 +8,12 @@ Sprecher-Web macht die Ergebnisse Ihrer Zeitnahme im Browser zugänglich:
 Sprecher, Trainer und Zuschauer können im Veranstaltungsnetz mitlesen,
 ohne eine zusätzliche App zu installieren. WinLaufen bleibt Ihre
 Wettkampfsoftware; Sprecher-Web liest die bereitgestellten Daten mit.
+Repository und Linux-Kommando heißen nach dieser Zeitnahmesoftware
+`winlaufen-web`.
+
+**Status:** Im Praxistest – bei einem realen Wettkampf in Oederan am
+13.09.2026 im End-to-End-Betrieb mit Uhr- und Ergebnisdaten erprobt
+([Projektstatus](docs/STATUS.md)).
 
 `WinLaufen → Sprecher-Web → Browser`
 
@@ -15,16 +21,24 @@ Wettkampfsoftware; Sprecher-Web liest die bereitgestellten Daten mit.
 
 ## Was kann Sprecher-Web?
 
-- **Live-Ergebnisse anzeigen:** Ergebnistabellen, laufende Wettkampfzeit und
-  aktuelle Zieleinläufe; erprobt für Lauf und Biathlon.
+**Für Sprecher:** laufende Wettkampfzeit, aktuelle Zieleinläufe und
+Ergebnistabellen auf dem eigenen Notebook oder Tablet, unabhängig vom
+Zeitnahme-PC.
+
+**Für Trainer und Zuschauer:** Ergebnisse und Startlisten nach Klassen im
+Browser des Smartphones, ohne App; erprobt für Lauf und Biathlon.
+
+**Für Veranstalter:**
+
 - **Startlisten bereitstellen:** Export aus WinLaufen als CSV, TXT oder XLSX
-  importieren und im Browser nach Klassen ansehen.
-- **Die Anzeige anpassen:** Als Veranstalter wählen Sie etwa, ob Verein,
-  Verband, Nation, Schießen und WinLaufen-Nachrichten angezeigt werden.
-- **Verbindungsprobleme sichtbar machen:** Die Anzeige kennzeichnet veraltete
-  Daten und verbindet nach einer Unterbrechung automatisch neu.
+  importieren.
+- **Die Anzeige anpassen:** etwa, ob Verein, Verband, Nation, Schießen und
+  WinLaufen-Nachrichten angezeigt werden.
+- **Verbindungsprobleme erkennen:** Die Anzeige kennzeichnet veraltete Daten
+  und verbindet nach einer Unterbrechung automatisch neu.
 - **Im lokalen Netz arbeiten:** Für den Betrieb vor Ort ist kein Internet nötig.
-  Weitere Live-Server können zusätzlich Ergebnisse bereitstellen.
+  Weitere Live-Server können die Ergebnisse zusätzlich im Internet
+  bereitstellen.
 
 ## Welche Variante brauche ich?
 
@@ -129,7 +143,7 @@ Windows-PC; dessen Adresse tragen Sie beim ersten Start ein.
 Unterstützte Systeme, Prüfsummen und die nötigen Netzwerkfreigaben stehen
 in der [Installationsanleitung](docs/INSTALLATION.md#11-linux).
 Für Raspberry Pi ist noch kein fertiges Releasepaket vorhanden.
-Wenn das gewünscht wird, bitte beim Enwickler melden.
+Wenn Sie das brauchen, melden Sie sich gern (siehe [Mitmachen](#mitmachen)).
 
 ```sh
 winlaufen-web -h
@@ -231,3 +245,20 @@ Teilnehmerdaten zugänglich. Für Internetbetrieb beachten Sie die
 [verbindlichen Einsatzgrenzen](docs/INSTALLATION.md#einsatzgrenzen).
 
 Sprecher-Web steht unter der [GNU AGPL-3.0](LICENSE).
+
+## Mitmachen
+
+- **Fehler und Wünsche:** als [Issue auf GitHub](https://github.com/richtertoralf/winlaufen-web/issues)
+  melden, gern mit WinLaufen-Version und Profil.
+- **Erfahrungen vom Wettkampf:** Rückmeldungen aus dem Einsatz helfen, die
+  Bedienung und die Anleitungen zu verbessern.
+- **Code und Dokumentation:** Der Einstieg steht unter
+  [Entwicklung](docs/DEVELOPMENT.md).
+
+## RICHTER.PROJECTS
+
+**Möglichkeiten schaffen.** Sprecher-Web gehört zu RICHTER.PROJECTS: Die
+Ergebnisse, die WinLaufen ohnehin erzeugt, werden für alle im
+Veranstaltungsnetz nutzbar. Das Projekt ist für Lauf und Biathlon erprobt und
+offen für Vereine, Veranstalter und Entwickler, die es mit uns weiterentwickeln
+möchten.
