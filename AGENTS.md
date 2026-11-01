@@ -85,10 +85,13 @@ Mitwirkende; Vertiefendes steht in `docs/`.
   (wiederholt produktiv genutzt, Beleg in `docs/`), **Archiviert**. Fehlen
   Belege, die Aussage weglassen; Installations- und Upgradeprüfungen belegen
   keinen Praxiseinsatz.
-- Nur verifizierte Informationen aufnehmen. Einschränkungen nur nennen, wenn
-  sie nachgewiesen und für Anwender relevant sind; keine vermuteten Risiken,
-  vorsorglichen Warnhinweise oder künstlich offenen Fragen. Lieber kürzer und
-  sachlich richtig als ausführlich mit Annahmen.
+- Nur verifizierte Informationen aufnehmen: Aussagen zuerst an Code und
+  Dokumentation prüfen; was sich nicht bestätigen lässt, weglassen. Fehlende
+  Dokumentation ist kein Beleg für eine fehlende Funktion.
+- Einschränkungen nur nennen, wenn sie nachgewiesen und für Anwender relevant
+  sind; keine vermuteten Risiken, vorsorglichen Warnhinweise oder künstlich
+  offenen Fragen. Lieber kürzer und sachlich richtig als ausführlich mit
+  Annahmen.
 - Bei Änderungen an Funktionen, Installation, Bedienung, Verwaltungsbefehlen
   oder Entwicklungsstand auch die README auf nötige Anpassungen prüfen.
 - Alles Notwendige steht in diesem Repository. Nicht auf nicht öffentliche
