@@ -10,7 +10,8 @@ verbindlichen Betriebsdetails. [Dokumentationsübersicht](INDEX.md).
 - [Releasepakete installieren](#1-installation-aus-dem-releasepaket)
 - [Upgrade](#3-upgrade)
 - [Profile und Plattformen](#4-installationsprofile)
-- [Verzeichnisse und Zeitzone](#5-verzeichnisse)
+- [Verzeichnisse](#5-verzeichnisse)
+- [Konfiguration und Wettkampf-Zeitzone](#konfiguration)
 - [Dienste](#6-dienste)
 - [Netzwerk und Firewall](#7-ports-netzwerkvertrag-und-firewall)
 - [Prüfung und Fehlerdiagnose](#8-prüfung-nach-der-installation)
@@ -484,6 +485,87 @@ C:\ProgramData\WinLaufen Web\
     startlist.properties                   importierte Startliste (nach Import)
 ```
 
+`startlist.properties` entsteht erst beim ersten erfolgreichen
+Startlistenimport in Bridge Control. Der Installer legt diese Datei
+nicht an und fasst sie nicht an; sie überlebt jedes Upgrade.
+
+Der Live Server hält weder den Wettkampfstand noch die Startliste auf Platte.
+Nach seinem Neustart liefert die Bridge beides beim Reconnect erneut.
+
+## Konfiguration
+
+### 1. Überblick
+
+Sprecher-Web hat zwei Programme mit je einer Konfiguration:
+
+| Programm | Datei | Inhalt | Ändert |
+|---|---|---|---|
+| Bridge | `bridge.properties` | WinLaufen-Adresse, Output Targets, öffentliche Darstellung, Wettkampf-Zeitzone, Adresse von Bridge Control | Veranstalter in Bridge Control; einzelne Werte nur in der Datei |
+| Live Server | Linux `live-server.env`, Windows `live-server.properties` | Ports, Bindadressen, Channel und Ingest-Secret | Administrator in der Datei |
+
+Welche Programme laufen, legt die Rolle (das Installationsprofil) fest, siehe
+[Installationsprofile](#4-installationsprofile). Die Rolle wird nicht in einer
+Datei gespeichert; sie ergibt sich aus den installierten Diensten. Die
+importierte Startliste (`startlist.properties`) ist Veranstaltungsdatum, keine
+Einstellung; sie entsteht beim Import in Bridge Control.
+
+### 2. Speicherorte
+
+Die Dateien liegen unter `/etc/winlaufen-web/` (Linux) bzw.
+`C:\ProgramData\WinLaufen Web\` (Windows), siehe [Verzeichnisse](#5-verzeichnisse).
+Der Bridge wird der Pfad über die Systemproperty `winlaufen.bridge.config`
+mitgegeben. Ein manueller Start ohne diese Property verwendet
+`~/.winlaufen-web/config.properties`.
+
+| Rolle | `bridge.properties` | Live-Server-Datei |
+|---|---|---|
+| All-in-One | ja, mit Target `local` | ja |
+| Bridge only | ja, ohne Target | nein |
+| Presentation Node | nein | ja |
+
+### 3. Einstellungen
+
+**`bridge.properties`** – Bridge Control schreibt die Datei beim Speichern
+vollständig neu (siehe 6). Ältere Schlüssel früherer Versionen (`winlaufen.host`,
+`public.*`, `output.mode`, `http.port`, `websocket.port`) werden beim Start
+weiterhin gelesen und übernommen.
+
+| Schlüssel | Bedeutung | Zulässige Werte | Standard | Änderbar in Bridge Control |
+|---|---|---|---|---|
+| `source.host` | Adresse des WinLaufen-PCs; Port fest 4444 | Hostname oder IP-Adresse; leer = noch nicht konfiguriert | `127.0.0.1` (Installer) | ja |
+| `bridge.control.bind` | Adresse von Bridge Control | IP-Adresse | `0.0.0.0` | nein |
+| `bridge.control.port` | Port von Bridge Control | 1–65535; ein ungültiger Wert fällt ohne Meldung auf den Standard zurück | `44442` | nein |
+| `competition.timezone` | Wettkampf-Zeitzone, siehe unten | IANA-Zonenname, z. B. `Europe/Prague` | leer = `Europe/Berlin` | nein |
+| `outputs.count` | Anzahl der Output Targets | ganze Zahl ≥ 0 | 1 (All-in-One), 0 (Bridge only) | ja |
+| `outputs.<n>.id` | Name des Targets | `A–Z a–z 0–9 . _ -`, 1–64 Zeichen | `local` | ja |
+| `outputs.<n>.type` | Art des Ziels | `LOCAL`, `SELFHOST`, `RICHTER_PROJECTS` | `LOCAL` | ja |
+| `outputs.<n>.enabled` | Target aktiv | `true`, `false` | `true` | ja |
+| `outputs.<n>.endpoint` | WebSocket-Adresse des Live Servers | `ws://` nur für Loopback- und private IP-Adressen sowie `SELFHOST` an öffentlicher IP; sonst `wss://` | `ws://127.0.0.1:44441/bridge/v1/channels/local` | ja |
+| `outputs.<n>.channelId` | Channel auf dem Live Server | `A–Z a–z 0–9 . _ -`, 1–128 Zeichen | `local` | ja |
+| `outputs.<n>.secret` | Verbindungsschlüssel zum Live Server | 8–512 Zeichen; muss zum Live Server passen | bekanntes Prototyp-Secret | ja (leeres Feld behält den Wert) |
+| `presentation.showClub` | Verein anzeigen | `true`, `false` | `true` | ja |
+| `presentation.showAssociation` | Verband anzeigen | `true`, `false` | `true` | ja |
+| `presentation.showNation` | Nation anzeigen | `true`, `false` | `false` | ja |
+| `presentation.showShooting` | Schießergebnisse anzeigen | `true`, `false` | `true` | ja |
+| `presentation.showMessages` | WinLaufen-Nachrichten öffentlich anzeigen | `true`, `false` | `false` | ja |
+| `config.version`, `source.type` | Dateiformat, Quellsystem | `2`, `WINLAUFEN` | – | wird geschrieben |
+
+**Live Server** – Linux `live-server.env` (Variablen), Windows
+`live-server.properties` (Properties). Beide Dateien enthalten dieselben Werte:
+
+| Linux | Windows | Bedeutung | Zulässige Werte | Standard |
+|---|---|---|---|---|
+| `WINLAUFEN_LIVE_HTTP_BIND` | `winlaufen.live.http.bind` | Adresse für Web View und Read API | IP-Adresse | `0.0.0.0` |
+| `WINLAUFEN_LIVE_HTTP_PORT` | `winlaufen.live.http.port` | Port für Web View und Read API | 1–65535 | `44440` |
+| `WINLAUFEN_LIVE_WS_BIND` | `winlaufen.live.websocket.bind` | Adresse für Browser-WebSocket und Bridge-Ingest | IP-Adresse | `0.0.0.0` |
+| `WINLAUFEN_LIVE_WS_PORT` | `winlaufen.live.websocket.port` | Port für Browser-WebSocket und Bridge-Ingest | 1–65535 | `44441` |
+| `WINLAUFEN_LIVE_CHANNEL` | `winlaufen.live.channel` | Channel, den die Bridge beliefert | `A–Z a–z 0–9 . _ -`, 1–128 Zeichen | `local` |
+| `WINLAUFEN_LIVE_SECRET` | `winlaufen.live.secret` | Ingest-Secret; muss zum Target-Secret der Bridge passen | mindestens 8 Zeichen | bekanntes Prototyp-Secret |
+
+Die Ports sind Teil des festen [Netzwerkvertrags](#71-netzwerkvertrag). Wer sie
+ändert, muss Firewall, Target-Adressen und Lesezeichen anpassen;
+`winlaufen-web --status` fragt weiterhin die Standardports ab (siehe 9).
+
 ### Wettkampf-Zeitzone
 
 **Für Veranstaltungen in Deutschland ist hier nichts zu tun.** Sprecher-Web
@@ -494,7 +576,7 @@ Die Angabe betrifft ausschließlich die Zeitmessungen der Read API: Sie legt fes
 in welcher Zone die WinLaufen-Wettkampfzeit gelesen wird, wenn die Differenz zur
 Systemzeit bestimmt wird. Für Uhr, Ergebnisse, Startliste und Web Viewer ist sie
 ohne Bedeutung. Bridge Control zeigt die verwendete Zone im Abschnitt WinLaufen
-an.
+an. Eine Einstellung in Bridge Control ist geplant (#23).
 
 **Nur für eine Veranstaltung in einer anderen Zeitzone** wird sie in
 `bridge.properties` eingetragen:
@@ -527,15 +609,90 @@ auf die Zeitzone des Rechners zurückgefallen.
 
 Sprecher-Web funktioniert auch ohne Internet oder eingerichteten Zeitserver.
 Die Bedeutung für externe Anwendungen beschreibt das [Zeitmodell](API.md#5-zeitmodell).
-Weitere Details:
-[API.md](API.md#5-zeitmodell).
 
-`startlist.properties` entsteht erst beim ersten erfolgreichen
-Startlistenimport in Bridge Control. Der Installer legt diese Datei
-nicht an und fasst sie nicht an; sie überlebt jedes Upgrade.
+### 4. Prioritäten
 
-Der Live Server hält weder den Wettkampfstand noch die Startliste auf Platte.
-Nach seinem Neustart liefert die Bridge beides beim Reconnect erneut.
+- Bridge: Wert in `bridge.properties` vor dem eingebauten Standard.
+- Wettkampf-Zeitzone: `competition.timezone` in der Datei vor der älteren
+  Systemproperty `-Dwinlaufen.competition.timezone`, danach `Europe/Berlin`.
+- Live Server: Er liest ausschließlich Systemproperties `winlaufen.live.*`. Unter
+  Linux setzt die systemd-Unit sie aus `live-server.env`; unter Windows schreibt
+  der Installer die Werte aus `live-server.properties` in die geplante Aufgabe.
+  Fehlt ein Wert, gilt der Standard aus der Tabelle.
+
+### 5. Einrichtung und Änderung
+
+| Was | Weg |
+|---|---|
+| WinLaufen-Adresse, Output Targets, öffentliche Darstellung | Bridge Control, Bedienung im [Bedienerhandbuch](BEDIENERHANDBUCH.md#7-bridge-control-bedienen) |
+| Wettkampf-Zeitzone, Adresse/Port von Bridge Control | `bridge.properties` bearbeiten, Bridge neu starten |
+| Live-Server-Werte, eigenes Ingest-Secret | Live-Server-Datei bearbeiten, wirksam machen wie in 6; danach dasselbe Secret im Target der Bridge eintragen |
+| Rolle | Installer mit anderem `--profile` erneut ausführen; Dienste der nicht mehr gewählten Rolle werden entfernt, ihre Dateien bleiben |
+
+Unter Linux mit `sudo` bearbeiten. Die Bridge-Datei gehört dem Dienstkonto
+`winlaufen`, weil Bridge Control sie zurückschreibt. Eine Handänderung an
+`bridge.properties` bei laufender Bridge kann ein späteres Speichern in Bridge
+Control überschreiben; deshalb die Bridge vorher stoppen oder direkt danach neu
+starten.
+
+### 6. Wirksamkeit
+
+| Änderung | Wirksam |
+|---|---|
+| Speichern in Bridge Control (Quelle, Targets, Darstellung) | sofort; betroffen ist nur der geänderte Teil, andere Targets behalten ihre Verbindung |
+| `bridge.properties` von Hand | nach Neustart der Bridge (`sudo systemctl restart winlaufen-bridge` bzw. geplante Aufgabe neu starten) |
+| `live-server.env` (Linux) | nach `sudo systemctl restart winlaufen-live-server` |
+| `live-server.properties` (Windows) | erst nach erneutem Ausführen des Installers, weil die Werte in der geplanten Aufgabe stehen |
+| Startlistenimport | sofort |
+
+Beim Speichern in Bridge Control schreibt die Bridge `bridge.properties`
+vollständig neu: Werte ohne Formularfeld wie `competition.timezone` bleiben
+erhalten, **Kommentare und unbekannte Schlüssel gehen verloren**.
+
+### 7. Geheimnisse und Berechtigungen
+
+- Geheim sind `outputs.<n>.secret` und das Live-Server-Secret. Bridge Control
+  und die Control-API zeigen nur, ob ein Secret gesetzt ist; ein bekanntes
+  Prototyp-Secret wird bei entfernten Targets in Bridge Control und beim Start
+  des Live Servers im Log gewarnt. Grenzen des Prototyp-Secrets:
+  [Einsatzgrenzen](#der-bridge-ingest-verwendet-ein-bekanntes-secret).
+- Linux: `/etc/winlaufen-web` ist `0770 root:winlaufen`; `bridge.properties`
+  gehört `winlaufen:winlaufen` (`0640` nach der Installation, `0600` nach dem
+  ersten Speichern in Bridge Control); `live-server.env` ist `0640
+  root:winlaufen`.
+- Windows: Der Installer setzt auf `C:\ProgramData\WinLaufen Web` keine eigenen
+  Zugriffsrechte; es gelten die Windows-Standardrechte dieses Ordners.
+- Bekannte Grenze: Das Live-Server-Secret wird beim Start als Programmargument
+  übergeben (Linux über die Unit, Windows über die geplante Aufgabe) und ist
+  damit für lokale Konten in der Prozessliste sichtbar.
+- Bridge Control hat keine Anmeldung; wer den Port 44442 erreicht, kann die
+  Konfiguration ändern, siehe [Einsatzgrenzen](#bridge-control-auf-tcp-44442-hat-keine-anmeldung).
+
+### 8. Installation, Aktualisierung, Entfernen
+
+| Vorgang | Wirkung auf die Konfiguration |
+|---|---|
+| Erstinstallation | legt die Dateien der gewählten Rolle mit Standardwerten an |
+| Upgrade (Installer erneut mit derselben Rolle) | vorhandene Dateien bleiben; nur exakt die früheren Installer-Standardports und -adressen werden auf den heutigen Portblock umgestellt, siehe [Was das Upgrade erhält](#36-was-das-upgrade-erhält-und-was-es-ersetzt) |
+| Erster Start einer älteren Bridge-Datei | die Bridge übernimmt alte Werte und meldet das in Bridge Control; geschrieben wird erst beim nächsten Speichern |
+| Deinstallation | Dateien und Startliste bleiben, siehe [Deinstallation](#9-deinstallation) |
+| `--purge` / `-Purge` | löscht das gesamte Konfigurationsverzeichnis samt Startliste (Linux zusätzlich `/var/lib/winlaufen-web` und das Dienstkonto) |
+
+### 9. Prüfung und Fehlerdiagnose
+
+- Linux: `winlaufen-web --status`, siehe [Betriebszustand prüfen](#betriebszustand-prüfen).
+  Er meldet eine **fehlende** Konfigurationsdatei mit Exitcode 2, prüft aber
+  weder Syntax noch Werte und fragt die Dienste auf den Standardports ab; nach
+  geänderten Ports ist seine Aussage unzuverlässig. Windows hat noch kein
+  Statuskommando.
+- Bridge Control zeigt WinLaufen-Adresse, Targets mit Zustand, verwendete
+  Zeitzone und Hinweise zur Übernahme älterer Dateien.
+- Startfehler durch ungültige Werte (etwa ein zu kurzes Secret oder eine
+  ungültige Channel-ID) stehen im Journal: `journalctl -u winlaufen-bridge -u
+  winlaufen-live-server`.
+- Eine lesende Konfigurationsprüfung gibt es noch nicht; eine bessere
+  Quellen-Diagnose ist geplant (#22), die Darstellung der Konfigurationswege je
+  Rolle verfolgt #12.
 
 ## 6. Dienste
 
