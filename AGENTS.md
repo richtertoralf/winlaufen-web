@@ -56,6 +56,29 @@ Dokumente des betroffenen Bereichs, nicht alle.
   wenn der Auftrag sie umfasst.
 - Größere Verbesserungen als Folgeauftrag vorschlagen.
 
+## Gemeinsame Regeln
+
+Gemeinsam beschlossene Regeln der Produktfamilie. **Heute** beschreibt den
+vorhandenen Stand, **Ziel** eine beschlossene, noch offene Umsetzung mit
+Issue. Ein Ziel ist kein Auftrag, es nebenbei oder im Vorgriff umzusetzen.
+
+- Verwaltung heute: `winlaufen-web --help | --version | --status | --upgrade
+  [PAKET] | --uninstall [--purge] [--yes]`; Rückgabecodes 0/1/2, eine
+  getrennte WinLaufen-Quelle ist kein Fehler. Ziel: `--check` (#12).
+- Releasebasiert: `--upgrade` installiert das neueste geeignete Release. Bei
+  einem beauftragten Release Tag `vX.Y.Z` und GitHub Release nach
+  `docs/RELEASE.md`.
+- Oberflächen: Ziel sind gemeinsame Token-Datei und Umschalter Hell/Dunkel
+  (#27).
+- Zugang heute: Bridge Control ohne Anmeldung. Ziel: Anmeldung für Bridge
+  Control; Web-Ansicht und Read-API bleiben ohne Anmeldung und ohne
+  Geheimnisse.
+  Die Einzelheiten sind noch nicht entschieden; nicht im Vorgriff umsetzen.
+- Daten: Fehlendes bleibt unbekannt; ein autoritativ leerer Stand ist nicht
+  dasselbe wie ein fehlender.
+- Neue technische Bezeichner englisch; vorhandene deutsche Bezeichner nur in
+  getesteten Überarbeitungen umbenennen, keine Massenumbenennung.
+
 ## Dokumentationsregel
 
 - README.md und `docs/` sind deutsch. Etablierte Fachbegriffe bleiben
