@@ -56,6 +56,21 @@ Dokumente des betroffenen Bereichs, nicht alle.
   wenn der Auftrag sie umfasst.
 - Größere Verbesserungen als Folgeauftrag vorschlagen.
 
+## Gemeinsame Regeln
+
+- Verwaltung: `winlaufen-web --help | --version | --status | --upgrade
+  [<paket>] | --check | --uninstall | --purge [--yes]`; Rückgabecodes 0/1/2;
+  eine getrennte WinLaufen-Quelle ist kein Fehler.
+- Releasebasiert: `--upgrade` installiert das neueste geeignete Release;
+  Tag `vX.Y.Z` mit GitHub Release auf `main`.
+- Oberflächen: gemeinsame Token-Datei, Statusfarben, Umschalter
+  Hell/Dunkel.
+- Zugang: Bridge Control mit Benutzername und Passwort; die Web-Ansicht und
+  die Read-API sind rein lesend, ohne Anmeldung, ohne Geheimnisse.
+- Daten: Fehlendes bleibt unbekannt; ein autoritativ leerer Stand ist nicht
+  dasselbe wie ein fehlender.
+- Neue technische Bezeichner englisch.
+
 ## Dokumentationsregel
 
 - README.md und `docs/` sind deutsch. Etablierte Fachbegriffe bleiben
