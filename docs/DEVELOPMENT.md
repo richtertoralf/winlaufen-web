@@ -187,7 +187,7 @@ winlaufen.live.http.port       default 44440
 winlaufen.live.websocket.bind  default 0.0.0.0
 winlaufen.live.websocket.port  default 44441
 winlaufen.live.channel         default local
-winlaufen.live.secret          default local-development-secret
+winlaufen.live.secret          default <live-secret>
 ```
 
 Ein Live Server bedient genau einen Channel. Die Channelbindung des Ingest beschreibt [API.md](API.md).
