@@ -664,7 +664,7 @@ erhalten, **Kommentare und unbekannte Schlüssel gehen verloren**.
   Zugriffsrechte; es gelten die Windows-Standardrechte dieses Ordners.
 - Bekannte Grenze: Das Live-Server-Secret wird beim Start als Programmargument
   übergeben (Linux über die Unit, Windows über die geplante Aufgabe) und ist
-  damit für lokale Konten in der Prozessliste sichtbar.
+  damit für lokale Konten in der Prozessliste sichtbar (#31).
 - Bridge Control hat keine Anmeldung; wer den Port 44442 erreicht, kann die
   Konfiguration ändern, siehe [Einsatzgrenzen](#bridge-control-auf-tcp-44442-hat-keine-anmeldung).
 
@@ -772,9 +772,7 @@ Typische URLs:
 - Bridge Control: `http://<bridge-ip>:44442/`, lokal `http://localhost:44442/`
 
 Notebooks, Tablets und Smartphones im selben Netz rufen die Live-Ergebnisse über
-die LAN-Adresse des Rechners auf. In der realen Abnahme vom 30.08.2026 war das
-zum Beispiel `http://192.168.95.198:44440/` — ein Beispiel aus jener Umgebung,
-kein Vorgabewert.
+die LAN-Adresse des Rechners auf, also `http://<live-server-ip>:44440/`.
 
 44440/44441 müssen für Viewer im gewünschten LAN/WLAN erreichbar sein,
 44442 für die vorgesehenen Administrationsgeräte. TCP 4444 ist die ausgehende
@@ -1046,8 +1044,9 @@ veröffentlicht damit auch die Startliste.
 ### Der Bridge-Ingest verwendet ein bekanntes Secret
 
 Der Ingest des Live Servers ist authentifiziert, verwendet aber weiterhin ein
-**bekanntes Development-Secret**
-(`local-development-secret`), solange `winlaufen.live.secret` nicht gesetzt ist.
+**bekanntes Development-Secret**, das Installer und Programm als Standardwert
+eintragen, solange `winlaufen.live.secret` (Linux: `WINLAUFEN_LIVE_SECRET`) nicht
+auf einen eigenen Wert `<live-secret>` gesetzt ist.
 Der Live Server bindet seinen WebSocket-Port standardmäßig auf `0.0.0.0`, und
 auch der Installer erzeugt bewusst kein eigenes Secret.
 
