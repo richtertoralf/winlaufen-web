@@ -296,21 +296,12 @@ vollen Versatz verschieben, ohne dass etwas ungewöhnlich aussieht.
 | `APPLICATION_DEFAULT` | Es wurde nichts konfiguriert; es gilt der WinLaufen-Standard `Europe/Berlin`. |
 
 Für eine Veranstaltung **außerhalb Deutschlands** wird die Zone in
-`bridge.properties` eingetragen:
-
-```properties
-competition.timezone=America/New_York
-```
-
-Der Eintrag überlebt ein Speichern in Bridge Control, obwohl die Oberfläche kein
-Feld dafür hat. Alternativ und nachrangig wirkt weiterhin die Systemproperty
-`-Dwinlaufen.competition.timezone=…`; sie greift nur, wenn die
-Konfigurationsdatei nichts sagt, und zählt ebenfalls als `CONFIGURED`.
-
-Ein **unbrauchbarer Wert** — ein Tippfehler wie `America/New_Yrok` — bricht den
-Start nicht ab. Es gilt dann `Europe/Berlin`, also wieder der Anwendungsstandard
-und nicht die Zone des Rechners, und Bridge Control zeigt eine Warnung mit dem
-falschen Wert und den beiden Konfigurationspfaden.
+`bridge.properties` als `competition.timezone` eingetragen; Einrichtung,
+Vorrang und Verhalten bei ungültigen Werten stehen in
+[INSTALLATION.md, Wettkampf-Zeitzone](INSTALLATION.md#wettkampf-zeitzone).
+Für diese Schnittstelle gilt: Auch die ältere Systemproperty
+`-Dwinlaufen.competition.timezone=…` zählt als `CONFIGURED`. Ein unbrauchbarer
+Wert ergibt `APPLICATION_DEFAULT` mit `Europe/Berlin`, nie die Zone des Rechners.
 
 ### Zeitzonenherkunft und Uhrqualität sind zwei Dinge
 
