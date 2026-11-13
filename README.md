@@ -206,6 +206,28 @@ Die Schritte gelten für All-in-One; Einrichtung weiterer Server,
 Startlistenimport und Hilfe am Wettkampftag stehen im
 [Bedienerhandbuch](docs/BEDIENERHANDBUCH.md).
 
+## Konfiguration
+
+Die meisten Einstellungen nehmen Sie in **Bridge Control** vor: Adresse des
+WinLaufen-PCs, Übertragungsziele und öffentliche Darstellung. Sie wirken
+sofort nach dem Speichern.
+
+Einige technische Werte stehen nur in Dateien:
+
+| Datei | Linux | Windows | Inhalt |
+|---|---|---|---|
+| `bridge.properties` | `/etc/winlaufen-web/` | `C:\ProgramData\WinLaufen Web\` | alles aus Bridge Control, dazu Wettkampf-Zeitzone und Port von Bridge Control |
+| Live-Server-Datei | `/etc/winlaufen-web/live-server.env` | `C:\ProgramData\WinLaufen Web\live-server.properties` | Ports, Channel und Verbindungsschlüssel des Live Servers |
+
+Nach einer Änderung von Hand den betroffenen Dienst neu starten; unter Windows
+übernimmt erst ein erneuter Installerlauf die Live-Server-Datei. Upgrades
+erhalten beide Dateien und die importierte Startliste. Unter Linux zeigt
+`winlaufen-web --status` den Zustand; er meldet fehlende Dateien, prüft aber
+keine Werte.
+
+Alle Schlüssel mit zulässigen Werten, Standardwerten, Wirksamkeit und Rechten:
+[Konfiguration](docs/INSTALLATION.md#konfiguration).
+
 ## Schnittstelle für weitere Anwendungen
 
 Sprecher-Web stellt die empfangenen Live-Daten zusätzlich über eine
