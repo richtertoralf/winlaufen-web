@@ -600,6 +600,7 @@ Antwort mit `200`, `Content-Type: application/json; charset=utf-8`,
         "roundsOrTeamSize" : 1,
         "snapshot" : {
           "revision" : 41,
+          "roundOrHeat" : 0,
           "headers" : [ "Rang", "StNr", "Name", "Zeit" ],
           "rows" : [ [ "1", "201", "Mustermann, Max", "0:31:12,4" ] ]
         }
@@ -690,9 +691,29 @@ den es nicht gibt.
 `competition` enthält `type`, `evaluationMode`, `classCount`,
 `winSpringenPosition`, `roundOrHeat` und `classes`. Jede Klasse hat `index`,
 `name`, `roundsOrTeamSize` und `snapshot`; ein `snapshot` besteht aus
-`revision`, `headers` und `rows`, wobei `rows` eine Liste von Zeilen aus
-Zeichenketten ist. Spaltenüberschriften und Zellwerte werden unverändert von
-WinLaufen durchgereicht und hier nicht ausgewertet.
+`revision`, `roundOrHeat`, `headers` und `rows`, wobei `rows` eine Liste von
+Zeilen aus Zeichenketten ist. Spaltenüberschriften und Zellwerte werden
+unverändert von WinLaufen durchgereicht und hier nicht ausgewertet.
+
+**Runde/Durchgang.** WinLaufen liefert `roundOrHeat` mit jedem Ergebnisblock
+(Feld 7, [WinLaufen-Protokoll](WINLAUFEN_PROTOCOL.md#runde-durchgang-und-rundenzahl)).
+
+| Feld | Bedeutung |
+|---|---|
+| `classes[].snapshot.roundOrHeat` | Wert des Blocks, der **diese** Klassentabelle geliefert hat. `null`: Die Bridge hat ihn nicht geliefert (Bridge vor diesem Feld), nicht „Runde 0“. |
+| `competition.roundOrHeat` | Wert des zuletzt empfangenen Blocks, gleich welcher Klasse. Bleibt für bestehende Consumer. Die Tabellen der übrigen Klassen können aus Blöcken mit anderem Wert stammen. |
+| `classes[].roundsOrTeamSize` | Wert je Klasse aus dem Block, unverändert. |
+
+Sprecher-Web gibt die Werte nur weiter. Ob `roundOrHeat` null- oder einsbasiert
+ist und ob ein Block einen Zieleinlauf oder einen Rundendurchlauf meldet, ist
+nicht belegt und wird nicht abgeleitet, auch nicht aus dem Vergleich mit
+`roundsOrTeamSize`.
+
+**Bekannte Grenze:** Es gibt **eine Tabelle je Klasse**. Liefert WinLaufen für
+dieselbe Klasse den Stand einer anderen Runde, ersetzt er die Tabelle; ihr
+`roundOrHeat` nennt dann diese Runde. Tabellen je Klasse und Runde, wie sie das
+WinLaufen-Handbuch für den Sprecher-PC beschreibt, gibt es erst nach einer
+Aufzeichnung mit mehreren Runden ([#37](https://github.com/richtertoralf/winlaufen-web/issues/37)).
 
 **Snapshot-Semantik, kein Ereignisprotokoll.** Jeder Abruf liefert den
 **aktuell bekannten vollständigen Stand**. Zwischen zwei Abrufen können sich
@@ -842,13 +863,16 @@ werden kopiert. Uhren, Health und Darstellungsänderungen erzeugen keinen Hinwei
 {"lastSequence": 3, "hints": [
   {"sequence": 1, "sourceRevision": 7, "classIndex": 0,
    "className": "Testklasse", "rowIndex": 0,
-   "headers": ["Rang", "StNr", "Laufzeit"], "row": ["1", "12", "0:30:00,1"]},
+   "headers": ["Rang", "StNr", "Laufzeit"], "row": ["1", "12", "0:30:00,1"],
+   "roundOrHeat": 0},
   {"sequence": 2, "sourceRevision": 9, "classIndex": 0,
    "className": "Testklasse", "rowIndex": 1,
-   "headers": ["Rang", "StNr", "Laufzeit"], "row": ["2", "0012", "0:30:10,1"]},
+   "headers": ["Rang", "StNr", "Laufzeit"], "row": ["2", "0012", "0:30:10,1"],
+   "roundOrHeat": 0},
   {"sequence": 3, "sourceRevision": 10, "classIndex": 0,
    "className": "Testklasse", "rowIndex": 0,
-   "headers": ["Rang", "StNr", "Laufzeit"], "row": ["3", "12", "0:30:00,1"]}
+   "headers": ["Rang", "StNr", "Laufzeit"], "row": ["3", "12", "0:30:00,1"],
+   "roundOrHeat": 0}
 ]}
 ```
 
@@ -857,6 +881,12 @@ Die dritte Zeile könnte eine Korrektur sein. Sprecher-Web entscheidet das
 Zielankunft. `rowIndex` ist weder Rang noch Startlistenposition. `row: []` bedeutet, dass der Originalindex keine Zeile adressiert hat; auch daraus darf
 kein Einlauf erfunden werden. Aktuelle Ergebnisse kommen weiterhin aus
 `competition.classes[].snapshot`, nicht aus älteren Hinweiszeilen.
+
+`roundOrHeat` ist der unveränderte Wert desselben Ergebnisblocks, `null` bei
+einer Bridge vor diesem Feld. Ein Hinweis entsteht für jeden Block, also auch,
+wenn WinLaufen einen Rundendurchlauf meldet. Ein Hinweis ist deshalb nicht
+automatisch ein Zieleinlauf; was der Wert bedeutet, ist offen
+([Runde/Durchgang](#state--der-wettkampfstand)).
 
 Retention: höchstens **256 Hinweise** und **262.144 JSON-Zeichen** für den
 Verlauf; die ältesten Hinweise entfallen zuerst. `lastSequence` steigt auch
@@ -1172,6 +1202,10 @@ und eine, die es nicht tut:
 |---|---|
 | Bridge **0.4.0** → Live Server **neuer** | funktioniert. Die Zeitmessung fehlt schlicht: `time.clockSampleRevision`, `time.bridge` und `time.liveServer` sind `null`, alles andere ist vollständig. |
 | Bridge **neuer** → Live Server **0.4.0** | funktioniert **nicht**. Der ältere Live Server lehnt jeden Snapshot ab, schließt die Verbindung, die Bridge verbindet neu — und nichts wird veröffentlicht. |
+
+Dasselbe gilt für jedes spätere additive Contract-Feld, zuletzt `roundOrHeat`
+je Klassentabelle und je Einlaufhinweis: Von einer älteren Bridge kommt es als
+`null` an; eine neuere Bridge wird von einem älteren Live Server abgelehnt.
 
 Daraus ergibt sich eine verbindliche **Upgrade-Reihenfolge: erst der Live
 Server, dann die Bridge.** Bei einer All-in-One-Installation werden ohnehin beide

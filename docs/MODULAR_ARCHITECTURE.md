@@ -282,6 +282,7 @@ Normative Form (Feldnamen verbindlich, Beispielwerte illustrativ):
           "roundsOrTeamSize": 0,
           "snapshot": {
             "sourceRevision": 41,
+            "roundOrHeat": 0,
             "headers": ["Rang", "StNr"],
             "rows": [["1", "101"]]
           }
@@ -306,7 +307,9 @@ Normative Form (Feldnamen verbindlich, Beispielwerte illustrativ):
 ```
 
 - `null` zulässig für noch nicht empfangene `clock`, `competition`,
-  `currentFinish`, `message`.
+  `currentFinish`, `message`; `snapshot.roundOrHeat` und
+  `finishHistory.hints[].roundOrHeat` sind `null`, wenn eine ältere Bridge sie
+  nicht liefert.
 - Header, Zellen, Reihenfolge, Indizes, Clock, Nachrichten: ohne fachliche
   Korrektur übertragen.
 - Strukturelle Größenlimits gelten auch hier.

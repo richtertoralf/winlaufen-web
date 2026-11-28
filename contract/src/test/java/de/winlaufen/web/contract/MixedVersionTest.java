@@ -53,6 +53,18 @@ class MixedVersionTest {
     }
 
     /**
+     * Old bridge, new live server: a table without {@code roundOrHeat} arrives with the round
+     * unknown. It is never filled with the competition's value or with zero.
+     */
+    @Test
+    void aTableFromTheOlderBridgeHasNoRound() throws Exception {
+        SnapshotEnvelope value = ContractJson.readSnapshot(SNAPSHOT_0_4_0);
+        assertNull(value.state().competition().classes().get(0).snapshot().roundOrHeat());
+        assertEquals(0, value.state().competition().roundOrHeat());
+        assertTrue(ContractJson.snapshot(value).contains("\"roundOrHeat\":null"));
+    }
+
+    /**
      * A missing measurement must stay a missing measurement. Nothing may substitute a value here —
      * an invented sample would claim an observation that never happened.
      */

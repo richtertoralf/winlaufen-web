@@ -342,6 +342,7 @@ public final class PublicJson {
             rows.append(strings(row));
         }
         return "{\"revision\":" + snapshot.sourceRevision()
+                + ",\"roundOrHeat\":" + snapshot.roundOrHeat()
                 + ",\"headers\":" + strings(snapshot.headers())
                 + ",\"rows\":" + rows.append(']')
                 + "}";

@@ -149,7 +149,7 @@ public final class CanonicalStateStore {
         for (int index = 0; index < block.classNames().length; index++) {
             ClassSnapshot snapshot = sameCompetition ? prior.classes().get(index).snapshot() : null;
             if (index == block.classIndex()) {
-                snapshot = new ClassSnapshot(revision, block.headers(), block.rows());
+                snapshot = new ClassSnapshot(revision, block.headers(), block.rows(), block.roundOrHeat());
             }
             classes.add(new CompetitionClass(index, block.classNames()[index],
                     block.roundsOrTeamSize()[index], snapshot));
@@ -161,7 +161,8 @@ public final class CanonicalStateStore {
         FinishHistory history = old.state().finishHistory().append(revision, block.classIndex(),
                 block.classNames()[block.classIndex()], block.currentFinishIndex(), addressed.headers(),
                 block.currentFinishIndex() < addressed.rows().size()
-                        ? addressed.rows().get(block.currentFinishIndex()) : List.of());
+                        ? addressed.rows().get(block.currentFinishIndex()) : List.of(),
+                block.roundOrHeat());
         publish(revision,
                 new CanonicalState(old.state().sourceHealth(), old.state().clock(), competition,
                         new CurrentFinish(block.classIndex(), block.currentFinishIndex(), revision),

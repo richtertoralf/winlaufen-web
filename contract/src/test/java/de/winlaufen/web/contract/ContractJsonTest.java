@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,6 +26,31 @@ class ContractJsonTest {
 
         var ack = new AckEnvelope("local", "stream", 5);
         assertEquals(ack, ContractJson.readAck(ContractJson.ack(ack)));
+    }
+
+    /** The round of a table and of a hint travels unchanged; an absent one stays absent. */
+    @Test
+    void roundTripsTheDeliveredRoundOfTablesAndHints() throws Exception {
+        var withRound = new ClassSnapshot(4, List.of("Rang"), List.of(List.of("1")), 7);
+        var withoutRound = new ClassSnapshot(3, List.of("Rang"), List.of(List.of("1")));
+        var competition = new Competition("Standardwettkampf", 1, 2, 0, 7,
+                List.of(new CompetitionClass(0, "A", 0, withoutRound),
+                        new CompetitionClass(1, "B", 0, withRound)));
+        var history = FinishHistory.empty()
+                .append(3, 0, "A", 0, List.of("Rang"), List.of("1"), null)
+                .append(4, 1, "B", 0, List.of("Rang"), List.of("1"), 7);
+        var envelope = new SnapshotEnvelope("local", "stream", 4,
+                new CanonicalState(SourceHealth.CONNECTED, null, competition,
+                        new CurrentFinish(1, 0, 4), null, null, history),
+                PresentationConfig.defaults());
+
+        var read = ContractJson.readSnapshot(ContractJson.snapshot(envelope));
+
+        assertEquals(envelope, read);
+        assertEquals(7, read.state().competition().classes().get(1).snapshot().roundOrHeat());
+        assertNull(read.state().competition().classes().get(0).snapshot().roundOrHeat());
+        assertNull(read.state().finishHistory().hints().get(0).roundOrHeat());
+        assertEquals(7, read.state().finishHistory().hints().get(1).roundOrHeat());
     }
 
     @Test
