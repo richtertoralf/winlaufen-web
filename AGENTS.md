@@ -106,6 +106,12 @@ Issue. Ein Ziel ist kein Auftrag, es nebenbei oder im Vorgriff umzusetzen.
   Testinfrastruktur neben der vorhandenen braucht einen konkret
   begründeten Bedarf. Eine Simulation belegt Verhalten, kein Quellformat:
   Was keine Quelle belegt liefert, bleibt unbekannt.
+- Issues: Der Agent dieses Repositorys schließt ein Issue, sobald der
+  zugehörige PR gemergt ist und weder eine Prüfung noch ein Feldtest noch
+  eine Abnahme durch den Produktverantwortlichen aussteht. Sonst bleibt das
+  Issue offen und nennt, was vorliegt. Der PR-Text verwendet `Closes #…`.
+- Priorität: Sie steht nur in `docs/PRIORITAETEN.md`. Issues tragen keine
+  Prioritätslabels.
 
 ## Dokumentationsregel
 
