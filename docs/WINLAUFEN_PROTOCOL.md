@@ -14,6 +14,9 @@ Evidenz und Herkunft werden bewusst unterschieden:
 - Offizielle Dokumentation: die Beschreibung des WinLaufen-Sprecher-PC-
   LAN-Protokolls. Sie ist Quelle für dokumentierte Objektbedeutungen, das
   Quelldokument selbst liegt derzeit aber nicht in diesem Repository.
+- Herstellerhandbuch: das [WinLaufen-Handbuch](#winlaufen-handbuch) für die
+  fachlichen Abläufe in WinLaufen, also wann Daten erfasst, angezeigt und an
+  den Sprecher-PC übertragen werden. Es beschreibt kein Wire-Format.
 - Aufgezeichnete Wire-Evidenz: die unveränderlichen PCAP-Fixtures unter
   `testdata/protocol/`, einschließlich serialisierter Typen, Objektreihenfolge,
   Werte und TCP-Richtung. Widersprechen sich aufgezeichnete Daten und Annahme,
@@ -291,7 +294,8 @@ jeweils Standardwettkampf, ist `roundOrHeat` (Feld 7) `0` und
 `roundsOrTeamSize` (Feld 4) für jede Klasse `0`. Ein Wettkampf mit mehreren
 Runden, eine Staffel oder eine Verfolgung ist nicht aufgezeichnet.
 
-WinLaufen-Handbuch, Version 20.0 (Fachablauf, kein Wire-Format):
+[WinLaufen-Handbuch](#winlaufen-handbuch), Version 20.0 (Fachablauf, kein
+Wire-Format):
 
 - Der Sprecher-PC zeigt den „Zwischenstand für den aktuellen Ziel- oder
   Rundendurchlauf“ und navigiert „durch die Zwischenstände aller Klassen und
@@ -421,6 +425,62 @@ testdata/protocol/biathlon/session.pcapng
 SHA256:
 
 c43dcf63640de2b55e3f1864afb84dd210b10f740fcc622da5666fdf13397ec5
+
+### Datenfluss der Schießergebnisse laut Handbuch
+
+```text
+Schießstandcomputer ──seriell──► WinLaufen ──ENTER: neuer Zwischenstand──► Sprecher-PC-Schnittstelle ──► Sprecher-Web
+```
+
+Seitenangaben beziehen sich auf das [WinLaufen-Handbuch](#winlaufen-handbuch),
+Version 20.0. Die Tabelle gibt nur wieder, was das Handbuch beschreibt.
+
+| Stufe | Aussage des Handbuchs | Fundstelle |
+|---|---|---|
+| Datenübernahme vom Schießstand | Die HoRa 2000 der Fa. Kleinekathöfer ist seriell angeschlossen. WinLaufen wertet aus den übermittelten Daten Startnummer, Position (Staffelwettkampf), Runde und Schießfehleranzahl aus und trägt sie in das Schießfehlerprotokoll ein. Das Terminal P0158 überträgt Schießfehler rundenweise oder am Ende des Wettkampfs en bloc. | Kap. 4.7.11, S. 78; Kap. 1.1, S. 8; Kap. 3.8.1, S. 42 |
+| Interne Verarbeitung | Das Schießfehlerprotokoll gehört zu den Zeitenprotokollen der Abwicklung. Ein Schießfehlerfeld nimmt eine Zahl von 0 bis 5 auf. ENTER im Schießfehlerprotokoll sucht vorhandene Einträge zur Startnummer. | Kap. 4.3.1, S. 53, 55–56 |
+| Zwischenstandserstellung | Der Zwischenstand wird für jeden Ziel- oder Rundendurchlauf nach ENTER neu berechnet und in der oberen Bildschirmhälfte angezeigt. Liefert ein Gerät Zeiten mit Startnummern, erneuert er sich nur nach ENTER. Bei einem normalen Wettkampf ist die Rundenzahl 1; eine andere Rundenzahl nur bei zusätzlich aufgenommenen Rundenzeiten. Option: „Nach Eintreffen neuer Zeiten automatisch {ENTER} auslösen“. | Kap. 2.1.7, S. 14; Kap. 3.7.3, S. 39; Kap. 4.3.1, S. 54–55; Kap. 3.7.6, S. 40 |
+| Weitergabe über die Sprecher-PC-Schnittstelle | „Sobald mit der Taste ENTER ein neuer Zwischenstand in der oberen Hälfte dieser Ansichten erstellt wird, findet gleichzeitig die Übertragung des aktuellen Zwischenstandes an alle Client-Computer statt. Weiterhin wird ggf. die Uhrzeit übertragen.“ Nach einem Runden- oder Zieldurchlauf wird der aktuelle Zwischenstand mit ENTER an den Sprecher-PC gesendet. | Kap. 3.7.6, S. 40–41; Kap. 4.7.7, S. 72 |
+
+Folgerungen für Sprecher-Web:
+
+- Laut Handbuch überträgt WinLaufen an den Sprecher-PC den Zwischenstand, und
+  zwar wenn er nach einem Ziel- oder Rundendurchlauf mit ENTER entsteht. Für
+  den Eintrag ins Schießfehlerprotokoll beschreibt das Handbuch weder einen
+  Zwischenstand noch eine Übertragung. Der Biathlon-Mitschnitt zeigt dasselbe.
+- Eine Anzeige von Schießergebnissen während der laufenden Schießeinlage ist
+  über diese Schnittstelle deshalb nicht vorgesehen.
+- Von der Schießanlage wertet WinLaufen laut Handbuch Startnummer, Position,
+  Runde und Schießfehleranzahl aus. Einzelschüsse oder Scheibenzustände nennt
+  das Handbuch weder beim Empfang noch bei der Weitergabe.
+
+Nicht im Handbuch beschrieben und deshalb offen:
+
+- wann die HoRa 2000 ihre Daten während der Schießeinlage sendet und welchen
+  HoRa-Ausgang WinLaufen verwendet,
+- welche Spalten der übertragene Zwischenstand enthält, insbesondere ob die
+  Spalte `Schießen` die Felder des Schießfehlerprotokolls wiedergibt; die
+  beobachteten Werte (einstellige Zahlen 0 bis 5) sind damit vereinbar,
+- ob ein Zwischenstand bei einem Rundendurchlauf (zusätzliche Zeitnahme) die
+  bis dahin eingetragenen Schießfehler enthält; das wäre per Mitschnitt zu
+  prüfen.
+
+### WinLaufen-Handbuch
+
+| Angabe | Wert |
+|---|---|
+| Ablage | [`docs/referenz/Handbuch WinLaufen.pdf`](referenz/Handbuch%20WinLaufen.pdf), unverändertes Original |
+| Titel | Handbuch WinLaufen – Auswertungsprogramm für Skilanglauf- und Biathlonwettkämpfe |
+| Version, Datum | Version 20.0, Dezember 2025 (PDF erstellt 04.12.2025) |
+| Herstellerin | Dipl.-Ing. Susanne Bohnsack, Softwareentwicklung, Göttingen; © 2006–2025 |
+| Bezugsquelle | Downloadseite `http://www.winlaufen.de/download.htm`, Datei `http://www.winlaufen.de/dateien/Handbuch%20WinLaufen.pdf` |
+| Datei | 84 Seiten, 1 000 225 Bytes, Serverstand 08.12.2025, abgerufen am 02.11.2026 |
+| SHA256 | `f2e446c7dbf70882617c000badee260ba799dd651a10da2dfe4ca40239d36c40` |
+
+Das Handbuch wurde dem Projekt nach Angabe des Projektverantwortlichen für
+diesen Zweck zur Verfügung gestellt (Stand 02.11.2026). Die Datei bleibt
+unverändert; eine neuere Handbuchversion wird als zusätzliche Datei mit eigener
+Zeile in dieser Tabelle aufgenommen.
 
 ## Textnachrichten
 

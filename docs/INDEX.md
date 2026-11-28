@@ -27,7 +27,7 @@ jeweilige Referenz.
 | [Entwicklung](DEVELOPMENT.md) | Voraussetzungen, Quellcode-Build, Entwicklungsinstallation, Git-Update, Entwicklungsbetrieb, Tests und technische Namen |
 | [Architektur: Ist-Stand](ARCHITECTURE.md) | Umsetzung und Modulgrenzen; zusammen mit den Architekturentscheidungen lesen |
 | [Architekturentscheidungen](MODULAR_ARCHITECTURE.md) | verbindliche Architektur, interne Zustands- und Transportkonzepte sowie Begründungen |
-| [WinLaufen-Protokoll](WINLAUFEN_PROTOCOL.md) | Quellprotokoll und reale Telegrammbelege |
+| [WinLaufen-Protokoll](WINLAUFEN_PROTOCOL.md) | Quellprotokoll, reale Telegrammbelege und Datenfluss laut [WinLaufen-Handbuch](referenz/Handbuch%20WinLaufen.pdf) |
 | [Produktspezifikation](PRODUCT_SPEC.md) | fachlicher Umfang, Anforderungen und technische Rahmenbedingungen |
 | [Abnahmetests](SMOKE_TESTS.md) | manuelle Tests, historische Testprotokolle und reale Nachweise |
 | [Technischer Projektstatus](STATUS.md) | Versionshistorie, offene Punkte und Grenzen des Abnahmestands |

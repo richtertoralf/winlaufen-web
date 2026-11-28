@@ -13,11 +13,12 @@ Repository und Linux-Kommando heißen nach dieser Zeitnahmesoftware
 
 **Status:** Im Praxistest – bei einem realen Wettkampf in Oederan am
 13.09.2026 im End-to-End-Betrieb mit Uhr- und Ergebnisdaten erprobt
-([Projektstatus](docs/STATUS.md)).
+([Projektstatus](docs/STATUS.md)). Die Biathlon-Darstellung ist bisher nur mit
+Demo-Daten aus WinLaufen geprüft.
 
 `WinLaufen → Sprecher-Web → Browser`
 
-<img src="WinLaufenSprecherWEB.png" alt="Beispiel vom Wettkampfbetrieb: WinLaufen, Sprecher-PC, Live-Ergebnisse im Browser und die Einrichtung von Sprecher-Web" width="100%">
+<img src="WinLaufenSprecherWEB.png" alt="Beispiel mit einem Testwettkampf: WinLaufen, Sprecher-PC, Live-Ergebnisse im Browser und die Einrichtung von Sprecher-Web" width="100%">
 
 ## Was kann Sprecher-Web?
 
@@ -26,7 +27,10 @@ Ergebnistabellen auf dem eigenen Notebook oder Tablet, unabhängig vom
 Zeitnahme-PC.
 
 **Für Trainer und Zuschauer:** Ergebnisse und Startlisten nach Klassen im
-Browser des Smartphones, ohne App; erprobt für Lauf und Biathlon.
+Browser des Smartphones, ohne App. Bei Biathlon erscheint die Spalte
+„Schießen“ mit dem Zieleinlauf, so wie WinLaufen sie überträgt; während der
+Schießeinlage überträgt die Schnittstelle keine Schießergebnisse
+([Hintergrund](docs/WINLAUFEN_PROTOCOL.md#datenfluss-der-schießergebnisse-laut-handbuch)).
 
 **Für Veranstalter:**
 
@@ -281,6 +285,6 @@ Sprecher-Web steht unter der [GNU AGPL-3.0](LICENSE).
 
 **Möglichkeiten schaffen.** Sprecher-Web gehört zu RICHTER.PROJECTS: Die
 Ergebnisse, die WinLaufen ohnehin erzeugt, werden für alle im
-Veranstaltungsnetz nutzbar. Das Projekt ist für Lauf und Biathlon erprobt und
-offen für Vereine, Veranstalter und Entwickler, die es mit uns weiterentwickeln
-möchten.
+Veranstaltungsnetz nutzbar. Das Projekt ist bei einem realen Wettkampf
+erprobt, für Biathlon bisher mit Demo-Daten, und offen für Vereine,
+Veranstalter und Entwickler, die es mit uns weiterentwickeln möchten.
