@@ -296,6 +296,19 @@ verfügbar**.
 Nach einem neuen Import erscheint die neue Startliste von selbst — Sie müssen
 den Browser nicht neu laden und keinen Dienst neu starten.
 
+### Biathlon: Wann erscheinen Schießergebnisse?
+
+Schießergebnisse erscheinen in der Spalte **Schießen** mit dem Zieleinlauf.
+WinLaufen überträgt Daten an Sprecher-Web nur, wenn ein neuer Zwischenstand
+entsteht, also bei einem Ziel- oder Rundendurchlauf. Für den Eintrag ins
+Schießfehlerprotokoll beschreibt das WinLaufen-Handbuch keine Übertragung, und
+im Test wurde auch keine beobachtet. Während der laufenden
+Schießeinlage zeigt Sprecher-Web deshalb keine Schießergebnisse. Von der
+Schießanlage übernimmt WinLaufen laut Handbuch die Schießfehleranzahl je Runde;
+Einzelschüsse werden dort nicht genannt. Ob ein Rundendurchlauf bereits die
+Schießfehler mitbringt, ist noch nicht geprüft. Belege aus dem WinLaufen-Handbuch:
+[Datenfluss der Schießergebnisse](WINLAUFEN_PROTOCOL.md#datenfluss-der-schießergebnisse-laut-handbuch).
+
 ---
 
 ## 9. Die angezeigte Wettkampfzeit
