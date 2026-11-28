@@ -93,11 +93,19 @@ Issue. Ein Ziel ist kein Auftrag, es nebenbei oder im Vorgriff umzusetzen.
   zeitliche Abläufe, Zustandswechsel und Zusammenspiel. Weitere
   Wettkampfdaten erst anfordern, wenn eine konkrete Prüfsituation nicht
   abgedeckt ist; nicht auf einen Feldtest warten, wo Simulation reicht.
-  Erweiterungen vorhandener Simulatoren aufgrund konkret nachgewiesener
-  Testlücken sind zulässig. Neue eigenständige Simulatoren oder parallele
-  Testinfrastrukturen benötigen einen konkret begründeten Bedarf. Eine
-  Simulation belegt Verhalten, kein Quellformat: Was keine Quelle belegt
-  liefert, bleibt unbekannt.
+  Die eigenen Simulatoren eines Repositorys dienen der Entwicklung:
+  schnelle, gezielte, wiederholbare Tests, auch für Sonderfälle, Fehler und
+  Last. Sie werden erhalten, genutzt, gepflegt und nach konkretem Bedarf
+  weiterentwickelt; bei Bedarf entsteht ein neuer. Ein realitätsferner
+  Ablauf wird dort verbessert. Der Wettkampfsimulator der Produktfamilie
+  dient vorbereiteten Wettkampfsimulationen und Proben über mehrere
+  Anwendungen, von Hand, per CLI oder Skript. Er ergänzt die eigenen
+  Simulatoren und ersetzt sie nicht: Überschneidungen sind zulässig, auch
+  gegenüber „Einfachheit“; niemand muss ihn einsetzen oder auf ihn warten;
+  ein gemeinsames Zeitmodell ist nicht verlangt. Eine weitere
+  Testinfrastruktur neben der vorhandenen braucht einen konkret
+  begründeten Bedarf. Eine Simulation belegt Verhalten, kein Quellformat:
+  Was keine Quelle belegt liefert, bleibt unbekannt.
 
 ## Dokumentationsregel
 
