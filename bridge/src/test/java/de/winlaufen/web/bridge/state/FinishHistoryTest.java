@@ -45,7 +45,7 @@ class FinishHistoryTest {
 
     @Test void oversizedHintDoesNotCreateUnboundedHistory() {
         var history = FinishHistory.empty().append(1, 0, "Test", 0,
-                List.of("StNr"), List.of("x".repeat(FinishHistory.MAX_JSON_CHARS)));
+                List.of("StNr"), List.of("x".repeat(FinishHistory.MAX_JSON_CHARS)), 0);
         assertEquals(1, history.lastSequence());
         assertTrue(history.hints().isEmpty());
     }

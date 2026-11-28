@@ -7,6 +7,7 @@ import de.winlaufen.web.contract.ClassSnapshot;
 import de.winlaufen.web.contract.Competition;
 import de.winlaufen.web.contract.CompetitionClass;
 import de.winlaufen.web.contract.CurrentFinish;
+import de.winlaufen.web.contract.FinishHistory;
 import de.winlaufen.web.contract.PresentationConfig;
 import de.winlaufen.web.contract.SourceHealth;
 import de.winlaufen.web.liveserver.state.ClockMeasurement;
@@ -75,6 +76,34 @@ class PublicJsonTest {
 
         assertTrue(parsed.get("state").get("competition").get("classes").get(0).get("snapshot").isNull());
         assertEquals(3, parsed.get("state").get("competition").get("roundOrHeat").asInt());
+        assertTrue(parsed.get("state").get("competition").get("classes").get(1).get("snapshot")
+                .get("roundOrHeat").isNull(), "an older bridge supplied no round");
+    }
+
+    @Test
+    void eachTableAndHintNamesTheRoundOfItsOwnBlock() throws Exception {
+        var competition = new Competition("Lauf", 0, 2, 0, 0,
+                List.of(new CompetitionClass(0, "A", 0,
+                                new ClassSnapshot(1, List.of("Rang"), List.of(List.of("1")), 2)),
+                        new CompetitionClass(1, "B", 0,
+                                new ClassSnapshot(2, List.of("Rang"), List.of(List.of("1")), 0))));
+        var history = FinishHistory.empty()
+                .append(1, 0, "A", 0, List.of("Rang"), List.of("1"), 2)
+                .append(2, 1, "B", 0, List.of("Rang"), List.of("1"), 0);
+        var state = new CanonicalState(SourceHealth.CONNECTED, null, competition,
+                new CurrentFinish(1, 0, 2), null, null, history);
+
+        JsonNode parsed = MAPPER.readTree(PublicJson.state(
+                new PublishedState(1, "s", 2, state, PresentationConfig.defaults(),
+                        SourceHealth.CONNECTED, true, 1_000, 1_000, ClockMeasurement.none())));
+
+        JsonNode classes = parsed.get("state").get("competition").get("classes");
+        assertEquals(2, classes.get(0).get("snapshot").get("roundOrHeat").asInt());
+        assertEquals(0, classes.get(1).get("snapshot").get("roundOrHeat").asInt());
+        assertEquals(0, parsed.get("state").get("competition").get("roundOrHeat").asInt());
+        JsonNode hints = parsed.get("state").get("finishHistory").get("hints");
+        assertEquals(2, hints.get(0).get("roundOrHeat").asInt());
+        assertEquals(0, hints.get(1).get("roundOrHeat").asInt());
     }
 
     @Test

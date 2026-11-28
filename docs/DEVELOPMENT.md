@@ -135,7 +135,8 @@ Unter Windows die beiden JAR-Pfade im Classpath mit `;` trennen. Optional kann
 ein vorhandenes temporäres Ausgabeverzeichnis übergeben werden; dort landen
 synthetische Read-API-Antworten für Consumer-Integrationstests. Geprüft werden
 drei Ergebnisblöcke innerhalb einer Sekunde, angehaltener Live-Ingest,
-HTTP-Verlauf, Bridge-/Browser-Reconnect und ein originaler Korrekturhinweis.
+HTTP-Verlauf, `roundOrHeat` je Klassentabelle und je Hinweis,
+Bridge-/Browser-Reconnect und ein originaler Korrekturhinweis.
 Die begrenzte Retention wird zusätzlich durch `FinishHistoryTest` geprüft.
 
 Installer-Prüfungen ohne root und ohne systemd:

@@ -41,8 +41,9 @@ public class FinishHistorySmoke {
         var bytes = new ByteArrayOutputStream();
         try (var output = new ObjectOutputStream(bytes)) {
             for (int i = 0; i < tables.length; i++) {
+                // Round/heat differs per block so the whole chain must carry each block's own value.
                 for (Object field : new Object[]{"Standardwettkampf", 1, 1,
-                        new String[]{"Testklasse"}, new int[]{0}, 0, 0, 0, i == 2 ? 1 : 0})
+                        new String[]{"Testklasse"}, new int[]{0}, 0, 0, i, i == 2 ? 1 : 0})
                     output.writeObject(field);
                 for (String[] row : tables[i]) output.writeObject(row);
                 output.writeObject("tabelle"); output.writeObject(HEADERS); output.writeObject("ende");
@@ -111,6 +112,8 @@ public class FinishHistorySmoke {
             check(hints.get(0).get("row").get(1).asText().equals("12"), "First original pointer");
             check(hints.get(1).get("row").get(1).asText().equals("A12"), "Second original pointer");
             check(hints.get(2).get("row").get(1).asText().equals("0012"), "Third original pointer");
+            for (int i = 0; i < 3; i++) check(hints.get(i).get("roundOrHeat").asInt() == i, "Hint keeps its block round");
+            check(state.at("/state/competition/classes/0/snapshot/roundOrHeat").asInt() == 2, "Table keeps its block round");
             save(args, "burst", state);
             live.shutdown();
             feed(store, new String[][][]{{{"9", "12", "0:30:00,1"}, {"1", "A12", "0:29:00,0"}, {"2", "0012", "0:29:30,0"}}});
@@ -127,7 +130,7 @@ public class FinishHistorySmoke {
                 JsonNode snapshot = JSON.readTree(browser.messages.poll(3, TimeUnit.SECONDS));
                 check(snapshot.at("/state/finishHistory/hints").size() == 4, "Browser reconnect gets history");
             } finally { browser.closeBlocking(); }
-            System.out.println("PASS: original burst, slow ingest, HTTP history, bridge/browser reconnect, original correction");
+            System.out.println("PASS: original burst, slow ingest, HTTP history, round per table and hint, bridge/browser reconnect, original correction");
         } finally { live.shutdown(); }
     }
 }

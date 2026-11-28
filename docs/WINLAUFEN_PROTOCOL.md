@@ -284,6 +284,38 @@ Aktueller Einlauf:
 - nullbasierter Index in die aktuell übertragenen Ergebniszeilen,
 - kein Rang.
 
+## Runde, Durchgang und Rundenzahl
+
+Aufgezeichnet: In allen drei Aufzeichnungen (Lauf, Biathlon, WinLaufen 14),
+jeweils Standardwettkampf, ist `roundOrHeat` (Feld 7) `0` und
+`roundsOrTeamSize` (Feld 4) für jede Klasse `0`. Ein Wettkampf mit mehreren
+Runden, eine Staffel oder eine Verfolgung ist nicht aufgezeichnet.
+
+WinLaufen-Handbuch, Version 20.0 (Fachablauf, kein Wire-Format):
+
+- Der Sprecher-PC zeigt den „Zwischenstand für den aktuellen Ziel- oder
+  Rundendurchlauf“ und navigiert „durch die Zwischenstände aller Klassen und
+  Runden bzw. Durchgänge“ (Kap. 3.7.6, S. 40). Ein Zwischenstand entsteht nach
+  ENTER für jeden Ziel- oder Rundendurchlauf (Kap. 3.7.3, S. 39).
+- Die Rundenzahl gilt je Klasse und meint die Zahl der Zeitnahmen je Läufer;
+  im normalen Wettkampf ist sie 1 (Kap. 4.2.6, S. 58; Kap. 3.7.3, S. 39).
+- Staffel: Die Rundenzahl entspricht in der Regel der Zahl der Läufer je
+  Staffel; die Position im Zielzeitenprotokoll ist die Rundennummer
+  (Kap. 2.8, S. 23–25).
+- Jagdstart: „Beim Jagdstart zeigt der Zwischenstand immer den Rückstand auf
+  den Bestplatzierten des 1. Rennens an.“ (Kap. 2.7, S. 22)
+
+Folgerungen: Feld 4 ist je Klasse, wie die Rundenzahl. Dass es die
+Rundenzahl ist, ist nicht belegt: Aufgezeichnet ist `0`, laut Handbuch ist die
+Rundenzahl im normalen Wettkampf 1. Ob Feld 7 null- oder einsbasiert ist und
+woran ein Zieleinlauf von einem Rundendurchlauf zu unterscheiden ist, belegt
+erst eine Aufzeichnung mit mehreren Runden.
+
+Umgesetzt: Sprecher-Web gibt `roundOrHeat` je Klassentabelle und je
+Einlaufhinweis weiter, dazu wie bisher je Wettkampf den Wert des letzten
+Blocks. Es hält eine Tabelle je Klasse; der Stand einer anderen Runde ersetzt
+sie ([API](API.md#state--der-wettkampfstand)).
+
 ## Snapshot-Semantik
 
 Verifiziert:
@@ -429,6 +461,8 @@ Beispiele:
 - weitere Auswertungsmodi,
 - Staffel-/Mannschaftsspezifische Zeilenformate,
 - Verfolgungsspezifisches Verhalten,
+- Bedeutung und Zählweise von `roundOrHeat` und `roundsOrTeamSize`
+  ([Runde, Durchgang und Rundenzahl](#runde-durchgang-und-rundenzahl)),
 - Darstellungen von DNS/DNF/DSQ,
 - Snapshot-Verhalten nach erfolgreichem Reconnect,
 - künftiger Startlistentransport,

@@ -182,6 +182,13 @@ Ein Snapshot einer Bridge `0.4.3` wird mit
 Ein Snapshot ohne dieses Feld liest der neue Live Server mit
 `finishHistory: null`.
 
+Die nächste Version mit `roundOrHeat` je Klassentabelle und je Einlaufhinweis
+verlangt dieselbe Reihenfolge. Einmalig gegen den Contract des Tags `v0.4.5`
+gemessen (28.11.2026): Ein Snapshot der neuen Bridge wird mit
+`UnrecognizedPropertyException: Unrecognized field "roundOrHeat"` abgelehnt.
+Ein Snapshot ohne diese Felder liest der neue Live Server mit
+`roundOrHeat: null`.
+
 Die `schemaVersion` bleibt dabei bewusst `1`. Eine Erhöhung würde die
 funktionierende Richtung ebenfalls zerstören, weil die Envelope-Prüfung auf
 Gleichheit vergleicht: Ein neuer Live Server würde dann jede `0.4.0`-Bridge
